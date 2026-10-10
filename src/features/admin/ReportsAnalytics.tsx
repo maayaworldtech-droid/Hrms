@@ -46,26 +46,20 @@ export const ReportsAnalytics: React.FC = () => {
       'Employee Code',
       'Full Name',
       'Email',
-      'Department',
-      'Designation',
-      'Role',
+      'Location',
       'Joining Date',
-      'Status',
-      'Annual CTC (INR)',
+      'Monthly Salary (INR)',
     ];
     const rows = employees.map((emp) => [
       emp.employeeCode,
       emp.fullName,
       emp.email,
-      emp.departmentName,
-      emp.designation,
-      emp.role,
+      emp.location,
       emp.joiningDate,
-      emp.status,
-      emp.ctcAnnual,
+      emp.monthlySalary || Math.round((emp.ctcAnnual || 360000) / 12),
     ]);
 
-    exportToCSV('pulse_workforce_master_report', headers, rows);
+    exportToCSV('maaya_workforce_master_report', headers, rows);
     dispatch(
       addToast({
         type: 'success',

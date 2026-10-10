@@ -206,7 +206,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
 
     const employeeMatches = employees.map((emp) => ({
       id: `emp-${emp.id}`,
-      title: `${emp.fullName} (${emp.employeeCode}) — ${emp.designation}`,
+      title: `${emp.fullName} (${emp.employeeCode}) — ${emp.location} Center`,
       category: 'Employees Directory',
       icon: Users,
       action: () => {

@@ -33,7 +33,7 @@ export const Login: React.FC = () => {
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: 'admin@pulsehrms.com',
+      email: 'admin@maayaworld.com',
       password: 'password123',
     },
   });
@@ -99,11 +99,11 @@ export const Login: React.FC = () => {
     <div className="min-h-screen bg-[#F4F6F9] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         {/* Maaya World Official Logo */}
-        <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-white shadow-sm border border-slate-200/90 mb-4">
+        <div className="flex items-center justify-center mb-4">
           <img
             src={maayaLogo}
             alt="Maaya World Logo"
-            className="h-10 w-auto object-contain"
+            className="h-12 w-auto object-contain"
           />
         </div>
         <h2 className="text-xl font-bold tracking-tight text-slate-900">
@@ -130,7 +130,7 @@ export const Login: React.FC = () => {
             <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
-                onClick={() => handleQuickLogin('ADMIN', 'admin@pulsehrms.com')}
+                onClick={() => handleQuickLogin('ADMIN', 'admin@maayaworld.com')}
                 className="flex flex-col items-center justify-center p-2 rounded-lg border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100/60 text-slate-800 transition-colors cursor-pointer"
               >
                 <span className="text-xs font-bold text-indigo-700">Admin</span>
@@ -138,7 +138,7 @@ export const Login: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickLogin('MANAGER', 'manager@pulsehrms.com')}
+                onClick={() => handleQuickLogin('MANAGER', 'manager@maayaworld.com')}
                 className="flex flex-col items-center justify-center p-2 rounded-lg border border-amber-200 bg-amber-50/50 hover:bg-amber-100/60 text-slate-800 transition-colors cursor-pointer"
               >
                 <span className="text-xs font-bold text-amber-700">Manager</span>
@@ -146,7 +146,7 @@ export const Login: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickLogin('EMPLOYEE', 'employee@pulsehrms.com')}
+                onClick={() => handleQuickLogin('EMPLOYEE', 'employee@maayaworld.com')}
                 className="flex flex-col items-center justify-center p-2 rounded-lg border border-emerald-200 bg-emerald-50/50 hover:bg-emerald-100/60 text-slate-800 transition-colors cursor-pointer"
               >
                 <span className="text-xs font-bold text-emerald-700">Employee</span>

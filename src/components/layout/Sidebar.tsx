@@ -137,16 +137,22 @@ export const Sidebar: React.FC = () => {
           sidebarCollapsed ? 'w-18' : 'w-62'
         } ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
-        {/* Brand Header with Maaya World Logo only (No extra text) */}
-        <div className="flex h-16 items-center justify-between px-3.5 border-b border-slate-800/70 bg-[#060B15]">
+        {/* Brand Header with Maaya World Logo */}
+        <div className="flex h-16 items-center justify-between px-5 border-b border-slate-800/80 bg-[#070D19]">
           <div className={`flex items-center ${sidebarCollapsed ? 'justify-center w-full' : 'justify-start'} overflow-hidden`}>
-            <div className={`rounded-xl bg-white flex items-center justify-center shrink-0 shadow-xs ${sidebarCollapsed ? 'w-10 h-10 p-1.5' : 'h-10 px-3 py-1.5'}`}>
+            {sidebarCollapsed ? (
+              <img
+                src="/favicon.png"
+                alt="Maaya World Logo"
+                className="h-8 w-8 object-contain"
+              />
+            ) : (
               <img
                 src={maayaLogo}
                 alt="Maaya World Logo"
-                className="h-full w-auto max-w-full object-contain"
+                className="h-9 w-auto max-w-[170px] object-contain drop-shadow-[0_0_12px_rgba(227,58,53,0.25)]"
               />
-            </div>
+            )}
           </div>
 
           {/* Mobile Close Button */}

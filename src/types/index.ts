@@ -31,7 +31,7 @@ export interface Employee {
   monthlySalary: number;
   ctcAnnual: number;
   joiningDate: string;
-  employmentType: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN';
+  employmentType?: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN';
   role?: UserRole;
   departmentId?: string;
   departmentName?: string;
@@ -46,7 +46,7 @@ export interface Employee {
     panNumber: string;
     uanNumber: string;
   };
-  emergencyContact: {
+  emergencyContact?: {
     name: string;
     relationship: string;
     phone: string;

@@ -6,7 +6,6 @@ import { api } from '@/services/api';
 import { Employee } from '@/types';
 import { Card, CardHeader, CardContent } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
-import { Badge } from '@/components/common/Badge';
 import { Input } from '@/components/common/Input';
 import { formatDate } from '@/utils/formatters';
 import {
@@ -100,7 +99,7 @@ export const EmployeeProfile: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Employee Profile & Directory</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Personal particulars, organizational designation, reporting hierarchy & statutory credentials
+            Personal particulars, center location & statutory credentials
           </p>
         </div>
       </div>
@@ -115,12 +114,8 @@ export const EmployeeProfile: React.FC = () => {
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-2.5">
               <h2 className="text-xl font-bold text-slate-900">{employee.fullName}</h2>
-              <Badge variant="purple" size="md">{employee.role}</Badge>
-              <Badge variant="success" size="md" dot>{employee.status}</Badge>
+              <span className="text-xs font-semibold text-indigo-600">{employee.location} Center</span>
             </div>
-            <p className="text-xs text-slate-600 mt-1">
-              {employee.designation} • {employee.departmentName}
-            </p>
             <div className="flex flex-wrap items-center gap-4 mt-2.5 text-xs text-slate-500">
               <span className="flex items-center gap-1.5 font-mono">
                 <Briefcase className="w-3.5 h-3.5 text-slate-400" />
@@ -128,7 +123,7 @@ export const EmployeeProfile: React.FC = () => {
               </span>
               <span className="flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                {employee.location}
+                {employee.location} Center
               </span>
               <span className="flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-slate-400" />
@@ -145,26 +140,26 @@ export const EmployeeProfile: React.FC = () => {
           {/* Work Particulars */}
           <Card>
             <CardHeader
-              title="Employment & Role Architecture"
-              subtitle="Corporate hierarchy and placement records"
+              title="Placement & Details"
+              subtitle="Center location and employment records"
               icon={<Briefcase className="w-4 h-4" />}
             />
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div>
-                <span className="text-slate-500">Department:</span>
-                <p className="font-semibold text-slate-900 mt-0.5">{employee.departmentName}</p>
+                <span className="text-slate-500">Center Location:</span>
+                <p className="font-semibold text-slate-900 mt-0.5">{employee.location} Center</p>
               </div>
               <div>
                 <span className="text-slate-500">Employment Type:</span>
                 <p className="font-semibold text-slate-900 mt-0.5">{employee.employmentType.replace('_', ' ')}</p>
               </div>
               <div>
-                <span className="text-slate-500">Reporting Manager:</span>
-                <p className="font-semibold text-slate-900 mt-0.5">{employee.managerName || 'Rajesh Kumar (Lead)'}</p>
+                <span className="text-slate-500">Joining Date:</span>
+                <p className="font-semibold text-slate-900 mt-0.5">{formatDate(employee.joiningDate)}</p>
               </div>
               <div>
-                <span className="text-slate-500">Primary Work Location:</span>
-                <p className="font-semibold text-slate-900 mt-0.5">{employee.location}</p>
+                <span className="text-slate-500">Staff Code:</span>
+                <p className="font-semibold font-mono text-slate-900 mt-0.5">{employee.employeeCode}</p>
               </div>
             </CardContent>
           </Card>

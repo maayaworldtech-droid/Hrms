@@ -222,8 +222,8 @@ export const MySalary: React.FC = () => {
             <div className="grid grid-cols-2 gap-x-6 gap-y-2 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
               <div><span className="text-slate-500">Employee Name:</span> <strong className="text-slate-900">{selectedPayslip.employeeName}</strong></div>
               <div><span className="text-slate-500">Employee ID:</span> <strong className="font-mono text-slate-900">{selectedPayslip.employeeCode}</strong></div>
-              <div><span className="text-slate-500">Designation:</span> <span className="text-slate-800">{selectedPayslip.designation}</span></div>
-              <div><span className="text-slate-500">Department:</span> <span className="text-slate-800">{selectedPayslip.department}</span></div>
+              <div><span className="text-slate-500">Center Location:</span> <strong className="text-slate-900">{selectedPayslip.location || 'Hyderabad Center'}</strong></div>
+              <div><span className="text-slate-500">Company:</span> <span className="text-slate-800">Maaya World</span></div>
               <div><span className="text-slate-500">Bank Account:</span> <span className="font-mono text-slate-800">{selectedPayslip.bankAccount}</span></div>
               <div><span className="text-slate-500">Bank Name:</span> <span className="text-slate-800">{selectedPayslip.bankName}</span></div>
               <div><span className="text-slate-500">PAN Number:</span> <span className="font-mono text-slate-800">{selectedPayslip.panNumber}</span></div>

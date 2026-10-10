@@ -214,7 +214,7 @@ export const Header: React.FC = () => {
               </div>
               <div className="hidden text-left md:block">
                 <p className="text-xs font-semibold text-slate-900 leading-tight">{user?.name || 'Staff'}</p>
-                <p className="text-[10px] text-slate-400 leading-tight">{user?.designation || 'Maaya World'}</p>
+                <p className="text-[10px] text-slate-400 leading-tight">{user?.employeeId || 'Maaya World'}</p>
               </div>
               <ChevronDown className="w-3 h-3 text-slate-400 hidden md:block" />
             </button>
@@ -225,7 +225,7 @@ export const Header: React.FC = () => {
                   <p className="text-xs font-bold text-slate-900">{user?.name}</p>
                   <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>
                   <p className="text-[10px] text-indigo-600 font-medium mt-0.5">
-                    {user?.employeeId} • {user?.department}
+                    {user?.employeeId} • Maaya World
                   </p>
                 </div>
 

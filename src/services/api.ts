@@ -24,6 +24,9 @@ import {
 } from './mockData';
 import { calculateSalaryFromMonthly, calculateSalaryFromCTC } from '@/utils/salaryCalculator';
 
+const MOCK_HOLIDAYS: Holiday[] = [];
+const MOCK_DEPARTMENTS: Department[] = [];
+
 // LocalStorage Keys for Maaya World HRMS
 const KEYS = {
   CURRENT_USER: 'maaya_current_user_v3',
@@ -109,9 +112,9 @@ export const api = {
           id: emp.id,
           name: emp.fullName,
           email: emp.email,
-          role: emp.role,
-          designation: emp.designation,
-          department: emp.departmentName,
+          role: emp.role || 'EMPLOYEE',
+          designation: emp.designation || 'Venue Specialist',
+          department: emp.departmentName || (emp.location ? `${emp.location} Center` : 'Operations'),
           employeeId: emp.employeeCode,
           joiningDate: emp.joiningDate,
           phone: emp.phone,
@@ -450,15 +453,16 @@ export const api = {
       const employees = getStored<Employee[]>(KEYS.EMPLOYEES, MOCK_EMPLOYEES);
 
       const payslips: Payslip[] = employees.map((emp) => {
-        const components = calculateSalaryFromCTC(emp.ctcAnnual);
+        const components = calculateSalaryFromMonthly(emp.monthlySalary || Math.round((emp.ctcAnnual || 360000) / 12));
         return {
           id: `ps-${year}-${month.toLowerCase()}-${emp.id}`,
           payrollRunId: `pr-${year}-${month.toLowerCase()}`,
           employeeId: emp.id,
           employeeCode: emp.employeeCode,
           employeeName: emp.fullName,
-          designation: emp.designation,
-          department: emp.departmentName,
+          designation: emp.designation || 'Venue Specialist',
+          department: emp.departmentName || `${emp.location} Center`,
+          location: emp.location,
           panNumber: emp.bankDetails.panNumber,
           uanNumber: emp.bankDetails.uanNumber,
           bankAccount: emp.bankDetails.accountNumber,
