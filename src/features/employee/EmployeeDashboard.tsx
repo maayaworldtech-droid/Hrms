@@ -105,6 +105,20 @@ export const EmployeeDashboard: React.FC = () => {
     year: 'numeric',
   });
 
+  const totalRemaining = leaveBalances
+    ? (leaveBalances.casualLeave?.remaining ?? 0) +
+      (leaveBalances.sickLeave?.remaining ?? 0) +
+      (leaveBalances.earnedLeave?.remaining ?? 0) +
+      (leaveBalances.compOff?.remaining ?? 0)
+    : 33;
+
+  const totalAllocated = leaveBalances
+    ? (leaveBalances.casualLeave?.total ?? 0) +
+      (leaveBalances.sickLeave?.total ?? 0) +
+      (leaveBalances.earnedLeave?.total ?? 0) +
+      (leaveBalances.compOff?.total ?? 0)
+    : 42;
+
   return (
     <div className="space-y-6 pb-8">
       {/* Top Header */}
@@ -222,11 +236,11 @@ export const EmployeeDashboard: React.FC = () => {
 
       {/* Middle Grid: Leave Quotas & Monthly Salary - No Icons */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Leave Quotas Card */}
+        {/* Leave Quotas Card - Single Total Leaves Count */}
         <Card>
           <CardHeader
-            title="Leave Quotas"
-            subtitle="Current available time-off balances"
+            title="Available Leaves"
+            subtitle="Annual time-off balance"
             action={
               <Button
                 variant="ghost"
@@ -238,30 +252,22 @@ export const EmployeeDashboard: React.FC = () => {
             }
           />
           <CardContent className="pt-0">
-            <div className="grid grid-cols-3 gap-3 text-xs">
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-center">
-                <span className="text-slate-500 font-medium text-[11px]">Casual Leave</span>
-                <div className="text-xl font-bold text-slate-900 mt-1 tabular-nums">
-                  {leaveBalances?.casualLeave.remaining ?? 8}
-                  <span className="text-xs font-normal text-slate-400"> / 12</span>
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+              <div>
+                <span className="text-xs text-slate-500">Remaining Balance</span>
+                <div className="text-2xl font-bold text-slate-900 mt-0.5 tabular-nums">
+                  {totalRemaining}
+                  <span className="text-xs font-normal text-slate-400"> / {totalAllocated} Days</span>
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-center">
-                <span className="text-slate-500 font-medium text-[11px]">Sick Leave</span>
-                <div className="text-xl font-bold text-slate-900 mt-1 tabular-nums">
-                  {leaveBalances?.sickLeave.remaining ?? 8}
-                  <span className="text-xs font-normal text-slate-400"> / 10</span>
-                </div>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-center">
-                <span className="text-slate-500 font-medium text-[11px]">Earned Leave</span>
-                <div className="text-xl font-bold text-slate-900 mt-1 tabular-nums">
-                  {leaveBalances?.earnedLeave.remaining ?? 13}
-                  <span className="text-xs font-normal text-slate-400"> / 18</span>
-                </div>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/employee/leaves')}
+              >
+                Apply Leave
+              </Button>
             </div>
           </CardContent>
         </Card>

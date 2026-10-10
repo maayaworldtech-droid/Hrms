@@ -4,6 +4,7 @@ import { Provider } from 'react-redux';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { store, useAppSelector } from '@/store';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { EmployeeMobileLayout } from '@/components/layout/EmployeeMobileLayout';
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
 
@@ -155,56 +156,22 @@ export const AppContent: React.FC = () => {
                 </ProtectedRoute>
               }
             />
+          </Route>
 
-            {/* Employee Self-Service Module */}
-            <Route
-              path="/employee/dashboard"
-              element={
-                <ProtectedRoute>
-                  <EmployeeDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/employee/attendance"
-              element={
-                <ProtectedRoute>
-                  <MyAttendance />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/employee/leaves"
-              element={
-                <ProtectedRoute>
-                  <MyLeaves />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/employee/salary"
-              element={
-                <ProtectedRoute>
-                  <MySalary />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/employee/profile"
-              element={
-                <ProtectedRoute>
-                  <EmployeeProfile />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <EmployeeProfile />
-                </ProtectedRoute>
-              }
-            />
+          {/* Dedicated Mobile-First Employee Portal Shell */}
+          <Route
+            element={
+              <ProtectedRoute>
+                <EmployeeMobileLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="/employee/dashboard" element={<EmployeeDashboard />} />
+            <Route path="/employee/attendance" element={<MyAttendance />} />
+            <Route path="/employee/leaves" element={<MyLeaves />} />
+            <Route path="/employee/salary" element={<MySalary />} />
+            <Route path="/employee/profile" element={<EmployeeProfile />} />
+            <Route path="/profile" element={<Navigate to="/employee/profile" replace />} />
           </Route>
 
           {/* Catch-all Fallback */}

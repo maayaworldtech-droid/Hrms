@@ -1,17 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { api } from '@/services/api';
-import { LeaveRequest, LeaveBalance, LeaveType } from '@/types';
-import { DataTable, Column } from '@/components/common/DataTable';
+import { LeaveRequest, LeaveBalance } from '@/types';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { Input } from '@/components/common/Input';
-import { Select } from '@/components/common/Select';
 import { formatDate } from '@/utils/formatters';
-import { CalendarDays, Plus, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import {
+  CalendarDays,
+  Plus,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  Search,
+  Filter,
+  Calendar,
+} from 'lucide-react';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 
@@ -26,7 +33,7 @@ const applyLeaveSchema = z.object({
   ]),
   startDate: z.string().min(1, 'Start date required'),
   endDate: z.string().min(1, 'End date required'),
-  reason: z.string().min(5, 'Please provide a clear reason for your leave'),
+  reason: z.string().min(5, 'Please provide a reason for your leave'),
 });
 
 type ApplyLeaveFormValues = z.infer<typeof applyLeaveSchema>;
@@ -37,6 +44,8 @@ export const MyLeaves: React.FC = () => {
   const [balances, setBalances] = useState<LeaveBalance | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const employeeId = 'emp-003'; // Priya Sharma
 
@@ -60,7 +69,7 @@ export const MyLeaves: React.FC = () => {
   const endDateWatch = watch('endDate');
 
   // Compute days
-  const computedDays = React.useMemo(() => {
+  const computedDays = useMemo(() => {
     if (!startDateWatch || !endDateWatch) return 1;
     const start = new Date(startDateWatch).getTime();
     const end = new Date(endDateWatch).getTime();
@@ -104,7 +113,7 @@ export const MyLeaves: React.FC = () => {
         addToast({
           type: 'success',
           title: 'Leave Application Submitted',
-          message: `Requested ${computedDays} day(s) of ${values.leaveType.replace('_', ' ')}. Notified Rajesh Kumar.`,
+          message: `Requested ${computedDays} day(s) of leave. Your manager has been notified.`,
         })
       );
       setIsApplyModalOpen(false);
@@ -115,167 +124,225 @@ export const MyLeaves: React.FC = () => {
     }
   };
 
-  const columns: Column<LeaveRequest>[] = [
-    {
-      key: 'leaveType',
-      header: 'Leave Type',
-      sortable: true,
-      render: (row) => (
-        <Badge variant="purple" size="sm">
-          {row.leaveType.replace('_', ' ')}
-        </Badge>
-      ),
-    },
-    {
-      key: 'startDate',
-      header: 'Dates Requested',
-      sortable: true,
-      render: (row) => (
-        <div>
-          <span className="font-semibold text-slate-800">
-            {formatDate(row.startDate)} to {formatDate(row.endDate)}
-          </span>
-          <div className="text-[11px] text-slate-500">{row.days} day{row.days > 1 ? 's' : ''}</div>
-        </div>
-      ),
-    },
-    {
-      key: 'reason',
-      header: 'Reason',
-      render: (row) => (
-        <span className="text-slate-600 line-clamp-1 max-w-sm" title={row.reason}>
-          {row.reason}
-        </span>
-      ),
-    },
-    {
-      key: 'appliedOn',
-      header: 'Applied On',
-      sortable: true,
-      render: (row) => formatDate(row.appliedOn),
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      sortable: true,
-      render: (row) => (
-        <Badge
-          variant={
-            row.status === 'APPROVED'
-              ? 'success'
-              : row.status === 'PENDING'
-              ? 'warning'
-              : 'error'
-          }
-          size="sm"
-          dot
-        >
-          {row.status}
-        </Badge>
-      ),
-    },
-    {
-      key: 'reviewerComments',
-      header: 'Reviewer Feedback',
-      render: (row) => (
-        <span className="text-slate-500 text-xs italic">
-          {row.reviewerComments || (row.status === 'PENDING' ? 'Awaiting manager response' : '-')}
-        </span>
-      ),
-    },
-  ];
+  // Calculate total number of leaves (no breakdown by types)
+  const totalRemaining = balances
+    ? (balances.casualLeave?.remaining ?? 0) +
+      (balances.sickLeave?.remaining ?? 0) +
+      (balances.earnedLeave?.remaining ?? 0) +
+      (balances.compOff?.remaining ?? 0)
+    : 33;
+
+  const totalAllocated = balances
+    ? (balances.casualLeave?.total ?? 0) +
+      (balances.sickLeave?.total ?? 0) +
+      (balances.earnedLeave?.total ?? 0) +
+      (balances.compOff?.total ?? 0)
+    : 42;
+
+  const totalUsed = Math.max(0, totalAllocated - totalRemaining);
+
+  // Filtered leaves
+  const filteredLeaves = useMemo(() => {
+    return leaves.filter((req) => {
+      if (statusFilter !== 'ALL' && req.status !== statusFilter) {
+        return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesReason = req.reason.toLowerCase().includes(q);
+        const matchesDate =
+          req.startDate.includes(q) ||
+          req.endDate.includes(q) ||
+          formatDate(req.startDate).toLowerCase().includes(q);
+        if (!matchesReason && !matchesDate) return false;
+      }
+      return true;
+    });
+  }, [leaves, statusFilter, searchQuery]);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+    <div className="space-y-4">
+      {/* Top Header */}
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">My Leave Applications</h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Priya Sharma - View annual time-off balance, submit applications & monitor approvals
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">
+            Leave Requests
+          </h1>
+          <p className="text-xs text-slate-500">
+            Priya Sharma • Staff Code: MW-1003
           </p>
         </div>
-        <Button
-          variant="primary"
-          onClick={() => setIsApplyModalOpen(true)}
-          leftIcon={<Plus className="w-4 h-4" />}
-        >
-          Apply for Leave
-        </Button>
       </div>
 
-      {/* Balances Card Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-4 rounded-xl bg-white border border-slate-200">
-          <div className="text-[11px] font-semibold text-slate-500 uppercase">Casual Leave (CL)</div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">
-            {balances?.casualLeave.remaining ?? 8}
-            <span className="text-xs font-normal text-slate-400"> / {balances?.casualLeave.total ?? 12}</span>
+      {/* Single Total Leave Number Hero Card (No types of leaves) */}
+      <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Available Leaves
+            </span>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-3xl font-extrabold text-slate-900 tabular-nums">
+                {totalRemaining}
+              </span>
+              <span className="text-sm font-medium text-slate-400">
+                / {totalAllocated} Total Days
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              {totalUsed} days availed this calendar year
+            </p>
           </div>
-          <span className="text-[10px] text-indigo-600 font-medium">Available balance</span>
+
+          <div className="text-right">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              Active Quota
+            </span>
+          </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-white border border-slate-200">
-          <div className="text-[11px] font-semibold text-slate-500 uppercase">Sick Leave (SL)</div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">
-            {balances?.sickLeave.remaining ?? 8}
-            <span className="text-xs font-normal text-slate-400"> / {balances?.sickLeave.total ?? 10}</span>
-          </div>
-          <span className="text-[10px] text-emerald-600 font-medium">Available balance</span>
-        </div>
-
-        <div className="p-4 rounded-xl bg-white border border-slate-200">
-          <div className="text-[11px] font-semibold text-slate-500 uppercase">Earned / Privilege (EL)</div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">
-            {balances?.earnedLeave.remaining ?? 13}
-            <span className="text-xs font-normal text-slate-400"> / {balances?.earnedLeave.total ?? 18}</span>
-          </div>
-          <span className="text-[10px] text-amber-600 font-medium">Encashable balance</span>
-        </div>
-
-        <div className="p-4 rounded-xl bg-white border border-slate-200">
-          <div className="text-[11px] font-semibold text-slate-500 uppercase">Compensatory Off</div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">
-            {balances?.compOff.remaining ?? 2}
-            <span className="text-xs font-normal text-slate-400"> / {balances?.compOff.total ?? 3}</span>
-          </div>
-          <span className="text-[10px] text-purple-600 font-medium">Expires end of quarter</span>
+        <div className="mt-4 pt-3 border-t border-slate-100">
+          <Button
+            variant="primary"
+            onClick={() => setIsApplyModalOpen(true)}
+            leftIcon={<Plus className="w-4 h-4" />}
+            className="w-full !py-2.5 !text-xs font-semibold"
+          >
+            Apply for Leave
+          </Button>
         </div>
       </div>
 
-      {/* Main Table */}
-      <DataTable
-        data={leaves}
-        columns={columns}
-        searchPlaceholder="Search your leave requests..."
-        exportFileName="my_leave_history"
-        isLoading={isLoading}
-      />
+      {/* Filter and Search Bar */}
+      <div className="space-y-2">
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by reason or date..."
+            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-600"
+          />
+        </div>
 
-      {/* Apply Leave Modal */}
+        {/* Status Filter Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+          {(
+            [
+              { key: 'ALL', label: 'All Requests' },
+              { key: 'APPROVED', label: 'Approved' },
+              { key: 'PENDING', label: 'Pending' },
+              { key: 'REJECTED', label: 'Rejected' },
+            ] as const
+          ).map((tab) => {
+            const isActive = statusFilter === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setStatusFilter(tab.key)}
+                className={`px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition-colors ${
+                  isActive
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Leave Requests Mobile Cards (No wide table) */}
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between text-xs text-slate-500 px-1">
+          <span className="font-semibold text-slate-700">Leave History</span>
+          <span>{filteredLeaves.length} record(s)</span>
+        </div>
+
+        {isLoading ? (
+          <div className="p-8 text-center text-xs text-slate-400 bg-white rounded-2xl border border-slate-200">
+            Loading leave records...
+          </div>
+        ) : filteredLeaves.length === 0 ? (
+          <div className="p-8 text-center bg-white rounded-2xl border border-slate-200">
+            <Calendar className="w-8 h-8 mx-auto text-slate-300 stroke-[1.5]" />
+            <p className="text-xs font-semibold text-slate-700 mt-2">No leave requests found</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {searchQuery || statusFilter !== 'ALL'
+                ? 'Try adjusting your search or filters'
+                : 'Click Apply for Leave above to submit a request'}
+            </p>
+          </div>
+        ) : (
+          filteredLeaves.map((req) => (
+            <div
+              key={req.id}
+              className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-2.5"
+            >
+              {/* Header: Date Range & Status Badge */}
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <span className="text-xs font-bold text-slate-900 block">
+                    {formatDate(req.startDate)} to {formatDate(req.endDate)}
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    Duration: <strong className="text-slate-800">{req.days} day{req.days > 1 ? 's' : ''}</strong>
+                  </span>
+                </div>
+
+                <Badge
+                  variant={
+                    req.status === 'APPROVED'
+                      ? 'success'
+                      : req.status === 'PENDING'
+                      ? 'warning'
+                      : 'error'
+                  }
+                  size="sm"
+                  dot
+                >
+                  {req.status}
+                </Badge>
+              </div>
+
+              {/* Reason */}
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-700">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
+                  Reason
+                </span>
+                <p className="line-clamp-2">{req.reason}</p>
+              </div>
+
+              {/* Reviewer Feedback (if any) */}
+              {req.reviewerComments && (
+                <div className="text-[11px] text-slate-500 italic bg-amber-50/60 p-2 rounded-lg border border-amber-100/80">
+                  <span className="font-semibold text-amber-900 not-italic">Reviewer Note: </span>
+                  {req.reviewerComments}
+                </div>
+              )}
+
+              {/* Footer: Applied Date */}
+              <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-100">
+                <span>Applied: {formatDate(req.appliedOn)}</span>
+                <span className="font-mono text-[10px] text-slate-400">Ref: {req.id}</span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Apply Leave Modal / Bottom Sheet */}
       <Modal
         isOpen={isApplyModalOpen}
         onClose={() => setIsApplyModalOpen(false)}
-        title="Apply for Time Off"
-        subtitle="Submit a formal leave request for management approval"
+        title="Apply for Leave"
+        subtitle="Submit a formal request for management approval"
         size="md"
       >
         <form onSubmit={handleSubmit(onApplySubmit)} className="space-y-4 text-xs">
-          <Select
-            label="Leave Category"
-            options={[
-              { value: 'CASUAL_LEAVE', label: 'Casual Leave (CL)' },
-              { value: 'SICK_LEAVE', label: 'Sick Leave (SL)' },
-              { value: 'EARNED_LEAVE', label: 'Earned / Privilege Leave (EL)' },
-              { value: 'MATERNITY_LEAVE', label: 'Maternity Leave (26 weeks statutory)' },
-              { value: 'PATERNITY_LEAVE', label: 'Paternity Leave (15 days)' },
-              { value: 'LOSS_OF_PAY', label: 'Loss of Pay / Unpaid' },
-            ]}
-            error={errors.leaveType?.message}
-            {...register('leaveType')}
-          />
-
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <Input
               label="Start Date"
               type="date"
@@ -290,38 +357,44 @@ export const MyLeaves: React.FC = () => {
             />
           </div>
 
-          <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-between text-indigo-900">
-            <span className="font-medium">Total Days Calculated:</span>
-            <span className="font-bold font-mono text-base">{computedDays} day{computedDays > 1 ? 's' : ''}</span>
+          <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-between text-indigo-950">
+            <span className="font-medium">Total Days:</span>
+            <span className="font-bold font-mono text-sm">{computedDays} day{computedDays > 1 ? 's' : ''}</span>
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Reason for Leave *</label>
+            <label className="block font-semibold text-slate-700 mb-1">
+              Reason for Leave *
+            </label>
             <textarea
               {...register('reason')}
               rows={3}
               placeholder="State the reason for your time off..."
-              className="w-full rounded-lg border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-600"
+              className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-600"
             />
-            {errors.reason && <p className="text-rose-600 text-xs mt-1">{errors.reason.message}</p>}
+            {errors.reason && (
+              <p className="text-rose-600 text-xs mt-1">{errors.reason.message}</p>
+            )}
           </div>
 
-          <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+          <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="md"
               onClick={() => setIsApplyModalOpen(false)}
+              className="w-1/2 !py-2.5 !text-xs font-semibold"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               variant="primary"
-              size="sm"
+              size="md"
               isLoading={isSubmitting}
+              className="w-1/2 !py-2.5 !text-xs font-semibold"
             >
-              Submit Application
+              Submit Request
             </Button>
           </div>
         </form>

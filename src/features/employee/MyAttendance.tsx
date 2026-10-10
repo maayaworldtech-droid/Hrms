@@ -1,24 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '@/services/api';
 import { AttendanceRecord } from '@/types';
-import { DataTable, Column } from '@/components/common/DataTable';
-import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { formatDate, formatTime } from '@/utils/formatters';
+import { useAppDispatch } from '@/store';
+import { addToast } from '@/store/slices/uiSlice';
+import { BiometricAttendanceModal } from '@/components/attendance/BiometricAttendanceModal';
 import {
   Clock,
   LogIn,
   LogOut,
   CheckCircle2,
   AlertCircle,
-  FileText,
+  Search,
+  Filter,
   Calendar,
-  Scan,
 } from 'lucide-react';
-import { useAppDispatch } from '@/store';
-import { addToast } from '@/store/slices/uiSlice';
-import { BiometricAttendanceModal } from '@/components/attendance/BiometricAttendanceModal';
 
 export const MyAttendance: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -29,6 +27,10 @@ export const MyAttendance: React.FC = () => {
   const [regularizeReason, setRegularizeReason] = useState('');
   const [biometricModalOpen, setBiometricModalOpen] = useState(false);
   const [biometricMode, setBiometricMode] = useState<'LOGIN' | 'LOGOUT'>('LOGIN');
+
+  // Mobile filters
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PRESENT' | 'LATE'>('ALL');
 
   const employeeId = 'emp-003'; // Priya Sharma
 
@@ -59,7 +61,7 @@ export const MyAttendance: React.FC = () => {
     setBiometricModalOpen(true);
   };
 
-  const handleBiometricSuccess = (rec: AttendanceRecord) => {
+  const handleBiometricSuccess = () => {
     loadData();
   };
 
@@ -73,7 +75,7 @@ export const MyAttendance: React.FC = () => {
         addToast({
           type: 'success',
           title: 'Regularization Submitted',
-          message: 'Forwarded to your manager (Rajesh Kumar) for sign-off.',
+          message: 'Forwarded to your venue manager for approval.',
         })
       );
       setIsModalOpen(false);
@@ -84,202 +86,307 @@ export const MyAttendance: React.FC = () => {
     }
   };
 
-  const columns: Column<AttendanceRecord>[] = [
-    {
-      key: 'date',
-      header: 'Date',
-      sortable: true,
-      render: (row) => (
-        <span className="font-semibold text-slate-900">{formatDate(row.date)}</span>
-      ),
-    },
-    {
-      key: 'shift',
-      header: 'Shift Timing',
-      sortable: true,
-      render: (row) => (
-        <span className="text-xs text-slate-700 font-medium">
-          {row.shift === 'EVENING' ? 'Evening (1 PM – 9 PM)' : 'Morning (9 AM – 1 PM)'}
-        </span>
-      ),
-    },
-    {
-      key: 'checkIn',
-      header: 'Punch In',
-      render: (row) => (
-        <span className="font-mono text-slate-800">{row.checkIn ? formatTime(row.checkIn) : '--:--'}</span>
-      ),
-    },
-    {
-      key: 'checkOut',
-      header: 'Punch Out',
-      render: (row) => (
-        <span className="font-mono text-slate-800">{row.checkOut ? formatTime(row.checkOut) : '--:--'}</span>
-      ),
-    },
-    {
-      key: 'workHours',
-      header: 'Effective Hours',
-      sortable: true,
-      render: (row) => (
-        <span className="font-medium text-slate-900">{row.workHours ? `${row.workHours} hrs` : '--'}</span>
-      ),
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      sortable: true,
-      render: (row) => (
-        <Badge
-          variant={
-            row.status === 'PRESENT'
-              ? 'success'
-              : row.status === 'WORK_FROM_HOME'
-              ? 'info'
-              : row.status === 'LATE'
-              ? 'warning'
-              : 'error'
-          }
-          size="sm"
-          dot
-        >
-          {row.status.replace('_', ' ')}
-        </Badge>
-      ),
-    },
-    {
-      key: 'regularizationStatus',
-      header: 'Regularization Status',
-      render: (row) => {
-        if (row.regularizationStatus === 'PENDING') {
-          return <Badge variant="warning" size="sm">Pending Manager Approval</Badge>;
-        }
-        if (row.regularizationStatus === 'APPROVED') {
-          return <Badge variant="success" size="sm">Regularized</Badge>;
-        }
-        if (row.status === 'LATE' || row.status === 'ABSENT') {
-          return (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setSelectedRecord(row);
-                setRegularizeReason(row.regularizationReason || '');
-                setIsModalOpen(true);
-              }}
-              className="!py-1 !px-2.5 text-xs text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
-            >
-              Request Regularization
-            </Button>
-          );
-        }
-        return <span className="text-slate-400 text-xs">Regular</span>;
-      },
-    },
-  ];
+  // Filtered records
+  const filteredRecords = attendance.filter((rec) => {
+    const matchesSearch =
+      rec.date.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (rec.notes && rec.notes.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const matchesStatus =
+      statusFilter === 'ALL'
+        ? true
+        : statusFilter === 'PRESENT'
+        ? rec.status === 'PRESENT'
+        : rec.status === 'LATE';
+
+    return matchesSearch && matchesStatus;
+  });
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">My Attendance & Logs</h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Priya Sharma - Daily timesheets, effective hours, punch records & regularisation requests
-          </p>
-        </div>
+    <div className="space-y-4 pb-6">
+      {/* Header Banner */}
+      <div>
+        <h1 className="text-xl font-bold tracking-tight text-slate-900">Attendance & Shifts</h1>
+        <p className="text-xs text-slate-500 mt-0.5">
+          Priya Sharma / Hyderabad Center / Morning Shift (09:00 AM - 01:00 PM)
+        </p>
+      </div>
 
-        {/* Live Attendance Login / Logout Action */}
-        <div className="flex items-center gap-2">
-          {!todayRec?.checkIn ? (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleOpenBiometricLogin}
-              leftIcon={<LogIn className="w-4 h-4" />}
-              className="!bg-emerald-600 hover:!bg-emerald-700"
-            >
-              Attendance Login
-            </Button>
-          ) : !todayRec.checkOut ? (
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={handleOpenBiometricLogout}
-              leftIcon={<LogOut className="w-4 h-4" />}
-            >
-              Attendance Logout
-            </Button>
-          ) : (
-            <span className="text-xs font-semibold text-emerald-600">
-              Shift Completed ({todayRec.workHours} hrs)
+      {/* Hero Attendance Action Card */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs space-y-3">
+        <div className="flex items-center justify-between text-xs">
+          <div>
+            <span className="text-[11px] font-semibold text-indigo-600 uppercase tracking-wider block">
+              Today's Status
             </span>
-          )}
+            <span className="text-sm font-bold text-slate-900">
+              {new Date().toLocaleDateString('en-US', {
+                weekday: 'short',
+                day: 'numeric',
+                month: 'short',
+              })}
+            </span>
+          </div>
+
+          <div>
+            {todayRec?.checkIn && !todayRec.checkOut ? (
+              <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                Active Shift
+              </span>
+            ) : todayRec?.checkOut ? (
+              <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200">
+                Completed ({todayRec.workHours} hrs)
+              </span>
+            ) : (
+              <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                Not Punched In
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Timestamps Row */}
+        <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+          <div>
+            <span className="text-slate-400 text-[10px] block">Punch In</span>
+            <span className="font-mono font-bold text-slate-800">
+              {todayRec?.checkIn ? formatTime(todayRec.checkIn) : '--:--'}
+            </span>
+          </div>
+          <div>
+            <span className="text-slate-400 text-[10px] block">Punch Out</span>
+            <span className="font-mono font-bold text-slate-800">
+              {todayRec?.checkOut ? formatTime(todayRec.checkOut) : '--:--'}
+            </span>
+          </div>
+        </div>
+
+        {/* Touch-Friendly Action Buttons */}
+        <div className="grid grid-cols-2 gap-2.5 pt-1">
+          <Button
+            variant="primary"
+            size="md"
+            onClick={handleOpenBiometricLogin}
+            disabled={!!todayRec?.checkIn}
+            className={`w-full py-3 text-xs font-semibold ${
+              !todayRec?.checkIn
+                ? '!bg-emerald-600 hover:!bg-emerald-700 text-white'
+                : 'opacity-60 cursor-not-allowed'
+            }`}
+          >
+            {!todayRec?.checkIn ? 'Attendance Login' : 'Punched In'}
+          </Button>
+
+          <Button
+            variant="danger"
+            size="md"
+            onClick={handleOpenBiometricLogout}
+            disabled={!todayRec?.checkIn || !!todayRec?.checkOut}
+            className={`w-full py-3 text-xs font-semibold ${
+              todayRec?.checkIn && !todayRec?.checkOut
+                ? '!bg-rose-600 hover:!bg-rose-700 text-white'
+                : 'opacity-60 cursor-not-allowed'
+            }`}
+          >
+            {todayRec?.checkOut ? 'Shift Closed' : 'Attendance Logout'}
+          </Button>
         </div>
       </div>
 
-      {/* Shift Schedule Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-slate-200 bg-white">
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-800">
-          <Clock className="w-4 h-4 text-indigo-600" />
-          <span>Assigned Shift Schedule:</span>
+      {/* Filter and Search Pills */}
+      <div className="space-y-2">
+        <div className="relative">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+          <input
+            type="text"
+            placeholder="Search dates or notes..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-indigo-600"
+          />
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
-          <span>Morning Shift: <strong className="text-slate-900 font-mono">09:00 AM - 01:00 PM</strong> (4.0 hrs)</span>
-          <span className="text-slate-500">Venue Operations Morning Roster</span>
+
+        <div className="flex items-center gap-1.5 text-xs overflow-x-auto pb-1">
+          <button
+            onClick={() => setStatusFilter('ALL')}
+            className={`px-3 py-1.5 rounded-lg font-medium transition-colors shrink-0 ${
+              statusFilter === 'ALL'
+                ? 'bg-indigo-600 text-white font-semibold'
+                : 'bg-white border border-slate-200 text-slate-600'
+            }`}
+          >
+            All Logs
+          </button>
+          <button
+            onClick={() => setStatusFilter('PRESENT')}
+            className={`px-3 py-1.5 rounded-lg font-medium transition-colors shrink-0 ${
+              statusFilter === 'PRESENT'
+                ? 'bg-emerald-600 text-white font-semibold'
+                : 'bg-white border border-slate-200 text-slate-600'
+            }`}
+          >
+            On Time
+          </button>
+          <button
+            onClick={() => setStatusFilter('LATE')}
+            className={`px-3 py-1.5 rounded-lg font-medium transition-colors shrink-0 ${
+              statusFilter === 'LATE'
+                ? 'bg-amber-600 text-white font-semibold'
+                : 'bg-white border border-slate-200 text-slate-600'
+            }`}
+          >
+            Late Logs
+          </button>
         </div>
       </div>
 
-      {/* Main Table */}
-      <DataTable
-        data={attendance}
-        columns={columns}
-        searchPlaceholder="Search your timesheet records..."
-        exportFileName="my_attendance_logs_2026"
-        isLoading={isLoading}
-      />
+      {/* Mobile Timesheet Cards Feed (Replaces Wide Table) */}
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between text-xs text-slate-500 px-0.5">
+          <span className="font-semibold text-slate-700">Timesheet Logs</span>
+          <span>{filteredRecords.length} records</span>
+        </div>
 
-      {/* Request Regularization Modal */}
+        {isLoading ? (
+          <div className="p-8 text-center text-xs text-slate-400 bg-white rounded-xl border border-slate-200">
+            Loading attendance records...
+          </div>
+        ) : filteredRecords.length === 0 ? (
+          <div className="p-8 text-center text-xs text-slate-400 bg-white rounded-xl border border-slate-200">
+            No attendance logs found matching filters.
+          </div>
+        ) : (
+          filteredRecords.map((record) => {
+            const isPresent = record.status === 'PRESENT';
+            const isLate = record.status === 'LATE';
+
+            return (
+              <div
+                key={record.id}
+                className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-xs space-y-2"
+              >
+                {/* Card Top: Date & Status */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-xs text-slate-900 block">
+                      {formatDate(record.date)}
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      {record.shift === 'EVENING'
+                        ? 'Evening Shift (01:00 PM - 09:00 PM)'
+                        : 'Morning Shift (09:00 AM - 01:00 PM)'}
+                    </span>
+                  </div>
+
+                  <span
+                    className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${
+                      isPresent
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : isLate
+                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {record.status}
+                  </span>
+                </div>
+
+                {/* Card Middle: Punch Times & Effective Hours */}
+                <div className="grid grid-cols-3 gap-2 py-2 border-y border-slate-100 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">In</span>
+                    <span className="font-mono font-semibold text-slate-800">
+                      {record.checkIn ? formatTime(record.checkIn) : '--:--'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Out</span>
+                    <span className="font-mono font-semibold text-slate-800">
+                      {record.checkOut ? formatTime(record.checkOut) : '--:--'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Duration</span>
+                    <span className="font-mono font-bold text-slate-900">
+                      {record.workHours ? `${record.workHours} hrs` : '--'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Card Footer: Regularization Action if Late or Absent */}
+                <div className="flex items-center justify-between pt-0.5 text-xs">
+                  <span className="text-[11px] text-slate-400 truncate max-w-[200px]">
+                    {record.notes || 'Biometric Face Verified'}
+                  </span>
+
+                  {record.regularizationStatus === 'PENDING' ? (
+                    <span className="text-[11px] text-amber-600 font-medium">
+                      Regularization Pending
+                    </span>
+                  ) : record.regularizationStatus === 'APPROVED' ? (
+                    <span className="text-[11px] text-emerald-600 font-medium">
+                      Regularized
+                    </span>
+                  ) : isLate || record.status === 'ABSENT' ? (
+                    <button
+                      onClick={() => {
+                        setSelectedRecord(record);
+                        setRegularizeReason(record.regularizationReason || '');
+                        setIsModalOpen(true);
+                      }}
+                      className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold underline"
+                    >
+                      Request Regularize
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Regularize Modal */}
       {selectedRecord && (
         <Modal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          title="Attendance Regularization Request"
+          title="Request Regularization"
           subtitle={`Log for ${formatDate(selectedRecord.date)}`}
-          size="md"
+          size="sm"
         >
-          <form onSubmit={handleRegularizeSubmit} className="space-y-4 text-xs">
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+          <form onSubmit={handleRegularizeSubmit} className="space-y-3.5 text-xs">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
               <div className="flex justify-between">
                 <span className="text-slate-500">Date:</span>
                 <span className="font-semibold text-slate-900">{formatDate(selectedRecord.date)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Current Status:</span>
-                <Badge variant="warning" size="sm">{selectedRecord.status}</Badge>
+                <span className="text-slate-500">Recorded Status:</span>
+                <span className="font-semibold text-amber-700">{selectedRecord.status}</span>
               </div>
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">
-                Reason / Justification for Time Deviation *
+              <label className="block font-semibold text-slate-700 mb-1">
+                Reason for Time Deviation *
               </label>
               <textarea
                 value={regularizeReason}
                 onChange={(e) => setRegularizeReason(e.target.value)}
-                placeholder="e.g. Signal failure on purple metro line / Client on-site deployment"
-                rows={4}
+                placeholder="e.g. Venue deployment / Metro signal interruption"
+                rows={3}
                 required
-                className="w-full rounded-lg border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-600"
+                className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-600"
               />
             </div>
 
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <Button type="button" variant="outline" size="sm" onClick={() => setIsModalOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit" variant="primary" size="sm">
-                Submit for Manager Approval
+                Submit Request
               </Button>
             </div>
           </form>
