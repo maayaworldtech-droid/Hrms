@@ -163,16 +163,16 @@ export const EmployeeDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Hero Attendance Action Center (Optimized for Mobile Touch) */}
-      <div className="bg-[#0B0F19] rounded-2xl p-4 sm:p-6 text-white border border-slate-800 shadow-md relative overflow-hidden">
+      {/* Hero Attendance Action Center (White Card Theme) */}
+      <div className="bg-white rounded-2xl p-4 sm:p-6 text-slate-900 border border-slate-200/90 shadow-sm relative overflow-hidden">
         <div className="relative z-10 space-y-4 sm:space-y-5">
           {/* Top Bar: Date & Status */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3 sm:pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3 sm:pb-4">
             <div>
-              <span className="text-[11px] font-semibold tracking-wider uppercase text-indigo-400">
+              <span className="text-[11px] font-semibold tracking-wider uppercase text-indigo-600">
                 Attendance Checkpoint
               </span>
-              <p className="text-sm sm:text-base font-semibold text-white mt-0.5">
+              <p className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">
                 {todayDateFormatted}
               </p>
             </div>
@@ -180,18 +180,18 @@ export const EmployeeDashboard: React.FC = () => {
             {/* Attendance Status Display */}
             <div>
               {todayAttendance?.checkIn && !todayAttendance?.checkOut ? (
-                <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-semibold">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <div className="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   <span>Logged In • Active Shift</span>
                 </div>
               ) : todayAttendance?.checkOut ? (
-                <div className="flex items-center gap-1.5 text-xs text-indigo-400 font-semibold">
-                  <CheckCircle2 className="w-4 h-4 text-indigo-400" />
+                <div className="flex items-center gap-1.5 text-xs text-indigo-700 font-semibold">
+                  <CheckCircle2 className="w-4 h-4 text-indigo-600" />
                   <span>Shift Completed ({todayAttendance.workHours} hrs logged)</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 text-xs text-amber-400 font-semibold">
-                  <AlertCircle className="w-4 h-4 text-amber-400" />
+                <div className="flex items-center gap-1.5 text-xs text-amber-700 font-semibold">
+                  <AlertCircle className="w-4 h-4 text-amber-600" />
                   <span>Not Logged In Today</span>
                 </div>
               )}
@@ -199,30 +199,30 @@ export const EmployeeDashboard: React.FC = () => {
           </div>
 
           {/* Location & Shift Meta Details */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-900/60 p-3 sm:p-3.5 rounded-xl border border-slate-800/70">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-50/80 p-3 sm:p-3.5 rounded-xl border border-slate-200/80">
             <div>
-              <span className="text-slate-400 text-[11px]">Authorized Company Venue:</span>
-              <p className="font-semibold text-slate-200 mt-0.5 flex items-center gap-1.5 truncate">
-                <Building2 className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+              <span className="text-slate-500 text-[11px]">Authorized Company Venue:</span>
+              <p className="font-semibold text-slate-900 mt-0.5 flex items-center gap-1.5 truncate">
+                <Building2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                 {venue.name}
               </p>
-              <p className="text-[11px] text-slate-400 truncate mt-0.5">
+              <p className="text-[11px] text-slate-500 truncate mt-0.5">
                 {venue.address} (Geofence: 250m)
               </p>
             </div>
 
             <div>
-              <span className="text-slate-400 text-[11px]">Assigned Shift Schedule:</span>
-              <p className="font-semibold text-slate-200 mt-0.5 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+              <span className="text-slate-500 text-[11px]">Assigned Shift Schedule:</span>
+              <p className="font-semibold text-slate-900 mt-0.5 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                 {shiftInfo.name}: {shiftInfo.timing}
               </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">
+              <p className="text-[11px] text-slate-500 mt-0.5">
                 {todayAttendance?.checkIn ? (
                   <>
-                    Logged in at <strong className="text-white font-mono">{formatTime(todayAttendance.checkIn)}</strong>
+                    Logged in at <strong className="text-slate-900 font-mono">{formatTime(todayAttendance.checkIn)}</strong>
                     {todayAttendance.checkOut && (
-                      <> • Out at <strong className="text-white font-mono">{formatTime(todayAttendance.checkOut)}</strong></>
+                      <> • Out at <strong className="text-slate-900 font-mono">{formatTime(todayAttendance.checkOut)}</strong></>
                     )}
                   </>
                 ) : (
@@ -242,27 +242,29 @@ export const EmployeeDashboard: React.FC = () => {
               className={`w-full p-4 rounded-xl font-semibold text-left transition-all flex items-center justify-between shadow-sm ${
                 !todayAttendance?.checkIn
                   ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer active:scale-[0.99]'
-                  : 'bg-slate-800/60 border border-slate-700/60 text-slate-400 cursor-not-allowed opacity-80'
+                  : 'bg-slate-50 border border-slate-200 text-slate-400 cursor-not-allowed'
               }`}
             >
               <div className="flex items-center gap-3">
                 <div
                   className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
-                    !todayAttendance?.checkIn ? 'bg-emerald-700/80 text-white' : 'bg-slate-700 text-slate-400'
+                    !todayAttendance?.checkIn ? 'bg-emerald-700/80 text-white' : 'bg-slate-200 text-slate-400'
                   }`}
                 >
                   <LogIn className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="text-sm sm:text-base font-bold">Attendance Login</div>
-                  <div className="text-[11px] text-emerald-100/90 font-normal">
+                  <div className={`text-sm sm:text-base font-bold ${!todayAttendance?.checkIn ? 'text-white' : 'text-slate-500'}`}>
+                    Attendance Login
+                  </div>
+                  <div className={`text-[11px] font-normal ${!todayAttendance?.checkIn ? 'text-emerald-100' : 'text-slate-400'}`}>
                     {!todayAttendance?.checkIn
                       ? 'Face Scan & Location Check'
                       : `Logged In at ${formatTime(todayAttendance.checkIn)}`}
                   </div>
                 </div>
               </div>
-              <Scan className="w-5 h-5 opacity-70" />
+              <Scan className={`w-5 h-5 ${!todayAttendance?.checkIn ? 'opacity-80' : 'opacity-40'}`} />
             </button>
 
             {/* Attendance Logout Button */}
@@ -273,7 +275,7 @@ export const EmployeeDashboard: React.FC = () => {
               className={`w-full p-4 rounded-xl font-semibold text-left transition-all flex items-center justify-between shadow-sm ${
                 todayAttendance?.checkIn && !todayAttendance?.checkOut
                   ? 'bg-rose-600 hover:bg-rose-500 text-white cursor-pointer active:scale-[0.99]'
-                  : 'bg-slate-800/60 border border-slate-700/60 text-slate-400 cursor-not-allowed opacity-80'
+                  : 'bg-slate-50 border border-slate-200 text-slate-400 cursor-not-allowed'
               }`}
             >
               <div className="flex items-center gap-3">
@@ -281,14 +283,16 @@ export const EmployeeDashboard: React.FC = () => {
                   className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
                     todayAttendance?.checkIn && !todayAttendance?.checkOut
                       ? 'bg-rose-700/80 text-white'
-                      : 'bg-slate-700 text-slate-400'
+                      : 'bg-slate-200 text-slate-400'
                   }`}
                 >
                   <LogOut className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="text-sm sm:text-base font-bold">Attendance Logout</div>
-                  <div className="text-[11px] text-rose-100/90 font-normal">
+                  <div className={`text-sm sm:text-base font-bold ${todayAttendance?.checkIn && !todayAttendance?.checkOut ? 'text-white' : 'text-slate-500'}`}>
+                    Attendance Logout
+                  </div>
+                  <div className={`text-[11px] font-normal ${todayAttendance?.checkIn && !todayAttendance?.checkOut ? 'text-rose-100' : 'text-slate-400'}`}>
                     {todayAttendance?.checkIn && !todayAttendance?.checkOut
                       ? 'Face Scan to Close Shift'
                       : todayAttendance?.checkOut
@@ -297,13 +301,13 @@ export const EmployeeDashboard: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <Scan className="w-5 h-5 opacity-70" />
+              <Scan className={`w-5 h-5 ${todayAttendance?.checkIn && !todayAttendance?.checkOut ? 'opacity-80' : 'opacity-40'}`} />
             </button>
           </div>
 
           {/* Info note */}
-          <div className="flex items-center gap-2 text-[11px] text-slate-400 pt-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+          <div className="flex items-center gap-2 text-[11px] text-slate-500 pt-1">
+            <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
             <span>
               Attendance login is geofenced and strictly restricted to the authorized company venue ({venue.shortName}).
             </span>

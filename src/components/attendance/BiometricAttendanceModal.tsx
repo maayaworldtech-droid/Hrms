@@ -256,28 +256,28 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
   const shiftInfo = getShiftDefinition(employee.shift || 'MORNING');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl text-white overflow-hidden my-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto">
+      <div className="relative w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-2xl text-slate-900 overflow-hidden my-4">
         {/* Header Bar */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 bg-slate-900/90">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold tracking-wider text-indigo-400 uppercase">
+              <span className="text-xs font-semibold tracking-wider text-indigo-600 uppercase">
                 Biometric Verification
               </span>
-              <span className="text-slate-600">•</span>
-              <span className="text-xs text-slate-400 font-mono">
+              <span className="text-slate-300">•</span>
+              <span className="text-xs text-slate-500 font-mono">
                 {mode === 'LOGIN' ? 'Attendance Check-In' : 'Attendance Check-Out'}
               </span>
             </div>
-            <h2 className="text-base sm:text-lg font-bold text-white mt-0.5">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">
               {mode === 'LOGIN' ? 'Attendance Login' : 'Attendance Logout'}
             </h2>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
             aria-label="Close modal"
           >
             <X className="w-5 h-5" />
@@ -287,16 +287,16 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
         {/* Modal Body */}
         <div className="p-4 sm:p-5 space-y-4">
           {/* Employee Meta Banner */}
-          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-800/70 border border-slate-700/60 text-xs">
+          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs">
             <div>
-              <span className="font-semibold text-white">{employee.fullName}</span>
-              <p className="text-slate-400 text-[11px] mt-0.5">
+              <span className="font-semibold text-slate-900">{employee.fullName}</span>
+              <p className="text-slate-500 text-[11px] mt-0.5">
                 Staff ID: {employee.employeeCode} • {venue.shortName}
               </p>
             </div>
             <div className="text-right">
-              <span className="text-indigo-300 font-medium">{shiftInfo.name}</span>
-              <p className="text-slate-400 text-[11px] font-mono mt-0.5">{shiftInfo.timing}</p>
+              <span className="text-indigo-600 font-semibold">{shiftInfo.name}</span>
+              <p className="text-slate-500 text-[11px] font-mono mt-0.5">{shiftInfo.timing}</p>
             </div>
           </div>
 
@@ -396,8 +396,8 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
           {mode === 'LOGIN' && (
             <div className="space-y-2.5">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-                  <Navigation className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="font-semibold text-slate-900 flex items-center gap-1.5">
+                  <Navigation className="w-3.5 h-3.5 text-indigo-600" />
                   Company Geofence Location Check
                 </span>
                 <span className="text-slate-500 text-[11px]">Radius: {venue.allowedRadiusMeters}m limit</span>
@@ -407,41 +407,41 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
               <div
                 className={`p-3.5 rounded-xl border transition-all ${
                   geofenceResult.isWithinRadius
-                    ? 'bg-emerald-950/30 border-emerald-500/40'
-                    : 'bg-rose-950/30 border-rose-500/40'
+                    ? 'bg-emerald-50/80 border-emerald-200'
+                    : 'bg-rose-50/80 border-rose-200'
                 }`}
               >
                 <div className="flex items-start gap-3">
                   {geofenceResult.isWithinRadius ? (
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                   ) : (
-                    <XCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                    <XCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                   )}
                   <div className="flex-1 text-xs">
                     <div className="flex items-center justify-between">
                       <span
                         className={`font-semibold ${
-                          geofenceResult.isWithinRadius ? 'text-emerald-400' : 'text-rose-400'
+                          geofenceResult.isWithinRadius ? 'text-emerald-800' : 'text-rose-800'
                         }`}
                       >
                         {geofenceResult.isWithinRadius
                           ? 'Location Verified: On-Premise'
                           : 'Location Restricted: Outside Company Premises'}
                       </span>
-                      <span className="font-mono text-[11px] text-slate-300 font-medium">
+                      <span className="font-mono text-[11px] text-slate-700 font-medium">
                         {geofenceResult.distanceMeters > 1000
                           ? `${(geofenceResult.distanceMeters / 1000).toFixed(1)} km away`
                           : `${geofenceResult.distanceMeters}m away`}
                       </span>
                     </div>
 
-                    <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                    <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
                       {venue.name} • {venue.address}
                     </p>
 
                     {!geofenceResult.isWithinRadius && (
-                      <div className="mt-2 p-2 rounded-lg bg-rose-900/30 border border-rose-800/40 text-[11px] text-rose-300 flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                      <div className="mt-2 p-2 rounded-lg bg-rose-100/70 border border-rose-200 text-[11px] text-rose-800 flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
                         <span>
                           Attendance login is only permitted while physically on-premise at the company venue.
                         </span>
@@ -452,13 +452,13 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
               </div>
 
               {/* Location Simulator / Tester Switcher */}
-              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs space-y-2">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-medium text-slate-400">
+                  <span className="text-[11px] font-medium text-slate-600">
                     GPS Source / Testing Selector:
                   </span>
                   {useDeviceGps && (
-                    <span className="text-[10px] text-indigo-400 font-mono">Live Device GPS</span>
+                    <span className="text-[10px] text-indigo-600 font-mono font-semibold">Live Device GPS</span>
                   )}
                 </div>
 
@@ -473,13 +473,13 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
                         className={`p-2 rounded-lg text-left border transition-all text-[11px] ${
                           isSelected
                             ? preset.isInside
-                              ? 'bg-emerald-950/40 border-emerald-500 text-white'
-                              : 'bg-rose-950/40 border-rose-500 text-white'
-                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                              ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-xs'
+                              : 'bg-rose-50 border-rose-500 text-rose-900 shadow-xs'
+                            : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                         }`}
                       >
-                        <div className="font-semibold text-slate-200">{preset.label}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">{preset.description}</div>
+                        <div className="font-semibold">{preset.label}</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">{preset.description}</div>
                       </button>
                     );
                   })}
@@ -489,13 +489,13 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
                   <button
                     type="button"
                     onClick={handleUseRealDeviceGps}
-                    className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1.5 underline"
+                    className="text-[11px] text-slate-500 hover:text-slate-800 flex items-center gap-1.5 underline"
                   >
-                    <MapPin className="w-3 h-3 text-slate-400" />
+                    <MapPin className="w-3 h-3 text-slate-500" />
                     Query Real Device GPS Coordinates
                   </button>
                   {deviceGpsError && (
-                    <span className="text-[10px] text-amber-400 truncate max-w-xs">{deviceGpsError}</span>
+                    <span className="text-[10px] text-amber-600 truncate max-w-xs">{deviceGpsError}</span>
                   )}
                 </div>
               </div>
@@ -504,9 +504,9 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
 
           {/* Logout Confirmation Summary (for LOGOUT mode) */}
           {mode === 'LOGOUT' && (
-            <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs space-y-2">
-              <span className="font-semibold text-slate-300">Shift Logout Authentication</span>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2">
+              <span className="font-semibold text-slate-900">Shift Logout Authentication</span>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
                 Your face scan confirms shift completion for {shiftInfo.name} ({shiftInfo.timing}). Punch-out timestamp and logged duration will be archived automatically.
               </p>
             </div>
@@ -514,15 +514,15 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
         </div>
 
         {/* Modal Footer Actions */}
-        <div className="p-4 sm:p-5 border-t border-slate-800 bg-slate-900/90 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-xs text-slate-400 w-full sm:w-auto text-center sm:text-left">
+        <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50/60 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="text-xs text-slate-600 w-full sm:w-auto text-center sm:text-left">
             {!isFaceVerified ? (
-              <span className="text-amber-400 font-medium">Waiting for biometric facial match...</span>
+              <span className="text-amber-700 font-medium">Waiting for biometric facial match...</span>
             ) : mode === 'LOGIN' && !geofenceResult.isWithinRadius ? (
-              <span className="text-rose-400 font-medium">Blocked: Must be at company venue</span>
+              <span className="text-rose-700 font-medium">Blocked: Must be at company venue</span>
             ) : (
-              <span className="text-emerald-400 font-medium flex items-center justify-center sm:justify-start gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span className="text-emerald-700 font-medium flex items-center justify-center sm:justify-start gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
                 All verifications passed
               </span>
             )}
@@ -534,7 +534,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
               size="md"
               onClick={onClose}
               disabled={isSubmitting}
-              className="flex-1 sm:flex-none border-slate-700 text-slate-300 hover:bg-slate-800"
+              className="flex-1 sm:flex-none border-slate-200 text-slate-700 hover:bg-slate-100"
             >
               Cancel
             </Button>
@@ -547,8 +547,8 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
               isLoading={isSubmitting}
               className={`flex-1 sm:flex-none shadow-sm ${
                 mode === 'LOGIN'
-                  ? '!bg-emerald-600 hover:!bg-emerald-500 disabled:!bg-slate-800 disabled:!text-slate-600'
-                  : '!bg-rose-600 hover:!bg-rose-500 disabled:!bg-slate-800 disabled:!text-slate-600'
+                  ? '!bg-emerald-600 hover:!bg-emerald-500 disabled:!bg-slate-200 disabled:!text-slate-400'
+                  : '!bg-rose-600 hover:!bg-rose-500 disabled:!bg-slate-200 disabled:!text-slate-400'
               }`}
             >
               {mode === 'LOGIN' ? 'Confirm Attendance Login' : 'Confirm Attendance Logout'}
