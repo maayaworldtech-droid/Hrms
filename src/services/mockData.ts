@@ -105,12 +105,18 @@ function generate300Employees(): Employee[] {
       monthlySalary: 75000,
       ctcAnnual: 900000,
       joiningDate: '2021-03-15',
+      employmentType: 'FULL_TIME',
       bankDetails: {
         accountNumber: '9123894582910',
         ifscCode: 'HDFC0001234',
         bankName: 'HDFC Bank',
         panNumber: 'ABCPS1234F',
         uanNumber: '100928374651',
+      },
+      emergencyContact: {
+        name: 'David Jenkins',
+        relationship: 'Spouse',
+        phone: '+91 98765 00001',
       },
     },
     {
@@ -126,12 +132,18 @@ function generate300Employees(): Employee[] {
       monthlySalary: 62000,
       ctcAnnual: 744000,
       joiningDate: '2022-01-10',
+      employmentType: 'FULL_TIME',
       bankDetails: {
         accountNumber: '5010029384756',
         ifscCode: 'ICIC0000045',
         bankName: 'ICICI Bank',
         panNumber: 'BKRPS4567E',
         uanNumber: '100928374652',
+      },
+      emergencyContact: {
+        name: 'Sunita Kumar',
+        relationship: 'Spouse',
+        phone: '+91 98123 00002',
       },
     },
     {
@@ -147,12 +159,18 @@ function generate300Employees(): Employee[] {
       monthlySalary: 34000,
       ctcAnnual: 408000,
       joiningDate: '2023-04-03',
+      employmentType: 'FULL_TIME',
       bankDetails: {
         accountNumber: '382910495827',
         ifscCode: 'SBIN0004567',
         bankName: 'State Bank of India',
         panNumber: 'CPRPS7890D',
         uanNumber: '100928374653',
+      },
+      emergencyContact: {
+        name: 'Amit Sharma',
+        relationship: 'Father',
+        phone: '+91 99887 00003',
       },
     },
   ];
@@ -199,12 +217,18 @@ function generate300Employees(): Employee[] {
       monthlySalary,
       ctcAnnual: monthlySalary * 12,
       joiningDate: `${startYear}-${startMonth}-${startDay}`,
+      employmentType: 'FULL_TIME',
       bankDetails: {
         accountNumber: `${400000000000 + (i * 987123) % 500000000000}`,
         ifscCode: `${ifscPrefixes[bankIdx]}${String(1000 + (i % 899))}`,
         bankName: banks[bankIdx],
         panNumber: `MWP${String.fromCharCode(65 + (i % 26))}${String.fromCharCode(65 + ((i * 3) % 26))}${1000 + i}K`,
         uanNumber: `10092837${String(5000 + i).slice(-4)}`,
+      },
+      emergencyContact: {
+        name: `${fName} Family`,
+        relationship: 'Family',
+        phone: `+91 9${String(100000000 + (i * 1928374) % 899999999).slice(0, 9)}`,
       },
     });
   }

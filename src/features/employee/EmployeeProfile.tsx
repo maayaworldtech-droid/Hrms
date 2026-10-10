@@ -55,9 +55,9 @@ export const EmployeeProfile: React.FC = () => {
         setEmployee(data);
         reset({
           phone: data.phone,
-          emergencyName: data.emergencyContact.name,
-          emergencyPhone: data.emergencyContact.phone,
-          emergencyRelationship: data.emergencyContact.relationship,
+          emergencyName: data.emergencyContact?.name || '',
+          emergencyPhone: data.emergencyContact?.phone || '',
+          emergencyRelationship: data.emergencyContact?.relationship || 'Family',
         });
       }
       setIsLoading(false);
@@ -151,7 +151,7 @@ export const EmployeeProfile: React.FC = () => {
               </div>
               <div>
                 <span className="text-slate-500">Employment Type:</span>
-                <p className="font-semibold text-slate-900 mt-0.5">{employee.employmentType.replace('_', ' ')}</p>
+                <p className="font-semibold text-slate-900 mt-0.5">{(employee.employmentType || 'FULL_TIME').replace('_', ' ')}</p>
               </div>
               <div>
                 <span className="text-slate-500">Joining Date:</span>
