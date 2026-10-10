@@ -22,6 +22,7 @@ import {
   Briefcase,
   MapPin,
   Calendar,
+  Clock,
 } from 'lucide-react';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
@@ -32,6 +33,7 @@ const employeeSchema = z.object({
   email: z.string().email('Valid corporate email required'),
   phone: z.string().min(10, 'Valid 10-digit phone number required'),
   location: z.enum(['Hyderabad', 'Vizag', 'Bhubaneswar']),
+  shift: z.enum(['MORNING', 'EVENING']),
   joiningDate: z.string().min(1, 'Joining date required'),
   monthlySalary: z.coerce.number().min(10000, 'Minimum monthly salary is ₹10,000'),
   accountNumber: z.string().min(8, 'Bank account number required'),
@@ -52,6 +54,7 @@ export const EmployeeManagement: React.FC = () => {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedLocationFilter, setSelectedLocationFilter] = useState<string>('ALL');
+  const [selectedShiftFilter, setSelectedShiftFilter] = useState<string>('ALL');
 
   const {
     register: registerAdd,
@@ -62,6 +65,7 @@ export const EmployeeManagement: React.FC = () => {
     resolver: zodResolver(employeeSchema),
     defaultValues: {
       location: 'Hyderabad',
+      shift: 'MORNING',
       joiningDate: new Date().toISOString().split('T')[0],
       monthlySalary: 32000,
       accountNumber: '918273645281',
@@ -102,6 +106,7 @@ export const EmployeeManagement: React.FC = () => {
       email: emp.email,
       phone: emp.phone,
       location: (emp.location as 'Hyderabad' | 'Vizag' | 'Bhubaneswar') || 'Hyderabad',
+      shift: emp.shift || 'MORNING',
       joiningDate: emp.joiningDate,
       monthlySalary: emp.monthlySalary || Math.round((emp.ctcAnnual || 360000) / 12),
       accountNumber: emp.bankDetails?.accountNumber || '',
@@ -124,6 +129,7 @@ export const EmployeeManagement: React.FC = () => {
         phone: values.phone,
         designation: '',
         location: values.location,
+        shift: values.shift,
         monthlySalary: values.monthlySalary,
         ctcAnnual: values.monthlySalary * 12,
         joiningDate: values.joiningDate,
@@ -146,7 +152,7 @@ export const EmployeeManagement: React.FC = () => {
         addToast({
           type: 'success',
           title: 'Employee Onboarded',
-          message: `${newEmp.fullName} (${newEmp.employeeCode}) has been successfully added to ${newEmp.location}.`,
+          message: `${newEmp.fullName} (${newEmp.employeeCode}) has been successfully added to ${newEmp.location} (${newEmp.shift === 'EVENING' ? 'Evening Shift' : 'Morning Shift'}).`,
         })
       );
       setIsAddModalOpen(false);
@@ -167,6 +173,7 @@ export const EmployeeManagement: React.FC = () => {
         email: values.email,
         phone: values.phone,
         location: values.location,
+        shift: values.shift,
         monthlySalary: values.monthlySalary,
         ctcAnnual: values.monthlySalary * 12,
         joiningDate: values.joiningDate,
@@ -208,13 +215,14 @@ export const EmployeeManagement: React.FC = () => {
     }
   };
 
-  // Filtered dataset by Location
+  // Filtered dataset by Location and Shift
   const filteredEmployees = useMemo(() => {
     return employees.filter((emp) => {
       const matchLoc = selectedLocationFilter === 'ALL' || emp.location === selectedLocationFilter;
-      return matchLoc;
+      const matchShift = selectedShiftFilter === 'ALL' || (emp.shift || 'MORNING') === selectedShiftFilter;
+      return matchLoc && matchShift;
     });
-  }, [employees, selectedLocationFilter]);
+  }, [employees, selectedLocationFilter, selectedShiftFilter]);
 
   const columns: Column<Employee>[] = [
     {
@@ -244,6 +252,19 @@ export const EmployeeManagement: React.FC = () => {
         <div className="flex items-center gap-1.5 text-slate-700">
           <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
           <span className="font-medium text-xs">{row.location}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'shift',
+      header: 'Shift Timing',
+      sortable: true,
+      render: (row) => (
+        <div className="flex items-center gap-1.5 text-slate-700">
+          <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <span className="text-xs">
+            {row.shift === 'EVENING' ? 'Evening (1 PM – 9 PM)' : 'Morning (9 AM – 1 PM)'}
+          </span>
         </div>
       ),
     },
@@ -310,6 +331,17 @@ export const EmployeeManagement: React.FC = () => {
         <option value="Hyderabad">Hyderabad ({employees.filter((e) => e.location === 'Hyderabad').length})</option>
         <option value="Vizag">Vizag ({employees.filter((e) => e.location === 'Vizag').length})</option>
         <option value="Bhubaneswar">Bhubaneswar ({employees.filter((e) => e.location === 'Bhubaneswar').length})</option>
+      </select>
+
+      <select
+        value={selectedShiftFilter}
+        onChange={(e) => setSelectedShiftFilter(e.target.value)}
+        aria-label="Shift filter"
+        className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+      >
+        <option value="ALL">All Shifts</option>
+        <option value="MORNING">Morning Shift (9 AM – 1 PM)</option>
+        <option value="EVENING">Evening Shift (1 PM – 9 PM)</option>
       </select>
     </div>
   );
@@ -396,7 +428,7 @@ export const EmployeeManagement: React.FC = () => {
             <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
               2. Placement & Compensation
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
               <Select
                 label="Center Location"
                 options={[
@@ -406,6 +438,15 @@ export const EmployeeManagement: React.FC = () => {
                 ]}
                 error={errorsAdd.location?.message}
                 {...registerAdd('location')}
+              />
+              <Select
+                label="Shift Timing"
+                options={[
+                  { value: 'MORNING', label: 'Morning (9:00 AM – 1:00 PM)' },
+                  { value: 'EVENING', label: 'Evening (1:00 PM – 9:00 PM)' },
+                ]}
+                error={errorsAdd.shift?.message}
+                {...registerAdd('shift')}
               />
               <Input
                 label="Joining Date"
@@ -525,7 +566,7 @@ export const EmployeeManagement: React.FC = () => {
               <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
                 2. Placement & Compensation
               </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                 <Select
                   label="Center Location"
                   options={[
@@ -535,6 +576,15 @@ export const EmployeeManagement: React.FC = () => {
                   ]}
                   error={errorsEdit.location?.message}
                   {...registerEdit('location')}
+                />
+                <Select
+                  label="Shift Timing"
+                  options={[
+                    { value: 'MORNING', label: 'Morning (9:00 AM – 1:00 PM)' },
+                    { value: 'EVENING', label: 'Evening (1:00 PM – 9:00 PM)' },
+                  ]}
+                  error={errorsEdit.shift?.message}
+                  {...registerEdit('shift')}
                 />
                 <Input
                   label="Joining Date"
@@ -624,10 +674,15 @@ export const EmployeeManagement: React.FC = () => {
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-sm font-bold text-slate-900 truncate">{selectedEmployee.fullName}</h3>
-                  <div className="flex items-center gap-2 mt-1 text-slate-500 text-[11px]">
+                  <div className="flex flex-wrap items-center gap-2 mt-1 text-slate-500 text-[11px]">
                     <span className="flex items-center gap-1 font-medium text-indigo-600">
                       <MapPin className="w-3 h-3 text-indigo-500" />
                       {selectedEmployee.location} Center
+                    </span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1 text-slate-600">
+                      <Clock className="w-3 h-3 text-slate-400" />
+                      {selectedEmployee.shift === 'EVENING' ? 'Evening Shift (1:00 PM – 9:00 PM)' : 'Morning Shift (9:00 AM – 1:00 PM)'}
                     </span>
                     <span>•</span>
                     <span className="font-mono">{selectedEmployee.employeeCode}</span>

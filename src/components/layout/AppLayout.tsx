@@ -28,7 +28,7 @@ export const AppLayout: React.FC = () => {
             >
               <Menu className="w-5 h-5" />
             </button>
-            <img src={maayaLogo} alt="Maaya World Logo" className="h-6 w-auto object-contain" />
+            <img src={maayaLogo} alt="Maaya World Logo" className="h-8 w-auto object-contain" />
           </div>
         </div>
 

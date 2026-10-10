@@ -29,16 +29,16 @@ const MOCK_DEPARTMENTS: Department[] = [];
 
 // LocalStorage Keys for Maaya World HRMS
 const KEYS = {
-  CURRENT_USER: 'maaya_current_user_v3',
-  EMPLOYEES: 'maaya_employees_v3',
-  ATTENDANCE: 'maaya_attendance_v3',
-  LEAVES: 'maaya_leaves_v3',
-  LEAVE_BALANCES: 'maaya_leave_balances_v3',
-  PAYROLL: 'maaya_payroll_runs_v3',
-  HOLIDAYS: 'maaya_holidays_v3',
-  DEPARTMENTS: 'maaya_departments_v3',
-  SETTINGS: 'maaya_settings_v3',
-  AUDIT: 'maaya_audit_logs_v3',
+  CURRENT_USER: 'maaya_current_user_v5',
+  EMPLOYEES: 'maaya_employees_v5',
+  ATTENDANCE: 'maaya_attendance_v5',
+  LEAVES: 'maaya_leaves_v5',
+  LEAVE_BALANCES: 'maaya_leave_balances_v5',
+  PAYROLL: 'maaya_payroll_runs_v5',
+  HOLIDAYS: 'maaya_holidays_v5',
+  DEPARTMENTS: 'maaya_departments_v5',
+  SETTINGS: 'maaya_settings_v5',
+  AUDIT: 'maaya_audit_logs_v5',
 };
 
 // Helper to simulate network latency
@@ -235,7 +235,10 @@ export const api = {
       return list.filter((a) => a.employeeId === employeeId);
     },
 
-    async checkIn(employeeId: string): Promise<AttendanceRecord> {
+    async checkIn(
+      employeeId: string,
+      options?: { location?: string; shift?: any; notes?: string }
+    ): Promise<AttendanceRecord> {
       await delay(150);
       const list = getStored<AttendanceRecord[]>(KEYS.ATTENDANCE, MOCK_ATTENDANCE);
       const employees = getStored<Employee[]>(KEYS.EMPLOYEES, MOCK_EMPLOYEES);
@@ -256,22 +259,31 @@ export const api = {
         id: `att-${Date.now()}`,
         employeeId,
         employeeName: emp?.fullName || 'Employee',
-        departmentName: emp?.departmentName || 'Engineering',
+        departmentName: emp?.departmentName,
+        location: options?.location || emp?.location || 'Hyderabad',
+        shift: options?.shift || emp?.shift || 'MORNING',
         date: today,
         checkIn: timeStr,
         status: isLate ? 'LATE' : 'PRESENT',
         workHours: 0,
         regularizationStatus: 'NONE',
-        notes: 'Clocked in via Pulse Portal',
+        notes: options?.notes || 'Biometric Face & Location Verified',
       };
 
       const updated = [newRecord, ...list];
       setStored(KEYS.ATTENDANCE, updated);
-      api.audit.log('ATTENDANCE_CHECKIN', 'ATTENDANCE', `${emp?.fullName || 'Employee'} punched IN at ${timeStr}`);
+      api.audit.log(
+        'ATTENDANCE_CHECKIN',
+        'ATTENDANCE',
+        `${emp?.fullName || 'Employee'} logged in at ${timeStr} (${options?.notes || 'Biometric Authenticated'})`
+      );
       return newRecord;
     },
 
-    async checkOut(employeeId: string): Promise<AttendanceRecord> {
+    async checkOut(
+      employeeId: string,
+      options?: { notes?: string }
+    ): Promise<AttendanceRecord> {
       await delay(150);
       const list = getStored<AttendanceRecord[]>(KEYS.ATTENDANCE, MOCK_ATTENDANCE);
       const today = new Date().toISOString().split('T')[0];
@@ -296,11 +308,16 @@ export const api = {
         ...record,
         checkOut: timeStr,
         workHours,
+        notes: options?.notes || record.notes || 'Biometric Face Authenticated (Shift Closed)',
       };
 
       list[index] = updatedRecord;
       setStored(KEYS.ATTENDANCE, list);
-      api.audit.log('ATTENDANCE_CHECKOUT', 'ATTENDANCE', `${record.employeeName} punched OUT at ${timeStr} (${workHours} hrs)`);
+      api.audit.log(
+        'ATTENDANCE_CHECKOUT',
+        'ATTENDANCE',
+        `${record.employeeName} logged out at ${timeStr} (${workHours} hrs)`
+      );
       return updatedRecord;
     },
 

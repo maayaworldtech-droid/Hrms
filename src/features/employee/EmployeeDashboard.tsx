@@ -1,57 +1,80 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/services/api';
-import { useAppDispatch } from '@/store';
-import { addToast } from '@/store/slices/uiSlice';
-import { AttendanceRecord, LeaveBalance, Holiday, Payslip } from '@/types';
+import { AttendanceRecord, LeaveBalance, Payslip, Employee } from '@/types';
 import { Card, CardHeader, CardContent } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
-import { Badge } from '@/components/common/Badge';
 import { formatINR, formatDate, formatTime } from '@/utils/formatters';
+import { getShiftDefinition } from '@/utils/shiftUtils';
+import { VENUE_GEOFENCES } from '@/utils/geolocation';
+import { BiometricAttendanceModal } from '@/components/attendance/BiometricAttendanceModal';
 import {
-  Clock,
   CalendarDays,
   CreditCard,
   ArrowRight,
   CheckCircle2,
   LogIn,
   LogOut,
-  Sparkles,
+  MapPin,
+  Clock,
+  Scan,
+  ShieldCheck,
+  Building2,
+  Calendar,
+  AlertCircle,
 } from 'lucide-react';
 
 export const EmployeeDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
 
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [employee, setEmployee] = useState<Employee | null>(null);
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord | null>(null);
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalance | null>(null);
   const [recentPayslip, setRecentPayslip] = useState<Payslip | null>(null);
-  const [isPunching, setIsPunching] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Biometric Modal State
+  const [biometricModalOpen, setBiometricModalOpen] = useState(false);
+  const [biometricMode, setBiometricMode] = useState<'LOGIN' | 'LOGOUT'>('LOGIN');
 
   const employeeId = 'emp-003'; // Priya Sharma
 
-  // Live ticking clock
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   const loadData = async () => {
+    setIsLoading(true);
     try {
       const today = new Date().toISOString().split('T')[0];
-      const [attList, balances, payslips] = await Promise.all([
+      const [empList, attList, balances, payslips] = await Promise.all([
+        api.employees.getAll(),
         api.attendance.getByEmployee(employeeId),
         api.leaves.getBalances(employeeId),
         api.payroll.getPayslipsByEmployee(employeeId),
       ]);
 
+      const currentEmp = empList.find((e) => e.id === employeeId) || {
+        id: 'emp-003',
+        employeeCode: 'MW-1003',
+        firstName: 'Priya',
+        lastName: 'Sharma',
+        fullName: 'Priya Sharma',
+        email: 'employee@maayaworld.com',
+        phone: '+91 99887 76655',
+        location: 'Hyderabad',
+        shift: 'MORNING',
+        monthlySalary: 55000,
+        ctcAnnual: 660000,
+        joiningDate: '2023-04-03',
+        employmentType: 'FULL_TIME',
+      };
+
+      setEmployee(currentEmp as Employee);
       const todayRec = attList.find((a) => a.date === today);
       setTodayAttendance(todayRec || null);
       setLeaveBalances(balances);
       setRecentPayslip(payslips[0] || null);
     } catch (err) {
-      console.error(err);
+      console.error('Failed to load employee dashboard data:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -59,288 +82,342 @@ export const EmployeeDashboard: React.FC = () => {
     loadData();
   }, []);
 
-  const handlePunchIn = async () => {
-    setIsPunching(true);
-    try {
-      const rec = await api.attendance.checkIn(employeeId);
-      setTodayAttendance(rec);
-      dispatch(
-        addToast({
-          type: 'success',
-          title: 'Punch In Recorded',
-          message: `Check-in registered at ${formatTime(rec.checkIn)}`,
-        })
-      );
-    } catch (err: any) {
-      dispatch(addToast({ type: 'error', title: 'Punch In Failed', message: err.message }));
-    } finally {
-      setIsPunching(false);
-    }
+  const openBiometricLogin = () => {
+    setBiometricMode('LOGIN');
+    setBiometricModalOpen(true);
   };
 
-  const handlePunchOut = async () => {
-    setIsPunching(true);
-    try {
-      const rec = await api.attendance.checkOut(employeeId);
-      setTodayAttendance(rec);
-      dispatch(
-        addToast({
-          type: 'success',
-          title: 'Punch Out Recorded',
-          message: `Shift closed at ${formatTime(rec.checkOut)}. Total duration: ${rec.workHours} hrs.`,
-        })
-      );
-    } catch (err: any) {
-      dispatch(addToast({ type: 'error', title: 'Punch Out Failed', message: err.message }));
-    } finally {
-      setIsPunching(false);
-    }
+  const openBiometricLogout = () => {
+    setBiometricMode('LOGOUT');
+    setBiometricModalOpen(true);
   };
+
+  const handleBiometricSuccess = (record: AttendanceRecord) => {
+    setTodayAttendance(record);
+    loadData();
+  };
+
+  const shiftInfo = getShiftDefinition(employee?.shift || 'MORNING');
+  const venue = VENUE_GEOFENCES[employee?.location || 'Hyderabad'] || VENUE_GEOFENCES['Hyderabad'];
+
+  const todayDateFormatted = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-            Good day, Priya Sharma
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Senior Frontend Engineer • Employee ID: EMP-1003 • Bangalore HQ
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate('/employee/salary')}
-            leftIcon={<CreditCard className="w-3.5 h-3.5" />}
-          >
-            My Payslips
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => navigate('/employee/leaves')}
-            leftIcon={<CalendarDays className="w-3.5 h-3.5" />}
-          >
-            Apply for Leave
-          </Button>
-        </div>
-      </div>
-
-      {/* Hero Interactive Punch Card */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-6">
-        {/* Live Attendance Punch Terminal */}
-        <div className="lg:col-span-2">
-          <div className="bg-[#0B0F19] rounded-xl p-5 sm:p-6 text-white border border-slate-800/80 shadow-md relative overflow-hidden">
-            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div>
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                  Live Workstation Terminal
+    <div className="w-full max-w-full space-y-4 sm:space-y-6 pb-8">
+      {/* Mobile-Friendly Profile Header Card */}
+      <div className="bg-white rounded-xl border border-slate-200/80 p-4 sm:p-5 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white font-bold text-lg flex items-center justify-center shrink-0 shadow-sm">
+              PS
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-lg sm:text-xl font-bold text-slate-900">
+                  {employee?.fullName || 'Priya Sharma'}
+                </h1>
+                <span className="text-xs font-mono text-slate-500 font-medium">
+                  {employee?.employeeCode || 'MW-1003'}
                 </span>
-                <div className="text-3xl sm:text-4xl font-extrabold font-mono tracking-tight text-white mt-1 tabular-nums">
-                  {currentTime.toLocaleTimeString('en-US', { hour12: true })}
-                </div>
-                <p className="text-xs text-slate-400 mt-1">
-                  {currentTime.toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
-                </p>
-
-                {/* Punch Status Indicator */}
-                <div className="mt-4 flex items-center gap-2">
-                  <span className="text-xs text-slate-400">Status:</span>
-                  {todayAttendance?.checkIn ? (
-                    <Badge variant="success" size="md" dot>
-                      Active • Punched in at {formatTime(todayAttendance.checkIn)}
-                      {todayAttendance.checkOut && ` (Out at ${formatTime(todayAttendance.checkOut)})`}
-                    </Badge>
-                  ) : (
-                    <Badge variant="neutral" size="md">
-                      Not Punched In Today
-                    </Badge>
-                  )}
-                </div>
               </div>
-
-              {/* Punch Actions */}
-              <div className="flex flex-col sm:flex-row gap-2.5">
-                {!todayAttendance?.checkIn ? (
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    onClick={handlePunchIn}
-                    isLoading={isPunching}
-                    leftIcon={<LogIn className="w-4 h-4" />}
-                    className="!bg-emerald-600 hover:!bg-emerald-700 shadow-sm"
-                  >
-                    Punch In Now
-                  </Button>
-                ) : !todayAttendance.checkOut ? (
-                  <Button
-                    variant="danger"
-                    size="lg"
-                    onClick={handlePunchOut}
-                    isLoading={isPunching}
-                    leftIcon={<LogOut className="w-4 h-4" />}
-                    className="!bg-rose-600 hover:!bg-rose-700 shadow-sm"
-                  >
-                    Punch Out (Close Shift)
-                  </Button>
-                ) : (
-                  <div className="p-3 rounded-lg bg-slate-800/80 border border-slate-700/80 text-center">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
-                    <span className="text-xs font-semibold text-white">Shift Completed</span>
-                    <p className="text-[10px] text-slate-400 tabular-nums">{todayAttendance.workHours} logged hours</p>
-                  </div>
-                )}
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-slate-500 mt-1">
+                <span className="flex items-center gap-1 text-slate-600 font-medium">
+                  <MapPin className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  {venue.shortName}
+                </span>
+                <span className="text-slate-300 hidden sm:inline">•</span>
+                <span className="flex items-center gap-1 text-slate-600 font-medium">
+                  <Clock className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  {shiftInfo.name} ({shiftInfo.timing})
+                </span>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Quick Leave Balance Widget */}
-        <div>
-          <Card className="h-full flex flex-col justify-between">
-            <CardHeader
-              title="Time-Off Balance"
-              subtitle="Current leave quotas available"
-              icon={<CalendarDays className="w-4 h-4" />}
-            />
-            <CardContent className="space-y-3 pt-0">
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-3 rounded-lg bg-indigo-50/60 border border-indigo-100">
-                  <span className="text-slate-500 font-medium text-[11px]">Casual Leave</span>
-                  <div className="text-xl font-bold text-indigo-700 mt-1 tabular-nums">
-                    {leaveBalances?.casualLeave.remaining ?? 8}
-                    <span className="text-xs font-normal text-slate-400"> / 12</span>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-lg bg-emerald-50/60 border border-emerald-100">
-                  <span className="text-slate-500 font-medium text-[11px]">Sick Leave</span>
-                  <div className="text-xl font-bold text-emerald-700 mt-1 tabular-nums">
-                    {leaveBalances?.sickLeave.remaining ?? 8}
-                    <span className="text-xs font-normal text-slate-400"> / 10</span>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-lg bg-amber-50/60 border border-amber-100">
-                  <span className="text-slate-500 font-medium text-[11px]">Earned Leave</span>
-                  <div className="text-xl font-bold text-amber-700 mt-1 tabular-nums">
-                    {leaveBalances?.earnedLeave.remaining ?? 13}
-                    <span className="text-xs font-normal text-slate-400"> / 18</span>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-lg bg-purple-50/60 border border-purple-100">
-                  <span className="text-slate-500 font-medium text-[11px]">Comp-Off</span>
-                  <div className="text-xl font-bold text-purple-700 mt-1 tabular-nums">
-                    {leaveBalances?.compOff.remaining ?? 2}
-                    <span className="text-xs font-normal text-slate-400"> / 3</span>
-                  </div>
-                </div>
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate('/employee/leaves')}
-                className="w-full mt-2"
-                rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-              >
-                Apply for Time Off
-              </Button>
-            </CardContent>
-          </Card>
+          {/* Quick Action Navigation on Mobile */}
+          <div className="flex items-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/employee/salary')}
+              leftIcon={<CreditCard className="w-3.5 h-3.5" />}
+              className="flex-1 sm:flex-none text-xs"
+            >
+              My Payslips
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate('/employee/leaves')}
+              leftIcon={<CalendarDays className="w-3.5 h-3.5" />}
+              className="flex-1 sm:flex-none text-xs"
+            >
+              Apply Leave
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Middle Row: Recent Pay & Upcoming Holidays */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
-        {/* Latest Payslip Quick Overview */}
+      {/* Hero Attendance Action Center (Optimized for Mobile Touch) */}
+      <div className="bg-[#0B0F19] rounded-2xl p-4 sm:p-6 text-white border border-slate-800 shadow-md relative overflow-hidden">
+        <div className="relative z-10 space-y-4 sm:space-y-5">
+          {/* Top Bar: Date & Status */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3 sm:pb-4">
+            <div>
+              <span className="text-[11px] font-semibold tracking-wider uppercase text-indigo-400">
+                Attendance Checkpoint
+              </span>
+              <p className="text-sm sm:text-base font-semibold text-white mt-0.5">
+                {todayDateFormatted}
+              </p>
+            </div>
+
+            {/* Attendance Status Display */}
+            <div>
+              {todayAttendance?.checkIn && !todayAttendance?.checkOut ? (
+                <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-semibold">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Logged In • Active Shift</span>
+                </div>
+              ) : todayAttendance?.checkOut ? (
+                <div className="flex items-center gap-1.5 text-xs text-indigo-400 font-semibold">
+                  <CheckCircle2 className="w-4 h-4 text-indigo-400" />
+                  <span>Shift Completed ({todayAttendance.workHours} hrs logged)</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-xs text-amber-400 font-semibold">
+                  <AlertCircle className="w-4 h-4 text-amber-400" />
+                  <span>Not Logged In Today</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Location & Shift Meta Details */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-900/60 p-3 sm:p-3.5 rounded-xl border border-slate-800/70">
+            <div>
+              <span className="text-slate-400 text-[11px]">Authorized Company Venue:</span>
+              <p className="font-semibold text-slate-200 mt-0.5 flex items-center gap-1.5 truncate">
+                <Building2 className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                {venue.name}
+              </p>
+              <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                {venue.address} (Geofence: 250m)
+              </p>
+            </div>
+
+            <div>
+              <span className="text-slate-400 text-[11px]">Assigned Shift Schedule:</span>
+              <p className="font-semibold text-slate-200 mt-0.5 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                {shiftInfo.name}: {shiftInfo.timing}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {todayAttendance?.checkIn ? (
+                  <>
+                    Logged in at <strong className="text-white font-mono">{formatTime(todayAttendance.checkIn)}</strong>
+                    {todayAttendance.checkOut && (
+                      <> • Out at <strong className="text-white font-mono">{formatTime(todayAttendance.checkOut)}</strong></>
+                    )}
+                  </>
+                ) : (
+                  'Login requires on-premise location & face verification'
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Primary Action Buttons: Attendance Login & Attendance Logout */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            {/* Attendance Login Button */}
+            <button
+              type="button"
+              onClick={openBiometricLogin}
+              disabled={!!todayAttendance?.checkIn}
+              className={`w-full p-4 rounded-xl font-semibold text-left transition-all flex items-center justify-between shadow-sm ${
+                !todayAttendance?.checkIn
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer active:scale-[0.99]'
+                  : 'bg-slate-800/60 border border-slate-700/60 text-slate-400 cursor-not-allowed opacity-80'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+                    !todayAttendance?.checkIn ? 'bg-emerald-700/80 text-white' : 'bg-slate-700 text-slate-400'
+                  }`}
+                >
+                  <LogIn className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-sm sm:text-base font-bold">Attendance Login</div>
+                  <div className="text-[11px] text-emerald-100/90 font-normal">
+                    {!todayAttendance?.checkIn
+                      ? 'Face Scan & Location Check'
+                      : `Logged In at ${formatTime(todayAttendance.checkIn)}`}
+                  </div>
+                </div>
+              </div>
+              <Scan className="w-5 h-5 opacity-70" />
+            </button>
+
+            {/* Attendance Logout Button */}
+            <button
+              type="button"
+              onClick={openBiometricLogout}
+              disabled={!todayAttendance?.checkIn || !!todayAttendance?.checkOut}
+              className={`w-full p-4 rounded-xl font-semibold text-left transition-all flex items-center justify-between shadow-sm ${
+                todayAttendance?.checkIn && !todayAttendance?.checkOut
+                  ? 'bg-rose-600 hover:bg-rose-500 text-white cursor-pointer active:scale-[0.99]'
+                  : 'bg-slate-800/60 border border-slate-700/60 text-slate-400 cursor-not-allowed opacity-80'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+                    todayAttendance?.checkIn && !todayAttendance?.checkOut
+                      ? 'bg-rose-700/80 text-white'
+                      : 'bg-slate-700 text-slate-400'
+                  }`}
+                >
+                  <LogOut className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-sm sm:text-base font-bold">Attendance Logout</div>
+                  <div className="text-[11px] text-rose-100/90 font-normal">
+                    {todayAttendance?.checkIn && !todayAttendance?.checkOut
+                      ? 'Face Scan to Close Shift'
+                      : todayAttendance?.checkOut
+                      ? `Shift Closed (${todayAttendance.workHours} hrs)`
+                      : 'Requires Active Check-In'}
+                  </div>
+                </div>
+              </div>
+              <Scan className="w-5 h-5 opacity-70" />
+            </button>
+          </div>
+
+          {/* Info note */}
+          <div className="flex items-center gap-2 text-[11px] text-slate-400 pt-1">
+            <ShieldCheck className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            <span>
+              Attendance login is geofenced and strictly restricted to the authorized company venue ({venue.shortName}).
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Streamlined Quick Widgets */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        {/* Leave Quotas Card */}
         <Card>
           <CardHeader
-            title="Recent Salary Remittance"
-            subtitle="September 2026 Monthly Electronic Credit"
-            icon={<CreditCard className="w-4 h-4" />}
+            title="Leave Quotas"
+            subtitle="Available time-off balances"
+            icon={<CalendarDays className="w-4 h-4 text-indigo-600" />}
+            action={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/employee/leaves')}
+                rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                className="text-xs"
+              >
+                Apply
+              </Button>
+            }
+          />
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 text-xs">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-center">
+                <span className="text-slate-500 font-medium text-[11px]">Casual</span>
+                <div className="text-lg sm:text-xl font-bold text-slate-900 mt-1 tabular-nums">
+                  {leaveBalances?.casualLeave.remaining ?? 8}
+                  <span className="text-xs font-normal text-slate-400">/12</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-center">
+                <span className="text-slate-500 font-medium text-[11px]">Sick</span>
+                <div className="text-lg sm:text-xl font-bold text-slate-900 mt-1 tabular-nums">
+                  {leaveBalances?.sickLeave.remaining ?? 8}
+                  <span className="text-xs font-normal text-slate-400">/10</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-center">
+                <span className="text-slate-500 font-medium text-[11px]">Earned</span>
+                <div className="text-lg sm:text-xl font-bold text-slate-900 mt-1 tabular-nums">
+                  {leaveBalances?.earnedLeave.remaining ?? 13}
+                  <span className="text-xs font-normal text-slate-400">/18</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recent Monthly Salary Remittance */}
+        <Card>
+          <CardHeader
+            title="Monthly Salary"
+            subtitle="September 2026 Remittance"
+            icon={<CreditCard className="w-4 h-4 text-indigo-600" />}
             action={
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => navigate('/employee/salary')}
                 rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                className="text-xs"
               >
-                Full Payslip
+                View Slip
               </Button>
             }
           />
-          <CardContent className="space-y-4">
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/90 flex items-center justify-between">
+          <CardContent className="pt-0">
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
               <div>
                 <span className="text-xs text-slate-500">Net Take-Home Pay</span>
-                <p className="text-2xl font-bold text-emerald-600 font-mono mt-0.5 tabular-nums">
-                  {recentPayslip ? formatINR(recentPayslip.components.netMonthly) : '₹1,12,450'}
+                <p className="text-xl sm:text-2xl font-bold text-emerald-600 font-mono mt-0.5 tabular-nums">
+                  {recentPayslip ? formatINR(recentPayslip.components.netMonthly) : '₹48,250'}
                 </p>
-                <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Credited to HDFC Bank (•••• 5827)</span>
+                <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-500">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Credited via Direct Bank Transfer</span>
                 </div>
               </div>
-              <Badge variant="success" size="md">PAID via NEFT</Badge>
-            </div>
 
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="p-2.5 rounded-lg border border-slate-100 flex justify-between">
-                <span className="text-slate-500">Gross Earnings:</span>
-                <span className="font-semibold text-slate-800 font-mono">
-                  {recentPayslip ? formatINR(recentPayslip.components.grossMonthly) : '₹1,32,000'}
+              <div className="text-right">
+                <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
+                  Paid
                 </span>
+                <p className="text-[11px] text-slate-400 font-mono mt-0.5">30 Sep 2026</p>
               </div>
-              <div className="p-2.5 rounded-lg border border-slate-100 flex justify-between">
-                <span className="text-slate-500">Total Deductions:</span>
-                <span className="font-semibold text-rose-600 font-mono">
-                  {recentPayslip ? formatINR(recentPayslip.components.totalDeductions) : '₹19,550'}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Venue Operational Hours & Schedule */}
-        <Card>
-          <CardHeader
-            title="Venue Operations & Center Schedule"
-            subtitle="Operational timings and attendance checkpoints"
-            icon={<Clock className="w-4 h-4 text-slate-500" />}
-          />
-          <CardContent className="space-y-3 text-xs">
-            <div className="p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/60">
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-semibold text-slate-900">Experience Venue Timings</span>
-                <span className="text-slate-600 font-mono text-[11px] font-medium">10:00 AM - 09:30 PM</span>
-              </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                Experience destinations are active 7 days a week. Staff shift allocations are published by Venue Operations Managers.
-              </p>
-            </div>
-            <div className="p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/60">
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-semibold text-slate-900">Attendance Telemetry Check-In</span>
-                <span className="text-emerald-600 font-medium text-[11px]">Daily Auto Sync</span>
-              </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                Check-in upon arrival at the venue desk via your staff terminal or mobile biometric punch.
-              </p>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Biometric Attendance Modal */}
+      {employee && (
+        <BiometricAttendanceModal
+          isOpen={biometricModalOpen}
+          onClose={() => setBiometricModalOpen(false)}
+          mode={biometricMode}
+          employee={{
+            id: employee.id,
+            fullName: employee.fullName,
+            employeeCode: employee.employeeCode,
+            location: employee.location,
+            shift: employee.shift,
+          }}
+          onSuccess={handleBiometricSuccess}
+        />
+      )}
     </div>
   );
 };

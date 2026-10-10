@@ -17,6 +17,7 @@ export interface User {
 }
 
 export type EmployeeLocation = 'Hyderabad' | 'Vizag' | 'Bhubaneswar';
+export type ShiftType = 'MORNING' | 'EVENING';
 
 export interface Employee {
   id: string;
@@ -28,6 +29,7 @@ export interface Employee {
   phone: string;
   designation?: string;
   location: EmployeeLocation | string;
+  shift?: ShiftType;
   monthlySalary: number;
   ctcAnnual: number;
   joiningDate: string;
@@ -68,6 +70,7 @@ export interface AttendanceRecord {
   employeeName: string;
   departmentName?: string;
   location?: string;
+  shift?: ShiftType;
   date: string; // YYYY-MM-DD
   checkIn?: string; // HH:mm
   checkOut?: string; // HH:mm

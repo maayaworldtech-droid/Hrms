@@ -26,6 +26,7 @@ export const AttendanceManagement: React.FC = () => {
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [shiftFilter, setShiftFilter] = useState<string>('ALL');
 
   const loadData = async () => {
     setIsLoading(true);
@@ -59,6 +60,8 @@ export const AttendanceManagement: React.FC = () => {
   };
 
   const filteredAttendance = attendance.filter((item) => {
+    const matchShift = shiftFilter === 'ALL' || (item.shift || 'MORNING') === shiftFilter;
+    if (!matchShift) return false;
     if (statusFilter === 'ALL') return true;
     if (statusFilter === 'REGULARIZATION_PENDING') return item.regularizationStatus === 'PENDING';
     return item.status === statusFilter;
@@ -80,6 +83,16 @@ export const AttendanceManagement: React.FC = () => {
           <div className="font-semibold text-slate-900">{row.employeeName}</div>
           <div className="text-[11px] text-slate-500">{row.location || 'Hyderabad'} Center</div>
         </div>
+      ),
+    },
+    {
+      key: 'shift',
+      header: 'Shift Timing',
+      sortable: true,
+      render: (row) => (
+        <span className="text-xs text-slate-700 font-medium">
+          {row.shift === 'EVENING' ? 'Evening (1 PM – 9 PM)' : 'Morning (9 AM – 1 PM)'}
+        </span>
       ),
     },
     {
@@ -240,12 +253,43 @@ export const AttendanceManagement: React.FC = () => {
         </button>
       </div>
 
+      {/* Shift Timings Deployment Summary */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-slate-200 bg-white">
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-800">
+          <Clock className="w-4 h-4 text-indigo-600" />
+          <span>Active Shift Deployment</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
+          <span>
+            Morning Shift (9:00 AM – 1:00 PM): <strong className="text-slate-900">{attendance.filter(a => (a.shift || 'MORNING') === 'MORNING').length} Staff</strong>
+          </span>
+          <span className="text-slate-300">•</span>
+          <span>
+            Evening Shift (1:00 PM – 9:00 PM): <strong className="text-slate-900">{attendance.filter(a => a.shift === 'EVENING').length} Staff</strong>
+          </span>
+        </div>
+      </div>
+
       {/* Main Table */}
       <DataTable
         data={filteredAttendance}
         columns={columns}
-        searchPlaceholder="Search attendance by employee name or department..."
-        exportFileName="pulse_attendance_register"
+        searchPlaceholder="Search attendance by employee name..."
+        filterComponent={
+          <div className="flex items-center gap-2">
+            <select
+              value={shiftFilter}
+              onChange={(e) => setShiftFilter(e.target.value)}
+              aria-label="Filter by shift timing"
+              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            >
+              <option value="ALL">All Shifts</option>
+              <option value="MORNING">Morning Shift (9 AM – 1 PM)</option>
+              <option value="EVENING">Evening Shift (1 PM – 9 PM)</option>
+            </select>
+          </div>
+        }
+        exportFileName="maaya_attendance_register"
         isLoading={isLoading}
       />
 

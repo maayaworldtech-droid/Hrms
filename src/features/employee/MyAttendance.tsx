@@ -14,9 +14,11 @@ import {
   AlertCircle,
   FileText,
   Calendar,
+  Scan,
 } from 'lucide-react';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
+import { BiometricAttendanceModal } from '@/components/attendance/BiometricAttendanceModal';
 
 export const MyAttendance: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -25,7 +27,8 @@ export const MyAttendance: React.FC = () => {
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [regularizeReason, setRegularizeReason] = useState('');
-  const [isPunching, setIsPunching] = useState(false);
+  const [biometricModalOpen, setBiometricModalOpen] = useState(false);
+  const [biometricMode, setBiometricMode] = useState<'LOGIN' | 'LOGOUT'>('LOGIN');
 
   const employeeId = 'emp-003'; // Priya Sharma
 
@@ -46,38 +49,18 @@ export const MyAttendance: React.FC = () => {
   const today = new Date().toISOString().split('T')[0];
   const todayRec = attendance.find((a) => a.date === today);
 
-  const handlePunchIn = async () => {
-    setIsPunching(true);
-    try {
-      const rec = await api.attendance.checkIn(employeeId);
-      dispatch(
-        addToast({
-          type: 'success',
-          title: 'Clock-In Confirmed',
-          message: `Logged at ${formatTime(rec.checkIn)}`,
-        })
-      );
-      loadData();
-    } finally {
-      setIsPunching(false);
-    }
+  const handleOpenBiometricLogin = () => {
+    setBiometricMode('LOGIN');
+    setBiometricModalOpen(true);
   };
 
-  const handlePunchOut = async () => {
-    setIsPunching(true);
-    try {
-      const rec = await api.attendance.checkOut(employeeId);
-      dispatch(
-        addToast({
-          type: 'success',
-          title: 'Clock-Out Confirmed',
-          message: `Closed shift at ${formatTime(rec.checkOut)}. Total: ${rec.workHours} hrs.`,
-        })
-      );
-      loadData();
-    } finally {
-      setIsPunching(false);
-    }
+  const handleOpenBiometricLogout = () => {
+    setBiometricMode('LOGOUT');
+    setBiometricModalOpen(true);
+  };
+
+  const handleBiometricSuccess = (rec: AttendanceRecord) => {
+    loadData();
   };
 
   const handleRegularizeSubmit = async (e: React.FormEvent) => {
@@ -108,6 +91,16 @@ export const MyAttendance: React.FC = () => {
       sortable: true,
       render: (row) => (
         <span className="font-semibold text-slate-900">{formatDate(row.date)}</span>
+      ),
+    },
+    {
+      key: 'shift',
+      header: 'Shift Timing',
+      sortable: true,
+      render: (row) => (
+        <span className="text-xs text-slate-700 font-medium">
+          {row.shift === 'EVENING' ? 'Evening (1 PM – 9 PM)' : 'Morning (9 AM – 1 PM)'}
+        </span>
       ),
     },
     {
@@ -196,34 +189,45 @@ export const MyAttendance: React.FC = () => {
           </p>
         </div>
 
-        {/* Live Punch Quick Action */}
-        <div>
+        {/* Live Attendance Login / Logout Action */}
+        <div className="flex items-center gap-2">
           {!todayRec?.checkIn ? (
             <Button
               variant="primary"
               size="sm"
-              onClick={handlePunchIn}
-              isLoading={isPunching}
+              onClick={handleOpenBiometricLogin}
               leftIcon={<LogIn className="w-4 h-4" />}
               className="!bg-emerald-600 hover:!bg-emerald-700"
             >
-              Punch In Today
+              Attendance Login
             </Button>
           ) : !todayRec.checkOut ? (
             <Button
               variant="danger"
               size="sm"
-              onClick={handlePunchOut}
-              isLoading={isPunching}
+              onClick={handleOpenBiometricLogout}
               leftIcon={<LogOut className="w-4 h-4" />}
             >
-              Punch Out (Shift Active)
+              Attendance Logout
             </Button>
           ) : (
-            <Badge variant="success" size="md">
-              Punched Out ({todayRec.workHours} hrs)
-            </Badge>
+            <span className="text-xs font-semibold text-emerald-600">
+              Shift Completed ({todayRec.workHours} hrs)
+            </span>
           )}
+        </div>
+      </div>
+
+      {/* Shift Schedule Banner */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-slate-200 bg-white">
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-800">
+          <Clock className="w-4 h-4 text-indigo-600" />
+          <span>Assigned Shift Schedule:</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
+          <span>Morning Shift: <strong className="text-slate-900 font-mono">09:00 AM – 01:00 PM</strong> (4.0 hrs)</span>
+          <span className="text-slate-300">•</span>
+          <span className="text-slate-500">Venue Operations: Morning Roster</span>
         </div>
       </div>
 
@@ -282,6 +286,21 @@ export const MyAttendance: React.FC = () => {
           </form>
         </Modal>
       )}
+
+      {/* Biometric Attendance Face & Location Modal */}
+      <BiometricAttendanceModal
+        isOpen={biometricModalOpen}
+        onClose={() => setBiometricModalOpen(false)}
+        mode={biometricMode}
+        employee={{
+          id: employeeId,
+          fullName: 'Priya Sharma',
+          employeeCode: 'MW-1003',
+          location: 'Hyderabad',
+          shift: 'MORNING',
+        }}
+        onSuccess={handleBiometricSuccess}
+      />
     </div>
   );
 };

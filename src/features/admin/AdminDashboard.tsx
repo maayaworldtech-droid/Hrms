@@ -295,6 +295,7 @@ export const AdminDashboard: React.FC = () => {
               <thead className="bg-slate-50/70 text-[11px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
                 <tr>
                   <th className="py-2.5 px-4">Staff Member</th>
+                  <th className="py-2.5 px-4">Shift</th>
                   <th className="py-2.5 px-4">Status</th>
                   <th className="py-2.5 px-4">Punch In</th>
                   <th className="py-2.5 px-4">Punch Out</th>
@@ -307,6 +308,9 @@ export const AdminDashboard: React.FC = () => {
                   <tr key={rec.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="py-3 px-4 font-semibold text-slate-900">
                       {rec.employeeName}
+                    </td>
+                    <td className="py-3 px-4 text-slate-700 font-medium">
+                      {rec.shift === 'EVENING' ? 'Evening (1 PM – 9 PM)' : 'Morning (9 AM – 1 PM)'}
                     </td>
                     <td className="py-3 px-4">
                       <Badge
