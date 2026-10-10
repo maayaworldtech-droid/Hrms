@@ -192,7 +192,7 @@ export const MyLeaves: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">My Leave Applications</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Priya Sharma • View annual time-off balance, submit applications & monitor approvals
+            Priya Sharma - View annual time-off balance, submit applications & monitor approvals
           </p>
         </div>
         <Button

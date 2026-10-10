@@ -1,15 +1,18 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { RightUtilityBar } from './RightUtilityBar';
 import { ToastContainer } from '@/components/common/ToastContainer';
-import { useAppDispatch } from '@/store';
+import { useAppDispatch, useAppSelector } from '@/store';
 import { toggleMobileMenu } from '@/store/slices/uiSlice';
+import { switchRole } from '@/store/slices/authSlice';
 import { Menu } from 'lucide-react';
 import maayaLogo from '@/assets/logo-new.png';
 
 export const AppLayout: React.FC = () => {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const { activeRole } = useAppSelector((state) => state.auth);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F4F6F9] font-sans antialiased">
@@ -19,7 +22,7 @@ export const AppLayout: React.FC = () => {
       {/* Main Content Canvas - No Top Header on Desktop (Matches Zoho CPaaS Inspiration) */}
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         {/* Minimal Mobile-Only Bar (Hidden on desktop) */}
-        <div className="lg:hidden flex h-14 items-center justify-between px-4 bg-white border-b border-slate-200 shrink-0">
+        <div className="lg:hidden flex h-14 items-center justify-between px-3 sm:px-4 bg-white border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => dispatch(toggleMobileMenu())}
@@ -29,6 +32,31 @@ export const AppLayout: React.FC = () => {
               <Menu className="w-5 h-5" />
             </button>
             <img src={maayaLogo} alt="Maaya World Logo" className="h-8 w-auto object-contain" />
+          </div>
+
+          {/* Quick Mobile Role Switcher */}
+          <div className="flex items-center gap-1.5">
+            {activeRole !== 'EMPLOYEE' ? (
+              <button
+                onClick={() => {
+                  dispatch(switchRole('EMPLOYEE'));
+                  navigate('/employee/dashboard');
+                }}
+                className="text-xs px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
+              >
+                Employee View
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  dispatch(switchRole('ADMIN'));
+                  navigate('/admin/dashboard');
+                }}
+                className="text-xs px-2.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200 hover:bg-indigo-100 transition-colors cursor-pointer"
+              >
+                Admin View
+              </button>
+            )}
           </div>
         </div>
 

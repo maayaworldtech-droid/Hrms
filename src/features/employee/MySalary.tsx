@@ -119,7 +119,7 @@ export const MySalary: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">My Salary & Payslips</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Priya Sharma • CTC structure, statutory deductions breakdown & monthly electronic payslips
+            Priya Sharma - Monthly salary structure, statutory deductions & electronic payslips
           </p>
         </div>
       </div>
@@ -134,7 +134,7 @@ export const MySalary: React.FC = () => {
             <div className="text-3xl font-black font-mono mt-1 text-white">
               {formatINR(ctcAnnual)}
             </div>
-            <p className="text-xs text-indigo-200 mt-1">Senior Frontend Engineer Level</p>
+            <p className="text-xs text-indigo-200 mt-1">Experience Operations</p>
           </div>
           <div className="mt-4 pt-3 border-t border-indigo-800 flex justify-between text-xs">
             <span className="text-indigo-300">Monthly Gross Budget:</span>
@@ -154,7 +154,7 @@ export const MySalary: React.FC = () => {
           </div>
           <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between text-xs">
             <span className="text-slate-500">Credited into:</span>
-            <span className="font-semibold text-slate-800">HDFC Bank (•••• 5827)</span>
+            <span className="font-semibold text-slate-800">HDFC Bank (Ending in 5827)</span>
           </div>
         </div>
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store';
 import { setMobileMenuOpen, toggleSidebar } from '@/store/slices/uiSlice';
+import { switchRole } from '@/store/slices/authSlice';
 import maayaLogo from '@/assets/logo-new.png';
 import {
   LayoutDashboard,
@@ -208,6 +209,57 @@ export const Sidebar: React.FC = () => {
               })}
             </div>
           ))}
+        </div>
+
+        {/* Mobile-Only Role Switcher Drawer Section */}
+        <div className="lg:hidden p-3 border-t border-slate-800 bg-[#060B15]/95 space-y-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block px-1">
+            Switch View
+          </span>
+          <div className="grid grid-cols-3 gap-1.5 text-xs">
+            <button
+              onClick={() => {
+                dispatch(switchRole('ADMIN'));
+                closeMobile();
+                navigate('/admin/dashboard');
+              }}
+              className={`p-2 rounded-lg text-center transition-colors ${
+                activeRole === 'ADMIN'
+                  ? 'bg-indigo-600 text-white font-bold'
+                  : 'bg-slate-800/90 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              Admin
+            </button>
+            <button
+              onClick={() => {
+                dispatch(switchRole('MANAGER'));
+                closeMobile();
+                navigate('/manager/dashboard');
+              }}
+              className={`p-2 rounded-lg text-center transition-colors ${
+                activeRole === 'MANAGER'
+                  ? 'bg-amber-600 text-white font-bold'
+                  : 'bg-slate-800/90 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              Manager
+            </button>
+            <button
+              onClick={() => {
+                dispatch(switchRole('EMPLOYEE'));
+                closeMobile();
+                navigate('/employee/dashboard');
+              }}
+              className={`p-2 rounded-lg text-center transition-colors ${
+                activeRole === 'EMPLOYEE'
+                  ? 'bg-emerald-600 text-white font-bold'
+                  : 'bg-slate-800/90 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              Employee
+            </button>
+          </div>
         </div>
 
         {/* Bottom Workspace Status & Collapse Toggle */}

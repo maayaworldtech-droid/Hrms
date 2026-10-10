@@ -265,7 +265,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
               <span className="text-xs font-semibold tracking-wider text-indigo-600 uppercase">
                 Biometric Verification
               </span>
-              <span className="text-slate-300">•</span>
+              <span className="text-slate-300">/</span>
               <span className="text-xs text-slate-500 font-mono">
                 {mode === 'LOGIN' ? 'Attendance Check-In' : 'Attendance Check-Out'}
               </span>
@@ -291,7 +291,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
             <div>
               <span className="font-semibold text-slate-900">{employee.fullName}</span>
               <p className="text-slate-500 text-[11px] mt-0.5">
-                Staff ID: {employee.employeeCode} • {venue.shortName}
+                Staff ID: {employee.employeeCode} / {venue.shortName}
               </p>
             </div>
             <div className="text-right">
@@ -436,7 +436,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
                     </div>
 
                     <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
-                      {venue.name} • {venue.address}
+                      {venue.name} - {venue.address}
                     </p>
 
                     {!geofenceResult.isWithinRadius && (

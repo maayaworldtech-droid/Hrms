@@ -185,7 +185,7 @@ export const MyAttendance: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">My Attendance & Logs</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Priya Sharma • Daily timesheets, effective hours, punch records & regularisation requests
+            Priya Sharma - Daily timesheets, effective hours, punch records & regularisation requests
           </p>
         </div>
 
@@ -225,9 +225,8 @@ export const MyAttendance: React.FC = () => {
           <span>Assigned Shift Schedule:</span>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
-          <span>Morning Shift: <strong className="text-slate-900 font-mono">09:00 AM – 01:00 PM</strong> (4.0 hrs)</span>
-          <span className="text-slate-300">•</span>
-          <span className="text-slate-500">Venue Operations: Morning Roster</span>
+          <span>Morning Shift: <strong className="text-slate-900 font-mono">09:00 AM - 01:00 PM</strong> (4.0 hrs)</span>
+          <span className="text-slate-500">Venue Operations Morning Roster</span>
         </div>
       </div>
 
