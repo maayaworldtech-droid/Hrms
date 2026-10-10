@@ -1,62 +1,123 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store';
-import { toggleSidebar, setMobileMenuOpen } from '@/store/slices/uiSlice';
+import { setMobileMenuOpen, toggleSidebar } from '@/store/slices/uiSlice';
+import maayaLogo from '@/assets/logo-new.png';
 import {
   LayoutDashboard,
   Users,
   Clock,
   CalendarDays,
-  FileSpreadsheet,
   Banknote,
   BarChart3,
-  PartyPopper,
   Settings,
-  UserCheck,
   User,
-  Shield,
-  Layers,
+  Plus,
   ChevronLeft,
+  ChevronRight,
   X,
   CreditCard,
   Briefcase,
+  ShieldCheck,
 } from 'lucide-react';
+
+interface NavSection {
+  title?: string;
+  hasAddAction?: boolean;
+  onAddClick?: () => void;
+  items: {
+    label: string;
+    path: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }[];
+}
 
 export const Sidebar: React.FC = () => {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const { activeRole } = useAppSelector((state) => state.auth);
   const { sidebarCollapsed, mobileMenuOpen } = useAppSelector((state) => state.ui);
 
-  const adminNav = [
-    { label: 'Admin Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
-    { label: 'Employee Directory', path: '/admin/employees', icon: Users },
-    { label: 'Attendance Records', path: '/admin/attendance', icon: Clock },
-    { label: 'Leave Management', path: '/admin/leaves', icon: CalendarDays },
-    { label: 'Salary Setup', path: '/admin/salary-setup', icon: FileSpreadsheet },
-    { label: 'Payroll Processing', path: '/admin/payroll', icon: Banknote },
-    { label: 'Reports & Analytics', path: '/admin/reports', icon: BarChart3 },
-    { label: 'Company Holidays', path: '/admin/holidays', icon: PartyPopper },
-    { label: 'Company Settings', path: '/admin/settings', icon: Settings },
+  const adminSections: NavSection[] = [
+    {
+      items: [
+        { label: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
+      ],
+    },
+    {
+      title: 'Workforce',
+      hasAddAction: true,
+      onAddClick: () => navigate('/admin/employees'),
+      items: [
+        { label: 'Employee Directory', path: '/admin/employees', icon: Users },
+        { label: 'Attendance Records', path: '/admin/attendance', icon: Clock },
+        { label: 'Leave Management', path: '/admin/leaves', icon: CalendarDays },
+      ],
+    },
+    {
+      title: 'Payroll & Statutory',
+      items: [
+        { label: 'Payroll Processing', path: '/admin/payroll', icon: Banknote },
+      ],
+    },
+    {
+      title: 'Analytics & Compliance',
+      items: [
+        { label: 'Reports & Analytics', path: '/admin/reports', icon: BarChart3 },
+        { label: 'Company Settings', path: '/admin/settings', icon: Settings },
+      ],
+    },
   ];
 
-  const managerNav = [
-    { label: 'Manager Dashboard', path: '/manager/dashboard', icon: LayoutDashboard },
-    { label: 'Team Attendance', path: '/manager/attendance', icon: Clock },
-    { label: 'Team Leave Approvals', path: '/manager/leaves', icon: CalendarDays },
-    { label: 'Company Holidays', path: '/admin/holidays', icon: PartyPopper },
-    { label: 'My Profile', path: '/employee/profile', icon: User },
+  const managerSections: NavSection[] = [
+    {
+      items: [
+        { label: 'Manager Dashboard', path: '/manager/dashboard', icon: LayoutDashboard },
+      ],
+    },
+    {
+      title: 'Team Management',
+      items: [
+        { label: 'Team Attendance', path: '/manager/attendance', icon: Clock },
+        { label: 'Team Leave Approvals', path: '/manager/leaves', icon: CalendarDays },
+      ],
+    },
+    {
+      title: 'Personal',
+      items: [
+        { label: 'My Profile', path: '/employee/profile', icon: User },
+      ],
+    },
   ];
 
-  const employeeNav = [
-    { label: 'Employee Dashboard', path: '/employee/dashboard', icon: LayoutDashboard },
-    { label: 'My Attendance', path: '/employee/attendance', icon: Clock },
-    { label: 'My Leave Requests', path: '/employee/leaves', icon: CalendarDays },
-    { label: 'My Salary & Payslips', path: '/employee/salary', icon: CreditCard },
-    { label: 'Company Holidays', path: '/admin/holidays', icon: PartyPopper },
-    { label: 'My Profile', path: '/employee/profile', icon: User },
+  const employeeSections: NavSection[] = [
+    {
+      items: [
+        { label: 'My Dashboard', path: '/employee/dashboard', icon: LayoutDashboard },
+      ],
+    },
+    {
+      title: 'Time & Compensation',
+      items: [
+        { label: 'My Attendance', path: '/employee/attendance', icon: Clock },
+        { label: 'My Leave Requests', path: '/employee/leaves', icon: CalendarDays },
+        { label: 'My Salary & Payslips', path: '/employee/salary', icon: CreditCard },
+      ],
+    },
+    {
+      title: 'Account',
+      items: [
+        { label: 'My Profile', path: '/employee/profile', icon: User },
+      ],
+    },
   ];
 
-  const navItems = activeRole === 'ADMIN' ? adminNav : activeRole === 'MANAGER' ? managerNav : employeeNav;
+  const sections =
+    activeRole === 'ADMIN'
+      ? adminSections
+      : activeRole === 'MANAGER'
+      ? managerSections
+      : employeeSections;
 
   const closeMobile = () => dispatch(setMobileMenuOpen(false));
 
@@ -65,90 +126,107 @@ export const Sidebar: React.FC = () => {
       {/* Mobile Backdrop */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs lg:hidden"
           onClick={closeMobile}
         />
       )}
 
-      {/* Sidebar Container */}
+      {/* Sidebar Container (Zoho CPaaS Inspiration) */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 flex flex-col bg-slate-900 text-slate-300 transition-all duration-300 ease-in-out lg:static ${
-          sidebarCollapsed ? 'w-20' : 'w-64'
+        className={`fixed top-0 bottom-0 left-0 z-40 flex flex-col bg-[#070D19] text-slate-300 border-r border-slate-800/80 transition-all duration-200 ease-in-out lg:static ${
+          sidebarCollapsed ? 'w-18' : 'w-62'
         } ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
-        {/* Brand Logo Header */}
-        <div className="flex h-16 items-center justify-between px-5 border-b border-slate-800">
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-500/20 shrink-0">
-              <Layers className="h-5 w-5" />
+        {/* Brand Header with Maaya World Logo only (No extra text) */}
+        <div className="flex h-16 items-center justify-between px-3.5 border-b border-slate-800/70 bg-[#060B15]">
+          <div className={`flex items-center ${sidebarCollapsed ? 'justify-center w-full' : 'justify-start'} overflow-hidden`}>
+            <div className={`rounded-xl bg-white flex items-center justify-center shrink-0 shadow-xs ${sidebarCollapsed ? 'w-10 h-10 p-1.5' : 'h-10 px-3 py-1.5'}`}>
+              <img
+                src={maayaLogo}
+                alt="Maaya World Logo"
+                className="h-full w-auto max-w-full object-contain"
+              />
             </div>
-            {!sidebarCollapsed && (
-              <div className="flex flex-col">
-                <span className="text-base font-bold tracking-tight text-white font-sans">PulseHRMS</span>
-                <span className="text-[10px] font-medium uppercase tracking-widest text-indigo-400">Enterprise</span>
-              </div>
-            )}
           </div>
 
           {/* Mobile Close Button */}
           <button
             onClick={closeMobile}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white lg:hidden"
-            aria-label="Close Sidebar"
+            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white lg:hidden"
+            aria-label="Close navigation"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Role Pill */}
-        {!sidebarCollapsed && (
-          <div className="px-4 py-3 border-b border-slate-800/80 bg-slate-950/40">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-400 font-medium">Active Workspace</span>
-              <span className="font-semibold text-indigo-400">{activeRole}</span>
+        {/* Navigation Sections */}
+        <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-4">
+          {sections.map((section, sIdx) => (
+            <div key={sIdx} className="space-y-1">
+              {!sidebarCollapsed && section.title && (
+                <div className="flex items-center justify-between px-2.5 pt-2 pb-1">
+                  <span className="text-[11px] font-medium text-slate-400">
+                    {section.title}
+                  </span>
+                  {section.hasAddAction && (
+                    <button
+                      onClick={section.onAddClick}
+                      className="text-slate-400 hover:text-white p-0.5 rounded hover:bg-slate-800/60 transition-colors"
+                      title="Quick Action"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={closeMobile}
+                    className={({ isActive }) =>
+                      `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-all ${
+                        isActive
+                          ? 'bg-[#14213B] text-white font-semibold border border-[#23355C] shadow-xs'
+                          : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 font-medium'
+                      } ${sidebarCollapsed ? 'justify-center px-0' : ''}`
+                    }
+                    title={sidebarCollapsed ? item.label : undefined}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
+                  </NavLink>
+                );
+              })}
             </div>
-          </div>
-        )}
-
-        {/* Navigation Items */}
-        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                onClick={closeMobile}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all group ${
-                    isActive
-                      ? 'bg-indigo-600 text-white shadow-xs shadow-indigo-600/30'
-                      : 'text-slate-400 hover:bg-slate-800/70 hover:text-slate-100'
-                  } ${sidebarCollapsed ? 'justify-center px-0' : ''}`
-                }
-                title={sidebarCollapsed ? item.label : undefined}
-              >
-                <Icon className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-105`} />
-                {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
-              </NavLink>
-            );
-          })}
+          ))}
         </div>
 
-        {/* Sidebar Footer */}
-        <div className="p-3 border-t border-slate-800 bg-slate-950/30">
+        {/* Bottom Workspace Status & Collapse Toggle */}
+        <div className="p-2.5 border-t border-slate-800/80 bg-[#060B15] flex items-center justify-between">
           {!sidebarCollapsed ? (
-            <div className="flex items-center justify-between px-2 py-1 text-[11px] text-slate-500">
-              <span>PulseHRMS v2.6.4</span>
-              <span className="flex items-center gap-1 text-emerald-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Live Cloud
-              </span>
+            <div className="flex items-center justify-between w-full px-1 text-[11px] text-slate-400">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="truncate">Maaya World Cloud</span>
+              </div>
+              <button
+                onClick={() => dispatch(toggleSidebar())}
+                className="hidden lg:flex p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+                title="Collapse sidebar"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
             </div>
           ) : (
-            <div className="flex justify-center py-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            </div>
+            <button
+              onClick={() => dispatch(toggleSidebar())}
+              className="hidden lg:flex mx-auto p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+              title="Expand sidebar"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           )}
         </div>
       </aside>

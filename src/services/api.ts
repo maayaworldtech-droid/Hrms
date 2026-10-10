@@ -18,26 +18,24 @@ import {
   MOCK_ATTENDANCE,
   MOCK_LEAVE_REQUESTS,
   MOCK_LEAVE_BALANCES,
-  MOCK_HOLIDAYS,
-  MOCK_DEPARTMENTS,
   MOCK_COMPANY_SETTINGS,
   MOCK_AUDIT_LOGS,
   generateMockPayrollRuns,
 } from './mockData';
-import { calculateSalaryFromCTC } from '@/utils/salaryCalculator';
+import { calculateSalaryFromMonthly, calculateSalaryFromCTC } from '@/utils/salaryCalculator';
 
-// LocalStorage Keys
+// LocalStorage Keys for Maaya World HRMS
 const KEYS = {
-  CURRENT_USER: 'pulse_current_user',
-  EMPLOYEES: 'pulse_employees',
-  ATTENDANCE: 'pulse_attendance',
-  LEAVES: 'pulse_leaves',
-  LEAVE_BALANCES: 'pulse_leave_balances',
-  PAYROLL: 'pulse_payroll_runs',
-  HOLIDAYS: 'pulse_holidays',
-  DEPARTMENTS: 'pulse_departments',
-  SETTINGS: 'pulse_settings',
-  AUDIT: 'pulse_audit_logs',
+  CURRENT_USER: 'maaya_current_user_v3',
+  EMPLOYEES: 'maaya_employees_v3',
+  ATTENDANCE: 'maaya_attendance_v3',
+  LEAVES: 'maaya_leaves_v3',
+  LEAVE_BALANCES: 'maaya_leave_balances_v3',
+  PAYROLL: 'maaya_payroll_runs_v3',
+  HOLIDAYS: 'maaya_holidays_v3',
+  DEPARTMENTS: 'maaya_departments_v3',
+  SETTINGS: 'maaya_settings_v3',
+  AUDIT: 'maaya_audit_logs_v3',
 };
 
 // Helper to simulate network latency
@@ -79,10 +77,10 @@ export function initLocalStorage(): void {
     setStored(KEYS.PAYROLL, generateMockPayrollRuns());
   }
   if (!localStorage.getItem(KEYS.HOLIDAYS)) {
-    setStored(KEYS.HOLIDAYS, MOCK_HOLIDAYS);
+    setStored(KEYS.HOLIDAYS, []);
   }
   if (!localStorage.getItem(KEYS.DEPARTMENTS)) {
-    setStored(KEYS.DEPARTMENTS, MOCK_DEPARTMENTS);
+    setStored(KEYS.DEPARTMENTS, []);
   }
   if (!localStorage.getItem(KEYS.SETTINGS)) {
     setStored(KEYS.SETTINGS, MOCK_COMPANY_SETTINGS);

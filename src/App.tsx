@@ -12,15 +12,13 @@ import { Login } from '@/features/auth/Login';
 import { ForgotPassword } from '@/features/auth/ForgotPassword';
 import { ResetPassword } from '@/features/auth/ResetPassword';
 
-// Admin Feature Screens (Screens 4 - 12)
+// Admin Feature Screens (Screens 4 - 10)
 import { AdminDashboard } from '@/features/admin/AdminDashboard';
 import { EmployeeManagement } from '@/features/admin/EmployeeManagement';
 import { AttendanceManagement } from '@/features/admin/AttendanceManagement';
 import { LeaveManagement } from '@/features/admin/LeaveManagement';
-import { SalarySetup } from '@/features/admin/SalarySetup';
 import { PayrollProcessing } from '@/features/admin/PayrollProcessing';
 import { ReportsAnalytics } from '@/features/admin/ReportsAnalytics';
-import { HolidayCalendar } from '@/features/admin/HolidayCalendar';
 import { CompanySettings } from '@/features/admin/CompanySettings';
 
 // Manager Feature Screens (Screens 13, 14, 15)
@@ -108,14 +106,6 @@ export const AppContent: React.FC = () => {
               }
             />
             <Route
-              path="/admin/salary-setup"
-              element={
-                <ProtectedRoute allowedRoles={['ADMIN']}>
-                  <SalarySetup />
-                </ProtectedRoute>
-              }
-            />
-            <Route
               path="/admin/payroll"
               element={
                 <ProtectedRoute allowedRoles={['ADMIN']}>
@@ -128,14 +118,6 @@ export const AppContent: React.FC = () => {
               element={
                 <ProtectedRoute allowedRoles={['ADMIN']}>
                   <ReportsAnalytics />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/holidays"
-              element={
-                <ProtectedRoute>
-                  <HolidayCalendar />
                 </ProtectedRoute>
               }
             />

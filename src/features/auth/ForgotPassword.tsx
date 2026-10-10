@@ -5,8 +5,9 @@ import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
-import { Layers, Mail, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Mail, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { api } from '@/services/api';
+import maayaLogo from '@/assets/logo-new.png';
 
 const forgotSchema = z.object({
   email: z.string().email('Please enter a valid corporate email address'),
@@ -37,21 +38,25 @@ export const ForgotPassword: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#F4F6F9] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 mb-4">
-          <Layers className="h-6 w-6" />
+        <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-white shadow-sm border border-slate-200/90 mb-4">
+          <img
+            src={maayaLogo}
+            alt="Maaya World Logo"
+            className="h-10 w-auto object-contain"
+          />
         </div>
-        <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+        <h2 className="text-xl font-bold tracking-tight text-slate-900">
           Reset Your Password
         </h2>
-        <p className="mt-1.5 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-slate-500">
           Enter your registered email to receive password recovery instructions
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-6 shadow-sm border border-slate-200/90 rounded-2xl sm:px-10">
+      <div className="mt-7 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-6 shadow-xs border border-slate-200/90 rounded-2xl sm:px-10">
           {submittedEmail ? (
             <div className="text-center py-4">
               <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-4 border border-emerald-100">
@@ -59,7 +64,7 @@ export const ForgotPassword: React.FC = () => {
               </div>
               <h3 className="text-base font-bold text-slate-900">Recovery Instructions Sent</h3>
               <p className="text-xs text-slate-600 mt-2">
-                We have dispatched a password reset link to <strong className="text-slate-800">{submittedEmail}</strong>. Please check your inbox or spam directory.
+                We have dispatched a password reset link to <strong className="text-slate-800">{submittedEmail}</strong>. Please check your corporate inbox.
               </p>
               <div className="mt-6 flex flex-col gap-2.5">
                 <Link to="/reset-password">
@@ -79,7 +84,7 @@ export const ForgotPassword: React.FC = () => {
               <Input
                 label="Registered Corporate Email"
                 type="email"
-                placeholder="name@pulsehrms.com"
+                placeholder="name@maayaworld.com"
                 leftIcon={<Mail className="w-4 h-4" />}
                 error={errors.email?.message}
                 helperText="We will send a one-time recovery token valid for 30 minutes."

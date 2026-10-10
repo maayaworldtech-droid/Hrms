@@ -1,69 +1,41 @@
 import { SalaryComponent } from '@/types';
 
 /**
- * Calculates Indian salary structure components from an Annual CTC
+ * Calculates Indian salary structure components directly from Monthly Salary
  */
-export function calculateSalaryFromCTC(ctcAnnual: number): SalaryComponent {
-  // Monthly Gross is typically ~88-92% of CTC/12 after subtracting employer contributions
-  const monthlyBudget = Math.round(ctcAnnual / 12);
-
-  // 1. Basic Salary (45% of monthly budget)
-  const basic = Math.round(monthlyBudget * 0.45);
-
-  // 2. HRA (50% of Basic in metro cities)
-  const hra = Math.round(basic * 0.5);
-
-  // 3. Fixed statutory allowances
-  const conveyanceAllowance = 1600;
-  const medicalAllowance = 1250;
-
-  // 4. Employer PF contribution (12% of Basic)
-  const epfEmployer = Math.round(basic * 0.12);
-
-  // 5. Special Allowance (balancing figure so Gross + EPF Employer approx equals monthlyBudget)
-  let specialAllowance = monthlyBudget - (basic + hra + conveyanceAllowance + medicalAllowance + epfEmployer);
-  if (specialAllowance < 0) {
-    specialAllowance = 2000;
-  }
-
-  // Gross Monthly Earnings = Basic + HRA + Conveyance + Medical + Special
-  const grossMonthly = basic + hra + conveyanceAllowance + medicalAllowance + specialAllowance;
-
-  // Employee Deductions
+export function calculateSalaryFromMonthly(monthlySalary: number): SalaryComponent {
+  const basic = Math.round(monthlySalary * 0.50);
+  const hra = Math.round(basic * 0.40);
+  const specialAllowance = Math.max(0, monthlySalary - basic - hra);
+  const grossMonthly = monthlySalary;
   const epfEmployee = Math.round(basic * 0.12);
-  const professionalTax = 200; // Flat standard PT in Karnataka / Maharashtra / Telangana
-  const healthInsurance = 1200; // Group Health Insurance
-
-  // Estimated Monthly TDS (Income Tax) based on simplified slabs
-  let estimatedAnnualTax = 0;
-  if (ctcAnnual > 1500000) {
-    estimatedAnnualTax = (ctcAnnual - 1500000) * 0.30 + 150000;
-  } else if (ctcAnnual > 1000000) {
-    estimatedAnnualTax = (ctcAnnual - 1000000) * 0.20 + 50000;
-  } else if (ctcAnnual > 700000) {
-    estimatedAnnualTax = (ctcAnnual - 700000) * 0.10;
-  } else {
-    estimatedAnnualTax = 0; // Rebate under Sec 87A
-  }
-  const tds = Math.round(estimatedAnnualTax / 12);
-
+  const professionalTax = 200; // Standard PT in Telangana / AP / Odisha
+  const healthInsurance = 350;
+  const tds = monthlySalary > 50000 ? Math.round((monthlySalary - 50000) * 0.10) : 0;
   const totalDeductions = epfEmployee + professionalTax + healthInsurance + tds;
-  const netMonthly = grossMonthly - totalDeductions;
+  const netMonthly = Math.max(0, grossMonthly - totalDeductions);
 
   return {
     basic,
     hra,
     specialAllowance,
-    conveyanceAllowance,
-    medicalAllowance,
+    conveyanceAllowance: 0,
+    medicalAllowance: 0,
     grossMonthly,
     epfEmployee,
-    epfEmployer,
     professionalTax,
     tds,
     healthInsurance,
     totalDeductions,
     netMonthly,
-    ctcAnnual,
+    ctcAnnual: monthlySalary * 12,
   };
+}
+
+/**
+ * Calculates Indian salary structure components from an Annual CTC
+ */
+export function calculateSalaryFromCTC(ctcAnnual: number): SalaryComponent {
+  const monthlySalary = Math.round(ctcAnnual / 12);
+  return calculateSalaryFromMonthly(monthlySalary);
 }

@@ -78,7 +78,7 @@ export const AttendanceManagement: React.FC = () => {
       render: (row) => (
         <div>
           <div className="font-semibold text-slate-900">{row.employeeName}</div>
-          <div className="text-[11px] text-slate-500">{row.departmentName}</div>
+          <div className="text-[11px] text-slate-500">{row.location || 'Hyderabad'} Center</div>
         </div>
       ),
     },

@@ -19,6 +19,7 @@ import {
   Layers,
   CheckCircle2,
 } from 'lucide-react';
+import maayaLogo from '@/assets/logo-new.png';
 
 export const MySalary: React.FC = () => {
   const [payslips, setPayslips] = useState<Payslip[]>([]);
@@ -200,15 +201,15 @@ export const MySalary: React.FC = () => {
             <div className="border-b border-slate-200 pb-4 flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
-                    <Layers className="w-4 h-4" />
+                  <div className="h-8 w-auto flex items-center justify-center">
+                    <img src={maayaLogo} alt="Maaya World" className="h-7 w-auto object-contain" />
                   </div>
-                  <span className="text-base font-bold text-slate-900">Pulse Technologies Pvt. Ltd.</span>
+                  <span className="text-base font-bold text-slate-900">Maaya World Pvt. Ltd.</span>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1 max-w-sm">
-                  Level 5, Embassy TechVillage, Outer Ring Road, Bellandur, Bangalore, Karnataka - 560103
+                  Maaya World Towers, Level 8, Outer Ring Road, Bellandur, Bangalore, Karnataka - 560103
                 </p>
-                <p className="text-[10px] text-slate-400 font-mono mt-0.5">Corporate Tax ID: 29AABCP1234F1Z5</p>
+                <p className="text-[10px] text-slate-400 font-mono mt-0.5">Corporate Tax ID: 29AABCM9876F1Z2</p>
               </div>
               <div className="text-right">
                 <Badge variant="purple" size="md">PAYSLIP</Badge>

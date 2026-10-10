@@ -21,62 +21,39 @@ export const Badge: React.FC<BadgeProps> = ({
   children,
   variant = 'neutral',
   size = 'md',
-  dot = false,
   className = '',
 }) => {
-  const variantStyles: Record<BadgeVariant, { bg: string; text: string; border: string; dotColor: string }> = {
+  const variantStyles: Record<BadgeVariant, { text: string }> = {
     success: {
-      bg: 'bg-emerald-50',
-      text: 'text-emerald-700',
-      border: 'border-emerald-200',
-      dotColor: 'bg-emerald-500',
+      text: 'text-emerald-600',
     },
     warning: {
-      bg: 'bg-amber-50',
-      text: 'text-amber-700',
-      border: 'border-amber-200',
-      dotColor: 'bg-amber-500',
+      text: 'text-amber-600',
     },
     error: {
-      bg: 'bg-rose-50',
-      text: 'text-rose-700',
-      border: 'border-rose-200',
-      dotColor: 'bg-rose-500',
+      text: 'text-rose-600',
     },
     info: {
-      bg: 'bg-sky-50',
-      text: 'text-sky-700',
-      border: 'border-sky-200',
-      dotColor: 'bg-sky-500',
+      text: 'text-sky-600',
     },
     purple: {
-      bg: 'bg-indigo-50',
-      text: 'text-indigo-700',
-      border: 'border-indigo-200',
-      dotColor: 'bg-indigo-500',
+      text: 'text-indigo-600',
     },
     cyan: {
-      bg: 'bg-teal-50',
-      text: 'text-teal-700',
-      border: 'border-teal-200',
-      dotColor: 'bg-teal-500',
+      text: 'text-teal-600',
     },
     neutral: {
-      bg: 'bg-slate-50',
-      text: 'text-slate-700',
-      border: 'border-slate-200',
-      dotColor: 'bg-slate-400',
+      text: 'text-slate-600',
     },
   };
 
-  const style = variantStyles[variant];
-  const sizeStyles = size === 'sm' ? 'text-xs px-2 py-0.5' : 'text-xs px-2.5 py-1 font-medium';
+  const style = variantStyles[variant] || variantStyles.neutral;
+  const sizeStyles = size === 'sm' ? 'text-xs font-semibold' : 'text-xs font-bold';
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border ${style.bg} ${style.text} ${style.border} ${sizeStyles} ${className}`}
+      className={`inline-flex items-center tracking-normal ${style.text} ${sizeStyles} ${className}`}
     >
-      {dot && <span className={`w-1.5 h-1.5 rounded-full ${style.dotColor}`} />}
       {children}
     </span>
   );

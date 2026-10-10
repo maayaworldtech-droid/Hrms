@@ -9,8 +9,9 @@ import { addToast } from '@/store/slices/uiSlice';
 import { api } from '@/services/api';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
-import { Layers, Lock, Mail, ShieldCheck, ArrowRight, Sparkles } from 'lucide-react';
+import { Lock, Mail, ShieldCheck, ArrowRight, Sparkles } from 'lucide-react';
 import { UserRole } from '@/types';
+import maayaLogo from '@/assets/logo-new.png';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -46,7 +47,7 @@ export const Login: React.FC = () => {
         addToast({
           type: 'success',
           title: 'Welcome back!',
-          message: `Logged in as ${user.name} (${user.role})`,
+          message: `Logged into Maaya World Suite as ${user.name} (${user.role})`,
         })
       );
 
@@ -81,8 +82,8 @@ export const Login: React.FC = () => {
       dispatch(
         addToast({
           type: 'success',
-          title: 'Quick Login Successful',
-          message: `Switched to ${user.name} (${role})`,
+          title: 'Demo Session Active',
+          message: `Logged in as ${user.name} (${role})`,
         })
       );
 
@@ -95,37 +96,42 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#F4F6F9] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 mb-4">
-          <Layers className="h-6 w-6" />
+        {/* Maaya World Official Logo */}
+        <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-white shadow-sm border border-slate-200/90 mb-4">
+          <img
+            src={maayaLogo}
+            alt="Maaya World Logo"
+            className="h-10 w-auto object-contain"
+          />
         </div>
-        <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-          Sign in to PulseHRMS
+        <h2 className="text-xl font-bold tracking-tight text-slate-900">
+          Maaya World HRMS
         </h2>
-        <p className="mt-1.5 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-slate-500">
           Enterprise Workforce & Payroll Management Platform
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-6 shadow-sm border border-slate-200/90 rounded-2xl sm:px-10">
+      <div className="mt-7 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-6 shadow-xs border border-slate-200/90 rounded-2xl sm:px-10">
           {/* Quick Demo Access Bar */}
           <div className="mb-6 pb-6 border-b border-slate-100">
-            <div className="flex items-center gap-1.5 mb-2.5">
+            <div className="flex items-center gap-1.5 mb-2">
               <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
               <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Instant Demo Access
               </span>
             </div>
             <p className="text-[11px] text-slate-500 mb-3">
-              Click any profile below to preview role-based permissions immediately:
+              Click any profile below to preview role-based access immediately:
             </p>
             <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => handleQuickLogin('ADMIN', 'admin@pulsehrms.com')}
-                className="flex flex-col items-center justify-center p-2 rounded-lg border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100/60 text-slate-800 transition-colors"
+                className="flex flex-col items-center justify-center p-2 rounded-lg border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100/60 text-slate-800 transition-colors cursor-pointer"
               >
                 <span className="text-xs font-bold text-indigo-700">Admin</span>
                 <span className="text-[10px] text-slate-500">Sarah J.</span>
@@ -133,7 +139,7 @@ export const Login: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleQuickLogin('MANAGER', 'manager@pulsehrms.com')}
-                className="flex flex-col items-center justify-center p-2 rounded-lg border border-amber-200 bg-amber-50/50 hover:bg-amber-100/60 text-slate-800 transition-colors"
+                className="flex flex-col items-center justify-center p-2 rounded-lg border border-amber-200 bg-amber-50/50 hover:bg-amber-100/60 text-slate-800 transition-colors cursor-pointer"
               >
                 <span className="text-xs font-bold text-amber-700">Manager</span>
                 <span className="text-[10px] text-slate-500">Rajesh K.</span>
@@ -141,7 +147,7 @@ export const Login: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleQuickLogin('EMPLOYEE', 'employee@pulsehrms.com')}
-                className="flex flex-col items-center justify-center p-2 rounded-lg border border-emerald-200 bg-emerald-50/50 hover:bg-emerald-100/60 text-slate-800 transition-colors"
+                className="flex flex-col items-center justify-center p-2 rounded-lg border border-emerald-200 bg-emerald-50/50 hover:bg-emerald-100/60 text-slate-800 transition-colors cursor-pointer"
               >
                 <span className="text-xs font-bold text-emerald-700">Employee</span>
                 <span className="text-[10px] text-slate-500">Priya S.</span>
@@ -154,7 +160,7 @@ export const Login: React.FC = () => {
             <Input
               label="Corporate Email"
               type="email"
-              placeholder="name@pulsehrms.com"
+              placeholder="name@maayaworld.com"
               leftIcon={<Mail className="w-4 h-4" />}
               error={errors.email?.message}
               {...register('email')}
@@ -181,7 +187,7 @@ export const Login: React.FC = () => {
               />
             </div>
 
-            <div className="flex items-center justify-between pt-1">
+            <div className="flex items-center justify-between pt-0.5">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"

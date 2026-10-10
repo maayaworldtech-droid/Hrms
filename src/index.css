@@ -10,13 +10,21 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    color: #0f172a;
+    background-color: #f8fafc;
+    letter-spacing: -0.011em;
+  }
+
+  /* Financial and numerical tabular figures */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }
 
-/* Custom Scrollbar */
+/* Custom Scrollbar - Sleek and Minimal */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -32,13 +40,21 @@
   background: #94a3b8;
 }
 
-/* Card Hover Elevation */
-.card-hover {
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+/* Restrained Enterprise Card Elevation */
+.saas-card {
+  background-color: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
 }
-.card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+
+.saas-card-hover {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.saas-card-hover:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
 }
 
 /* Print Styles for Payslips & Reports */

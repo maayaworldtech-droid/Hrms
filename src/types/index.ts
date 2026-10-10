@@ -16,6 +16,8 @@ export interface User {
   status: 'ACTIVE' | 'ON_LEAVE' | 'PROBATION' | 'TERMINATED';
 }
 
+export type EmployeeLocation = 'Hyderabad' | 'Vizag' | 'Bhubaneswar';
+
 export interface Employee {
   id: string;
   employeeCode: string;
@@ -24,17 +26,18 @@ export interface Employee {
   fullName: string;
   email: string;
   phone: string;
-  role: UserRole;
   designation: string;
-  departmentId: string;
-  departmentName: string;
+  location: EmployeeLocation | string;
+  monthlySalary: number;
+  joiningDate: string;
+  employmentType?: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN';
+  role?: UserRole;
+  departmentId?: string;
+  departmentName?: string;
   managerId?: string;
   managerName?: string;
-  joiningDate: string;
-  status: 'ACTIVE' | 'PROBATION' | 'NOTICE_PERIOD' | 'TERMINATED';
-  employmentType: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN';
-  location: string;
-  ctcAnnual: number;
+  status?: 'ACTIVE' | 'PROBATION' | 'NOTICE_PERIOD' | 'TERMINATED';
+  ctcAnnual?: number;
   salaryStructureId?: string;
   bankDetails: {
     accountNumber: string;
@@ -43,7 +46,7 @@ export interface Employee {
     panNumber: string;
     uanNumber: string;
   };
-  emergencyContact: {
+  emergencyContact?: {
     name: string;
     relationship: string;
     phone: string;
@@ -63,7 +66,8 @@ export interface AttendanceRecord {
   id: string;
   employeeId: string;
   employeeName: string;
-  departmentName: string;
+  departmentName?: string;
+  location?: string;
   date: string; // YYYY-MM-DD
   checkIn?: string; // HH:mm
   checkOut?: string; // HH:mm
@@ -88,7 +92,8 @@ export interface LeaveRequest {
   id: string;
   employeeId: string;
   employeeName: string;
-  departmentName: string;
+  departmentName?: string;
+  location?: string;
   leaveType: LeaveType;
   startDate: string;
   endDate: string;

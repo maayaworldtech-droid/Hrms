@@ -1,29 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { api } from '@/services/api';
-import { Employee, UserRole } from '@/types';
+import { Employee } from '@/types';
 import { DataTable, Column } from '@/components/common/DataTable';
-import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { Input } from '@/components/common/Input';
 import { Select } from '@/components/common/Select';
 import { formatINR, formatDate } from '@/utils/formatters';
-import { calculateSalaryFromCTC } from '@/utils/salaryCalculator';
+import { calculateSalaryFromMonthly } from '@/utils/salaryCalculator';
 import {
   UserPlus,
   Eye,
+  Pencil,
   Trash2,
-  Building2,
   CreditCard,
   Phone,
   Mail,
-  Shield,
   Briefcase,
-  AlertCircle,
-  Edit,
+  MapPin,
+  Calendar,
 } from 'lucide-react';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
@@ -33,12 +31,9 @@ const employeeSchema = z.object({
   lastName: z.string().min(2, 'Last name is required'),
   email: z.string().email('Valid corporate email required'),
   phone: z.string().min(10, 'Valid 10-digit phone number required'),
-  role: z.enum(['ADMIN', 'MANAGER', 'EMPLOYEE']),
-  departmentName: z.string().min(1, 'Please select department'),
-  designation: z.string().min(2, 'Designation is required'),
+  location: z.enum(['Hyderabad', 'Vizag', 'Bhubaneswar']),
   joiningDate: z.string().min(1, 'Joining date required'),
-  location: z.string().min(2, 'Location is required'),
-  ctcAnnual: z.coerce.number().min(300000, 'Minimum CTC is ₹3,00,000'),
+  monthlySalary: z.coerce.number().min(10000, 'Minimum monthly salary is ₹10,000'),
   accountNumber: z.string().min(8, 'Bank account number required'),
   ifscCode: z.string().min(6, 'IFSC code required'),
   panNumber: z.string().min(10, 'Valid 10-character PAN required'),
@@ -52,27 +47,37 @@ export const EmployeeManagement: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [selectedLocationFilter, setSelectedLocationFilter] = useState<string>('ALL');
 
   const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isSubmitting },
+    register: registerAdd,
+    handleSubmit: handleSubmitAdd,
+    reset: resetAdd,
+    formState: { errors: errorsAdd, isSubmitting: isSubmittingAdd },
   } = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema),
     defaultValues: {
-      role: 'EMPLOYEE',
-      departmentName: 'Engineering',
-      location: 'Bangalore HQ',
+      location: 'Hyderabad',
       joiningDate: new Date().toISOString().split('T')[0],
-      ctcAnnual: 1800000,
+      monthlySalary: 32000,
       accountNumber: '918273645281',
       ifscCode: 'HDFC0001234',
       panNumber: 'ABCPS1234F',
       uanNumber: '100928374699',
     },
+  });
+
+  const {
+    register: registerEdit,
+    handleSubmit: handleSubmitEdit,
+    reset: resetEdit,
+    formState: { errors: errorsEdit, isSubmitting: isSubmittingEdit },
+  } = useForm<EmployeeFormValues>({
+    resolver: zodResolver(employeeSchema),
   });
 
   const loadEmployees = async () => {
@@ -89,24 +94,40 @@ export const EmployeeManagement: React.FC = () => {
     loadEmployees();
   }, []);
 
+  const handleOpenEdit = (emp: Employee) => {
+    setEditingEmployee(emp);
+    resetEdit({
+      firstName: emp.firstName,
+      lastName: emp.lastName,
+      email: emp.email,
+      phone: emp.phone,
+      location: (emp.location as 'Hyderabad' | 'Vizag' | 'Bhubaneswar') || 'Hyderabad',
+      joiningDate: emp.joiningDate,
+      monthlySalary: emp.monthlySalary || Math.round((emp.ctcAnnual || 360000) / 12),
+      accountNumber: emp.bankDetails?.accountNumber || '',
+      ifscCode: emp.bankDetails?.ifscCode || '',
+      panNumber: emp.bankDetails?.panNumber || '',
+      uanNumber: emp.bankDetails?.uanNumber || '',
+    });
+    setIsViewModalOpen(false);
+    setIsEditModalOpen(true);
+  };
+
   const onAddSubmit = async (values: EmployeeFormValues) => {
     try {
       const newEmp = await api.employees.create({
-        employeeCode: `EMP-${1000 + employees.length + 1}`,
+        employeeCode: `MW-${1000 + employees.length + 1}`,
         firstName: values.firstName,
         lastName: values.lastName,
         fullName: `${values.firstName} ${values.lastName}`,
         email: values.email,
         phone: values.phone,
-        role: values.role,
-        designation: values.designation,
-        departmentId: 'dept-01',
-        departmentName: values.departmentName,
-        joiningDate: values.joiningDate,
-        status: 'ACTIVE',
-        employmentType: 'FULL_TIME',
+        designation: '',
         location: values.location,
-        ctcAnnual: values.ctcAnnual,
+        monthlySalary: values.monthlySalary,
+        ctcAnnual: values.monthlySalary * 12,
+        joiningDate: values.joiningDate,
+        employmentType: 'FULL_TIME',
         bankDetails: {
           accountNumber: values.accountNumber,
           ifscCode: values.ifscCode,
@@ -125,30 +146,75 @@ export const EmployeeManagement: React.FC = () => {
         addToast({
           type: 'success',
           title: 'Employee Onboarded',
-          message: `${newEmp.fullName} (${newEmp.employeeCode}) has been successfully added.`,
+          message: `${newEmp.fullName} (${newEmp.employeeCode}) has been successfully added to ${newEmp.location}.`,
         })
       );
       setIsAddModalOpen(false);
-      reset();
+      resetAdd();
       loadEmployees();
     } catch {
       dispatch(addToast({ type: 'error', title: 'Onboarding Failed' }));
     }
   };
 
+  const onEditSubmit = async (values: EmployeeFormValues) => {
+    if (!editingEmployee) return;
+    try {
+      await api.employees.update(editingEmployee.id, {
+        firstName: values.firstName,
+        lastName: values.lastName,
+        fullName: `${values.firstName} ${values.lastName}`,
+        email: values.email,
+        phone: values.phone,
+        location: values.location,
+        monthlySalary: values.monthlySalary,
+        ctcAnnual: values.monthlySalary * 12,
+        joiningDate: values.joiningDate,
+        bankDetails: {
+          accountNumber: values.accountNumber,
+          ifscCode: values.ifscCode,
+          bankName: editingEmployee.bankDetails?.bankName || 'HDFC Bank Ltd.',
+          panNumber: values.panNumber.toUpperCase(),
+          uanNumber: values.uanNumber,
+        },
+      });
+
+      dispatch(
+        addToast({
+          type: 'success',
+          title: 'Profile Updated',
+          message: `${values.firstName} ${values.lastName}'s employee record has been updated.`,
+        })
+      );
+      setIsEditModalOpen(false);
+      setEditingEmployee(null);
+      loadEmployees();
+    } catch {
+      dispatch(addToast({ type: 'error', title: 'Update Failed' }));
+    }
+  };
+
   const handleDelete = async (emp: Employee) => {
-    if (window.confirm(`Are you sure you want to deactivate and archive ${emp.fullName}?`)) {
+    if (window.confirm(`Are you sure you want to deactivate and remove ${emp.fullName}?`)) {
       await api.employees.delete(emp.id);
       dispatch(
         addToast({
           type: 'info',
           title: 'Employee Archived',
-          message: `${emp.fullName} has been removed from active staff records.`,
+          message: `${emp.fullName} has been removed from staff records.`,
         })
       );
       loadEmployees();
     }
   };
+
+  // Filtered dataset by Location
+  const filteredEmployees = useMemo(() => {
+    return employees.filter((emp) => {
+      const matchLoc = selectedLocationFilter === 'ALL' || emp.location === selectedLocationFilter;
+      return matchLoc;
+    });
+  }, [employees, selectedLocationFilter]);
 
   const columns: Column<Employee>[] = [
     {
@@ -156,76 +222,48 @@ export const EmployeeManagement: React.FC = () => {
       header: 'Employee Details',
       sortable: true,
       render: (row) => (
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-800 text-white flex items-center justify-center font-bold text-xs shrink-0 ring-2 ring-indigo-50">
-            {row.firstName[0]}
-            {row.lastName[0]}
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-md bg-slate-900 text-white flex items-center justify-center font-bold text-[11px] shrink-0">
+            {row.firstName?.[0] || 'M'}
+            {row.lastName?.[0] || 'W'}
           </div>
-          <div>
-            <div className="font-semibold text-slate-900 leading-tight">{row.fullName}</div>
-            <div className="text-[11px] text-slate-500 font-mono mt-0.5">{row.employeeCode} • {row.email}</div>
+          <div className="min-w-0">
+            <div className="font-semibold text-slate-900 truncate">{row.fullName}</div>
+            <div className="text-[11px] text-slate-400 font-mono mt-0.5 truncate">
+              {row.employeeCode} • {row.email}
+            </div>
           </div>
         </div>
       ),
     },
     {
-      key: 'departmentName',
-      header: 'Department & Role',
+      key: 'location',
+      header: 'Location',
       sortable: true,
       render: (row) => (
-        <div>
-          <div className="font-medium text-slate-800">{row.designation}</div>
-          <div className="text-[11px] text-slate-500">{row.departmentName}</div>
+        <div className="flex items-center gap-1.5 text-slate-700">
+          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <span className="font-medium text-xs">{row.location}</span>
         </div>
-      ),
-    },
-    {
-      key: 'role',
-      header: 'Access Level',
-      sortable: true,
-      render: (row) => (
-        <Badge
-          variant={
-            row.role === 'ADMIN' ? 'purple' : row.role === 'MANAGER' ? 'warning' : 'neutral'
-          }
-          size="sm"
-        >
-          {row.role}
-        </Badge>
       ),
     },
     {
       key: 'joiningDate',
-      header: 'Joined On',
-      sortable: true,
-      render: (row) => formatDate(row.joiningDate),
-    },
-    {
-      key: 'ctcAnnual',
-      header: 'Annual CTC',
+      header: 'Joining Date',
       sortable: true,
       render: (row) => (
-        <span className="font-semibold text-slate-900">{formatINR(row.ctcAnnual)}</span>
+        <span className="tabular-nums text-slate-700 font-mono">{formatDate(row.joiningDate)}</span>
       ),
     },
     {
-      key: 'status',
-      header: 'Status',
+      key: 'monthlySalary',
+      header: 'Monthly Salary',
       sortable: true,
+      align: 'right',
       render: (row) => (
-        <Badge
-          variant={
-            row.status === 'ACTIVE'
-              ? 'success'
-              : row.status === 'PROBATION'
-              ? 'warning'
-              : 'error'
-          }
-          size="sm"
-          dot
-        >
-          {row.status}
-        </Badge>
+        <span className="font-mono font-semibold text-slate-900 tabular-nums">
+          {formatINR(row.monthlySalary || Math.round((row.ctcAnnual || 360000) / 12))}
+        </span>
       ),
     },
     {
@@ -233,7 +271,7 @@ export const EmployeeManagement: React.FC = () => {
       header: 'Actions',
       align: 'right',
       render: (row) => (
-        <div className="flex items-center justify-end gap-1.5">
+        <div className="flex items-center justify-end gap-1">
           <Button
             variant="ghost"
             size="sm"
@@ -241,188 +279,189 @@ export const EmployeeManagement: React.FC = () => {
               setSelectedEmployee(row);
               setIsViewModalOpen(true);
             }}
-            className="!p-1.5 text-slate-500 hover:text-indigo-600"
-            title="View Details"
+            className="!h-7 !w-7 !p-0 text-slate-400 hover:text-indigo-600"
+            title="View Employee File"
           >
-            <Eye className="w-4 h-4" />
+            <Eye className="w-3.5 h-3.5" />
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => handleDelete(row)}
-            className="!p-1.5 text-slate-500 hover:text-rose-600"
+            className="!h-7 !w-7 !p-0 text-slate-400 hover:text-rose-600"
             title="Deactivate"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-3.5 h-3.5" />
           </Button>
         </div>
       ),
     },
   ];
 
+  const filterToolbar = (
+    <div className="flex items-center gap-2">
+      <select
+        value={selectedLocationFilter}
+        onChange={(e) => setSelectedLocationFilter(e.target.value)}
+        aria-label="Location filter"
+        className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+      >
+        <option value="ALL">All Centers ({employees.length})</option>
+        <option value="Hyderabad">Hyderabad ({employees.filter((e) => e.location === 'Hyderabad').length})</option>
+        <option value="Vizag">Vizag ({employees.filter((e) => e.location === 'Vizag').length})</option>
+        <option value="Bhubaneswar">Bhubaneswar ({employees.filter((e) => e.location === 'Bhubaneswar').length})</option>
+      </select>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+      {/* Header matching Zoho Inspiration */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Employee Management</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-sans">
+            Employee Directory
+          </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Maintain staff records, role designations, compensation benchmarks & profiles
+            Managing {employees.length} team members across Hyderabad, Vizag, and Bhubaneswar centers
           </p>
         </div>
         <Button
           variant="primary"
+          size="sm"
           onClick={() => setIsAddModalOpen(true)}
           leftIcon={<UserPlus className="w-4 h-4" />}
         >
-          Add New Employee
+          Add Employee
         </Button>
       </div>
 
-      {/* Main Table */}
+      {/* Main Employee Directory Data Table */}
       <DataTable
-        data={employees}
         columns={columns}
-        searchPlaceholder="Search by name, code, email, designation..."
-        exportFileName="pulse_employees_directory"
+        data={filteredEmployees}
         isLoading={isLoading}
+        searchable
+        searchPlaceholder="Search by name, employee code, or location..."
+        filterContent={filterToolbar}
+        pageSize={15}
+        emptyState={{
+          title: 'No staff records found',
+          description: 'No active employees matched your search or location filter criteria.',
+        }}
       />
 
       {/* Add Employee Modal */}
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        title="Onboard New Employee"
-        subtitle="Fill in employment, contact, statutory, and initial compensation details"
-        size="xl"
+        title="Add New Employee"
+        subtitle="Onboard a new team member to Maaya World"
+        size="lg"
       >
-        <form onSubmit={handleSubmit(onAddSubmit)} className="space-y-5">
-          {/* Personal Info */}
+        <form onSubmit={handleSubmitAdd(onAddSubmit)} className="space-y-4 text-xs">
+          {/* Basic Info */}
           <div>
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
+            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
               1. Basic Information
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <Input
                 label="First Name"
                 placeholder="e.g. Rahul"
-                error={errors.firstName?.message}
-                {...register('firstName')}
+                error={errorsAdd.firstName?.message}
+                {...registerAdd('firstName')}
               />
               <Input
                 label="Last Name"
                 placeholder="e.g. Sharma"
-                error={errors.lastName?.message}
-                {...register('lastName')}
+                error={errorsAdd.lastName?.message}
+                {...registerAdd('lastName')}
               />
               <Input
-                label="Corporate Email"
+                label="Email"
                 type="email"
-                placeholder="r.sharma@pulsehrms.com"
-                error={errors.email?.message}
-                {...register('email')}
+                placeholder="r.sharma@maayaworld.com"
+                error={errorsAdd.email?.message}
+                {...registerAdd('email')}
               />
               <Input
-                label="Mobile Number"
+                label="Phone Number"
                 placeholder="+91 98765 43210"
-                error={errors.phone?.message}
-                {...register('phone')}
+                error={errorsAdd.phone?.message}
+                {...registerAdd('phone')}
               />
             </div>
           </div>
 
           {/* Job Details */}
           <div className="border-t border-slate-100 pt-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
-              2. Designation & Placement
+            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
+              2. Placement & Compensation
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
               <Select
-                label="Department"
+                label="Center Location"
                 options={[
-                  { value: 'Engineering', label: 'Engineering' },
-                  { value: 'Product & Design', label: 'Product & Design' },
-                  { value: 'People Operations', label: 'People Operations' },
-                  { value: 'Sales & Growth', label: 'Sales & Growth' },
-                  { value: 'Finance & Compliance', label: 'Finance & Compliance' },
+                  { value: 'Hyderabad', label: 'Hyderabad (Prism Mall)' },
+                  { value: 'Vizag', label: 'Vizag (Beach Road)' },
+                  { value: 'Bhubaneswar', label: 'Bhubaneswar (KIIT Chowk)' },
                 ]}
-                error={errors.departmentName?.message}
-                {...register('departmentName')}
-              />
-              <Input
-                label="Designation Title"
-                placeholder="e.g. Lead Engineer"
-                error={errors.designation?.message}
-                {...register('designation')}
-              />
-              <Select
-                label="System Role"
-                options={[
-                  { value: 'EMPLOYEE', label: 'Individual Employee' },
-                  { value: 'MANAGER', label: 'Team Manager' },
-                  { value: 'ADMIN', label: 'HR Administrator' },
-                ]}
-                error={errors.role?.message}
-                {...register('role')}
+                error={errorsAdd.location?.message}
+                {...registerAdd('location')}
               />
               <Input
                 label="Joining Date"
                 type="date"
-                error={errors.joiningDate?.message}
-                {...register('joiningDate')}
+                error={errorsAdd.joiningDate?.message}
+                {...registerAdd('joiningDate')}
               />
               <Input
-                label="Base Location"
-                placeholder="e.g. Bangalore HQ"
-                error={errors.location?.message}
-                {...register('location')}
-              />
-              <Input
-                label="Annual CTC (INR)"
+                label="Monthly Salary (₹)"
                 type="number"
-                placeholder="1800000"
-                error={errors.ctcAnnual?.message}
-                helperText="Computed into standard monthly salary structure"
-                {...register('ctcAnnual')}
+                placeholder="32000"
+                error={errorsAdd.monthlySalary?.message}
+                helperText="Standard monthly salary in INR"
+                {...registerAdd('monthlySalary')}
               />
             </div>
           </div>
 
-          {/* Statutory & Banking */}
+          {/* Banking Details */}
           <div className="border-t border-slate-100 pt-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
+            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
               3. Banking & Statutory Credentials
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <Input
                 label="Bank Account Number"
                 placeholder="501002938475"
-                error={errors.accountNumber?.message}
-                {...register('accountNumber')}
+                error={errorsAdd.accountNumber?.message}
+                {...registerAdd('accountNumber')}
               />
               <Input
                 label="Bank IFSC Code"
                 placeholder="HDFC0001234"
-                error={errors.ifscCode?.message}
-                {...register('ifscCode')}
+                error={errorsAdd.ifscCode?.message}
+                {...registerAdd('ifscCode')}
               />
               <Input
                 label="Income Tax PAN"
                 placeholder="ABCDE1234F"
-                error={errors.panNumber?.message}
-                {...register('panNumber')}
+                error={errorsAdd.panNumber?.message}
+                {...registerAdd('panNumber')}
               />
               <Input
                 label="EPFO UAN Number"
                 placeholder="100928374651"
-                error={errors.uanNumber?.message}
-                {...register('uanNumber')}
+                error={errorsAdd.uanNumber?.message}
+                {...registerAdd('uanNumber')}
               />
             </div>
           </div>
 
           {/* Form Actions */}
-          <div className="border-t border-slate-100 pt-4 flex items-center justify-end gap-3">
+          <div className="border-t border-slate-100 pt-4 flex items-center justify-end gap-2.5">
             <Button
               type="button"
               variant="outline"
@@ -433,7 +472,7 @@ export const EmployeeManagement: React.FC = () => {
             <Button
               type="submit"
               variant="primary"
-              isLoading={isSubmitting}
+              isLoading={isSubmittingAdd}
             >
               Confirm & Onboard
             </Button>
@@ -441,96 +480,266 @@ export const EmployeeManagement: React.FC = () => {
         </form>
       </Modal>
 
+      {/* Edit Employee Modal */}
+      {editingEmployee && (
+        <Modal
+          isOpen={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setEditingEmployee(null);
+          }}
+          title={`Edit Employee: ${editingEmployee.fullName}`}
+          subtitle={`Update details for ${editingEmployee.employeeCode}`}
+          size="lg"
+        >
+          <form onSubmit={handleSubmitEdit(onEditSubmit)} className="space-y-4 text-xs">
+            {/* Basic Info */}
+            <div>
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
+                1. Basic Information
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <Input
+                  label="First Name"
+                  error={errorsEdit.firstName?.message}
+                  {...registerEdit('firstName')}
+                />
+                <Input
+                  label="Last Name"
+                  error={errorsEdit.lastName?.message}
+                  {...registerEdit('lastName')}
+                />
+                <Input
+                  label="Email"
+                  type="email"
+                  error={errorsEdit.email?.message}
+                  {...registerEdit('email')}
+                />
+                <Input
+                  label="Phone Number"
+                  error={errorsEdit.phone?.message}
+                  {...registerEdit('phone')}
+                />
+              </div>
+            </div>
+
+            {/* Placement Details */}
+            <div className="border-t border-slate-100 pt-4">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
+                2. Placement & Compensation
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <Select
+                  label="Center Location"
+                  options={[
+                    { value: 'Hyderabad', label: 'Hyderabad (Prism Mall)' },
+                    { value: 'Vizag', label: 'Vizag (Beach Road)' },
+                    { value: 'Bhubaneswar', label: 'Bhubaneswar (KIIT Chowk)' },
+                  ]}
+                  error={errorsEdit.location?.message}
+                  {...registerEdit('location')}
+                />
+                <Input
+                  label="Joining Date"
+                  type="date"
+                  error={errorsEdit.joiningDate?.message}
+                  {...registerEdit('joiningDate')}
+                />
+                <Input
+                  label="Monthly Salary (₹)"
+                  type="number"
+                  error={errorsEdit.monthlySalary?.message}
+                  helperText="Standard monthly salary in INR"
+                  {...registerEdit('monthlySalary')}
+                />
+              </div>
+            </div>
+
+            {/* Banking Details */}
+            <div className="border-t border-slate-100 pt-4">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
+                3. Banking & Statutory Credentials
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <Input
+                  label="Bank Account Number"
+                  error={errorsEdit.accountNumber?.message}
+                  {...registerEdit('accountNumber')}
+                />
+                <Input
+                  label="Bank IFSC Code"
+                  error={errorsEdit.ifscCode?.message}
+                  {...registerEdit('ifscCode')}
+                />
+                <Input
+                  label="Income Tax PAN"
+                  error={errorsEdit.panNumber?.message}
+                  {...registerEdit('panNumber')}
+                />
+                <Input
+                  label="EPFO UAN Number"
+                  error={errorsEdit.uanNumber?.message}
+                  {...registerEdit('uanNumber')}
+                />
+              </div>
+            </div>
+
+            {/* Form Actions */}
+            <div className="border-t border-slate-100 pt-4 flex items-center justify-end gap-2.5">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setEditingEmployee(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                isLoading={isSubmittingEdit}
+              >
+                Save Changes
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
       {/* View Employee Detail Modal */}
       {selectedEmployee && (
         <Modal
           isOpen={isViewModalOpen}
           onClose={() => setIsViewModalOpen(false)}
-          title={`Employee File: ${selectedEmployee.fullName}`}
-          subtitle={`${selectedEmployee.employeeCode} • ${selectedEmployee.designation}`}
+          title={`Employee Record: ${selectedEmployee.fullName}`}
+          subtitle={`${selectedEmployee.employeeCode} • ${selectedEmployee.location} Center`}
           size="lg"
         >
-          <div className="space-y-5 text-xs text-slate-700">
+          <div className="space-y-4 text-xs text-slate-700">
             {/* Top Profile Summary */}
-            <div className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
-              <div className="w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-lg ring-4 ring-indigo-50">
-                {selectedEmployee.firstName[0]}
-                {selectedEmployee.lastName[0]}
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold text-slate-900">{selectedEmployee.fullName}</h3>
-                  <Badge variant="purple" size="sm">{selectedEmployee.role}</Badge>
-                  <Badge variant="success" size="sm" dot>{selectedEmployee.status}</Badge>
+            <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50/80 border border-slate-200">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-12 h-12 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-base shrink-0">
+                  {selectedEmployee.firstName?.[0] || 'M'}
+                  {selectedEmployee.lastName?.[0] || 'W'}
                 </div>
-                <p className="text-slate-500 mt-0.5">{selectedEmployee.designation} • {selectedEmployee.departmentName}</p>
-                <div className="flex items-center gap-4 mt-2 text-slate-600">
-                  <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" />{selectedEmployee.email}</span>
-                  <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" />{selectedEmployee.phone}</span>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-slate-900 truncate">{selectedEmployee.fullName}</h3>
+                  <div className="flex items-center gap-2 mt-1 text-slate-500 text-[11px]">
+                    <span className="flex items-center gap-1 font-medium text-indigo-600">
+                      <MapPin className="w-3 h-3 text-indigo-500" />
+                      {selectedEmployee.location} Center
+                    </span>
+                    <span>•</span>
+                    <span className="font-mono">{selectedEmployee.employeeCode}</span>
+                  </div>
                 </div>
               </div>
+
+              {/* Edit button in view modal */}
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={<Pencil className="w-3.5 h-3.5" />}
+                onClick={() => handleOpenEdit(selectedEmployee)}
+              >
+                Edit
+              </Button>
             </div>
 
             {/* Compensation & Bank Info */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl border border-slate-200 space-y-2">
-                <h4 className="font-bold text-slate-900 flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-indigo-600" />
-                  Compensation Benchmark
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="p-3.5 rounded-xl border border-slate-200 space-y-2">
+                <h4 className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
+                  <CreditCard className="w-3.5 h-3.5 text-indigo-600" />
+                  Monthly Compensation
                 </h4>
-                <div className="pt-2 space-y-1.5">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Annual CTC:</span>
-                    <span className="font-bold text-slate-900">{formatINR(selectedEmployee.ctcAnnual)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Monthly Gross:</span>
-                    <span className="font-semibold text-slate-800">
-                      {formatINR(calculateSalaryFromCTC(selectedEmployee.ctcAnnual).grossMonthly)}
+                <div className="pt-1 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Monthly Salary:</span>
+                    <span className="font-bold font-mono text-base text-slate-900">
+                      {formatINR(selectedEmployee.monthlySalary || Math.round((selectedEmployee.ctcAnnual || 360000) / 12))}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Estimated Net In-Hand:</span>
-                    <span className="font-bold text-emerald-600">
-                      {formatINR(calculateSalaryFromCTC(selectedEmployee.ctcAnnual).netMonthly)}
+                  <div className="flex justify-between items-center text-[11px] pt-1 border-t border-slate-100">
+                    <span className="text-slate-500">Basic (50%):</span>
+                    <span className="font-mono text-slate-700">
+                      {formatINR(calculateSalaryFromMonthly(selectedEmployee.monthlySalary || Math.round((selectedEmployee.ctcAnnual || 360000) / 12)).basic)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-slate-500">Estimated Take-Home:</span>
+                    <span className="font-bold font-mono text-emerald-600">
+                      {formatINR(calculateSalaryFromMonthly(selectedEmployee.monthlySalary || Math.round((selectedEmployee.ctcAnnual || 360000) / 12)).netMonthly)}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="p-4 rounded-xl border border-slate-200 space-y-2">
-                <h4 className="font-bold text-slate-900 flex items-center gap-2">
-                  <Briefcase className="w-4 h-4 text-indigo-600" />
-                  Statutory & Bank Records
+              <div className="p-3.5 rounded-xl border border-slate-200 space-y-2">
+                <h4 className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
+                  <Briefcase className="w-3.5 h-3.5 text-indigo-600" />
+                  Banking & Statutory Details
                 </h4>
-                <div className="pt-2 space-y-1.5">
+                <div className="pt-1 space-y-1 text-[11px]">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Bank Name:</span>
-                    <span className="font-medium text-slate-800">{selectedEmployee.bankDetails.bankName}</span>
+                    <span className="font-medium text-slate-800">{selectedEmployee.bankDetails?.bankName || 'HDFC Bank'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Account No:</span>
-                    <span className="font-mono text-slate-800">{selectedEmployee.bankDetails.accountNumber}</span>
+                    <span className="font-mono text-slate-800">{selectedEmployee.bankDetails?.accountNumber}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">IFSC Code:</span>
-                    <span className="font-mono text-slate-800">{selectedEmployee.bankDetails.ifscCode}</span>
+                    <span className="font-mono text-slate-800">{selectedEmployee.bankDetails?.ifscCode}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">PAN Card:</span>
-                    <span className="font-mono text-slate-800">{selectedEmployee.bankDetails.panNumber}</span>
+                    <span className="text-slate-500">Income Tax PAN:</span>
+                    <span className="font-mono text-slate-800">{selectedEmployee.bankDetails?.panNumber}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">EPFO UAN:</span>
-                    <span className="font-mono text-slate-800">{selectedEmployee.bankDetails.uanNumber}</span>
+                    <span className="font-mono text-slate-800">{selectedEmployee.bankDetails?.uanNumber}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end pt-2">
-              <Button variant="outline" size="sm" onClick={() => setIsViewModalOpen(false)}>
-                Close Record
+            {/* Contact Details */}
+            <div className="p-3 rounded-lg bg-slate-50/60 border border-slate-200/70 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-600">
+              <span className="flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-slate-400" />
+                {selectedEmployee.email}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5 text-slate-400" />
+                {selectedEmployee.phone}
+              </span>
+              <span className="flex items-center gap-1.5 font-mono">
+                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                Joined {formatDate(selectedEmployee.joiningDate)}
+              </span>
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsViewModalOpen(false)}
+              >
+                Close
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={<Pencil className="w-3.5 h-3.5" />}
+                onClick={() => handleOpenEdit(selectedEmployee)}
+              >
+                Edit Employee Details
               </Button>
             </div>
           </div>
