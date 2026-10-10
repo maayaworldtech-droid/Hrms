@@ -341,14 +341,11 @@ export const EmployeeManagement: React.FC = () => {
         columns={columns}
         data={filteredEmployees}
         isLoading={isLoading}
-        searchable
         searchPlaceholder="Search by name, employee code, or location..."
-        filterContent={filterToolbar}
+        filterComponent={filterToolbar}
         pageSize={15}
-        emptyState={{
-          title: 'No staff records found',
-          description: 'No active employees matched your search or location filter criteria.',
-        }}
+        emptyTitle="No staff records found"
+        emptyDescription="No active employees matched your search or location filter criteria."
       />
 
       {/* Add Employee Modal */}

@@ -26,18 +26,18 @@ export interface Employee {
   fullName: string;
   email: string;
   phone: string;
-  designation: string;
+  designation?: string;
   location: EmployeeLocation | string;
   monthlySalary: number;
+  ctcAnnual: number;
   joiningDate: string;
-  employmentType?: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN';
+  employmentType: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN';
   role?: UserRole;
   departmentId?: string;
   departmentName?: string;
   managerId?: string;
   managerName?: string;
   status?: 'ACTIVE' | 'PROBATION' | 'NOTICE_PERIOD' | 'TERMINATED';
-  ctcAnnual?: number;
   salaryStructureId?: string;
   bankDetails: {
     accountNumber: string;
@@ -46,7 +46,7 @@ export interface Employee {
     panNumber: string;
     uanNumber: string;
   };
-  emergencyContact?: {
+  emergencyContact: {
     name: string;
     relationship: string;
     phone: string;
@@ -151,8 +151,9 @@ export interface Payslip {
   employeeId: string;
   employeeCode: string;
   employeeName: string;
-  designation: string;
-  department: string;
+  designation?: string;
+  department?: string;
+  location?: string;
   panNumber: string;
   uanNumber: string;
   bankAccount: string;

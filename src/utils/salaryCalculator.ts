@@ -23,6 +23,7 @@ export function calculateSalaryFromMonthly(monthlySalary: number): SalaryCompone
     medicalAllowance: 0,
     grossMonthly,
     epfEmployee,
+    epfEmployer: Math.round(basic * 0.12),
     professionalTax,
     tds,
     healthInsurance,
