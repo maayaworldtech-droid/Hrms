@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '@/services/api';
-import { Payslip } from '@/types';
+import { Payslip, Employee } from '@/types';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { formatINR, numberToIndianWords } from '@/utils/formatters';
-import { calculateSalaryFromCTC } from '@/utils/salaryCalculator';
+import { useAppSelector } from '@/store';
 import {
   CreditCard,
   Printer,
@@ -25,26 +25,28 @@ export const MySalary: React.FC = () => {
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const employeeId = 'emp-003'; // Priya Sharma (CTC: 18,00,000 INR)
-  const ctcAnnual = 1800000;
-  const currentStructure = calculateSalaryFromCTC(ctcAnnual);
+  const user = useAppSelector(state => state.auth.user);
+  const employeeId = user?.id || 'emp-003';
+  const [employee, setEmployee] = useState<Employee | null>(null);
+  const currentStructure = payslips[0]?.components;
+  const [loadError, setLoadError] = useState(false);
 
   const loadData = async () => {
-    setIsLoading(true);
+    setIsLoading(true); setLoadError(false);
     try {
-      const data = await api.payroll.getPayslipsByEmployee(employeeId);
+      const [data, person] = await Promise.all([api.payroll.getPayslipsByEmployee(employeeId), api.employees.getById(employeeId)]); setEmployee(person || null);
       setPayslips(data);
       if (data.length > 0) {
         setSelectedPayslip(data[0]);
       }
-    } finally {
+    } catch { setLoadError(true); } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [employeeId]);
 
   const openPayslipModal = (slip: Payslip) => {
     setSelectedPayslip(slip);
@@ -55,92 +57,92 @@ export const MySalary: React.FC = () => {
     <div className="space-y-4">
       {/* Top Header */}
       <div>
-        <h1 className="text-xl font-bold tracking-tight text-slate-900">
-          Salary & Payslips
+        <h1 className="text-[24px] font-bold tracking-tight text-slate-900">
+          Payslips
         </h1>
-        <p className="text-xs text-slate-500">
-          Priya Sharma • Staff Code: MW-1003
+        <p className="text-[13px] text-slate-500">
+          {user?.name} · {user?.employeeId}
         </p>
       </div>
 
-      {/* Net Pay Hero Card */}
-      <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
+      {loadError && <div role="alert">Could not load payslips. <button className="employee-text-link" onClick={loadData}>Try again</button></div>}{/* Net Pay Hero Card */}
+      <div className="p-4 rounded-xl bg-white border border-slate-200/90 shadow-xs space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          <span className="text-[13px] font-bold uppercase tracking-wider text-slate-400">
             Net Take-Home Pay
           </span>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            Disbursed
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[13px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            {payslips[0]?.paymentStatus === 'PAID' ? 'Paid' : 'Not paid'}
           </span>
         </div>
 
         <div>
-          <div className="text-3xl font-extrabold text-emerald-600 font-mono tracking-tight tabular-nums">
-            {formatINR(currentStructure.netMonthly)}
+          <div className="text-[24px] font-extrabold text-emerald-600 font-mono tracking-tight tabular-nums">
+            {currentStructure ? formatINR(currentStructure.netMonthly) : '—'}
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Credited to HDFC Bank (A/C ending in 5827)
+          <p className="text-[13px] text-slate-500 mt-0.5">
+            {payslips[0] ? `${payslips[0].month} ${payslips[0].year}` : 'Your salary details will appear after payroll is processed'}
           </p>
         </div>
 
         {/* Breakdown Summary */}
-        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
-          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-            <span className="text-[10px] text-slate-400 block font-medium">Monthly Gross</span>
-            <span className="font-bold text-slate-800 font-mono text-sm">
-              {formatINR(currentStructure.grossMonthly)}
+        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-[13px]">
+          <div className="py-2">
+            <span className="text-[13px] text-slate-400 block font-medium">Monthly Gross</span>
+            <span className="font-bold text-slate-800 font-mono text-[13px]">
+              {currentStructure ? formatINR(currentStructure.grossMonthly) : '—'}
             </span>
           </div>
 
-          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-            <span className="text-[10px] text-slate-400 block font-medium">Total Deductions</span>
-            <span className="font-bold text-rose-600 font-mono text-sm">
-              {formatINR(currentStructure.totalDeductions)}
+          <div className="py-2">
+            <span className="text-[13px] text-slate-400 block font-medium">Total Deductions</span>
+            <span className="font-bold text-rose-600 font-mono text-[13px]">
+              {currentStructure ? formatINR(currentStructure.totalDeductions) : '—'}
             </span>
           </div>
         </div>
 
         {/* Annual CTC and PF Info */}
-        <div className="p-3 rounded-xl bg-indigo-50/60 border border-indigo-100 flex items-center justify-between text-xs">
+        <div className="py-3 border-t border-slate-100 flex items-center justify-between text-[13px]">
           <div>
-            <span className="text-[10px] font-medium text-indigo-700 block">Annual CTC</span>
-            <span className="font-bold text-slate-900 font-mono">{formatINR(ctcAnnual)}</span>
+            <span className="text-[13px] font-medium text-indigo-700 block">Annual CTC</span>
+            <span className="font-bold text-slate-900 font-mono">{employee ? formatINR(employee.ctcAnnual) : '—'}</span>
           </div>
           <div className="text-right">
-            <span className="text-[10px] font-medium text-indigo-700 block">EPFO UAN</span>
-            <span className="font-mono text-slate-800">100928374653</span>
+            <span className="text-[13px] font-medium text-indigo-700 block">EPFO UAN</span>
+            <span className="font-mono text-slate-800">{employee?.bankDetails.uanNumber || 'Not provided'}</span>
           </div>
         </div>
       </div>
 
       {/* Payslips History List (Mobile Cards - No wide table) */}
       <div className="space-y-2.5">
-        <div className="flex items-center justify-between text-xs text-slate-500 px-1">
+        <div className="flex items-center justify-between text-[13px] text-slate-500 px-1">
           <span className="font-semibold text-slate-700">Statement History</span>
           <span>{payslips.length} statement(s)</span>
         </div>
 
         {isLoading ? (
-          <div className="p-8 text-center text-xs text-slate-400 bg-white rounded-2xl border border-slate-200">
+          <div className="p-8 text-center text-[13px] text-slate-400 bg-white rounded-xl border border-slate-200">
             Loading payslips...
           </div>
         ) : payslips.length === 0 ? (
-          <div className="p-8 text-center bg-white rounded-2xl border border-slate-200">
+          <div className="p-8 text-center bg-white rounded-xl border border-slate-200">
             <FileText className="w-8 h-8 mx-auto text-slate-300 stroke-[1.5]" />
-            <p className="text-xs font-semibold text-slate-700 mt-2">No payslips available</p>
+            <p className="text-[13px] font-semibold text-slate-700 mt-2">No payslips available</p>
           </div>
         ) : (
           payslips.map((slip) => (
             <div
               key={slip.id}
-              className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3"
+              className="p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-xs space-y-3"
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-bold text-slate-900 block">
+                  <span className="text-[13px] font-bold text-slate-900 block">
                     {slip.month} {slip.year}
                   </span>
-                  <span className="text-[10px] text-slate-400 font-mono">
+                  <span className="text-[13px] text-slate-400 font-mono">
                     Ref: {slip.id}
                   </span>
                 </div>
@@ -154,16 +156,16 @@ export const MySalary: React.FC = () => {
                 </Badge>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="grid grid-cols-2 gap-2 text-[13px]">
                 <div>
-                  <span className="text-[10px] text-slate-400 block">Net Credited</span>
-                  <span className="font-bold text-emerald-700 font-mono text-sm">
+                  <span className="text-[13px] text-slate-400 block">Net Credited</span>
+                  <span className="font-bold text-emerald-700 font-mono text-[13px]">
                     {formatINR(slip.components.netMonthly)}
                   </span>
                 </div>
 
                 <div className="text-right">
-                  <span className="text-[10px] text-slate-400 block">Disbursed Via</span>
+                  <span className="text-[13px] text-slate-400 block">Disbursed Via</span>
                   <span className="font-medium text-slate-700">
                     {slip.paymentMode || 'NEFT'}
                   </span>
@@ -175,7 +177,7 @@ export const MySalary: React.FC = () => {
                   variant="outline"
                   onClick={() => openPayslipModal(slip)}
                   leftIcon={<Eye className="w-4 h-4" />}
-                  className="w-full !py-2.5 !text-xs font-semibold text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                  className="w-full !py-2.5 !text-[13px] font-semibold text-indigo-700 border-indigo-200 hover:bg-indigo-50"
                 >
                   View Payslip
                 </Button>
@@ -194,28 +196,28 @@ export const MySalary: React.FC = () => {
           subtitle={`${selectedPayslip.employeeName} (${selectedPayslip.employeeCode})`}
           size="md"
         >
-          <div className="space-y-4 text-xs text-slate-800">
+          <div className="space-y-4 text-[13px] text-slate-800">
             {/* Header Document Brand */}
             <div className="border-b border-slate-200 pb-3 flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2">
                   <img src={maayaLogo} alt="Maaya World" className="h-6 w-auto object-contain" />
-                  <span className="text-sm font-bold text-slate-900">Maaya World</span>
+                  <span className="text-[13px] font-bold text-slate-900">Maaya World</span>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-0.5">
+                <p className="text-[13px] text-slate-500 mt-0.5">
                   Hyderabad Center • Telangana
                 </p>
               </div>
               <div className="text-right">
                 <Badge variant="purple" size="sm">PAYSLIP</Badge>
-                <div className="text-xs font-bold text-slate-900 mt-1">
+                <div className="text-[13px] font-bold text-slate-900 mt-1">
                   {selectedPayslip.month} {selectedPayslip.year}
                 </div>
               </div>
             </div>
 
             {/* Employee Particulars Grid */}
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-2 gap-2 text-[11px]">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-2 gap-2 text-[13px]">
               <div>
                 <span className="text-slate-400 block">Staff Name</span>
                 <strong className="text-slate-800">{selectedPayslip.employeeName}</strong>
@@ -236,11 +238,11 @@ export const MySalary: React.FC = () => {
 
             {/* Earnings Breakdown */}
             <div className="rounded-xl border border-slate-200 overflow-hidden">
-              <div className="bg-slate-100 px-3 py-1.5 font-bold text-slate-900 flex justify-between text-xs">
+              <div className="bg-slate-100 px-3 py-1.5 font-bold text-slate-900 flex justify-between text-[13px]">
                 <span>Earnings</span>
                 <span>Amount</span>
               </div>
-              <div className="p-2.5 space-y-1.5 text-xs divide-y divide-slate-100">
+              <div className="p-2.5 space-y-1.5 text-[13px] divide-y divide-slate-100">
                 <div className="flex justify-between pt-1">
                   <span className="text-slate-600">Basic Salary</span>
                   <span className="font-mono">{formatINR(selectedPayslip.components.basic)}</span>
@@ -262,11 +264,11 @@ export const MySalary: React.FC = () => {
 
             {/* Deductions Breakdown */}
             <div className="rounded-xl border border-slate-200 overflow-hidden">
-              <div className="bg-slate-100 px-3 py-1.5 font-bold text-slate-900 flex justify-between text-xs">
+              <div className="bg-slate-100 px-3 py-1.5 font-bold text-slate-900 flex justify-between text-[13px]">
                 <span>Deductions</span>
                 <span>Amount</span>
               </div>
-              <div className="p-2.5 space-y-1.5 text-xs divide-y divide-slate-100">
+              <div className="p-2.5 space-y-1.5 text-[13px] divide-y divide-slate-100">
                 <div className="flex justify-between pt-1">
                   <span className="text-slate-600">Provident Fund (EPF)</span>
                   <span className="font-mono text-rose-600">{formatINR(selectedPayslip.components.epfEmployee)}</span>
@@ -285,13 +287,13 @@ export const MySalary: React.FC = () => {
             {/* Net Amount Highlight */}
             <div className="p-3.5 rounded-xl bg-slate-900 text-white flex items-center justify-between">
               <div>
-                <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">
+                <span className="text-slate-400 text-[13px] uppercase font-bold tracking-wider">
                   Net Salary Credited
                 </span>
-                <p className="text-xl font-bold font-mono text-emerald-400 mt-0.5">
+                <p className="text-[24px] font-bold font-mono text-emerald-400 mt-0.5">
                   {formatINR(selectedPayslip.components.netMonthly)}
                 </p>
-                <p className="text-[10px] text-slate-400 mt-0.5">
+                <p className="text-[13px] text-slate-400 mt-0.5">
                   {numberToIndianWords(selectedPayslip.components.netMonthly)}
                 </p>
               </div>
@@ -308,7 +310,7 @@ export const MySalary: React.FC = () => {
                 size="md"
                 onClick={() => window.print()}
                 leftIcon={<Printer className="w-4 h-4" />}
-                className="w-1/2 !py-2.5 !text-xs font-semibold"
+                className="w-1/2 !py-2.5 !text-[13px] font-semibold"
               >
                 Print
               </Button>
@@ -317,7 +319,7 @@ export const MySalary: React.FC = () => {
                 variant="primary"
                 size="md"
                 onClick={() => setIsModalOpen(false)}
-                className="w-1/2 !py-2.5 !text-xs font-semibold"
+                className="w-1/2 !py-2.5 !text-[13px] font-semibold"
               >
                 Close
               </Button>

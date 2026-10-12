@@ -101,7 +101,7 @@ export const MyLeaves: React.FC = () => {
       await api.leaves.apply({
         employeeId,
         employeeName: 'Priya Sharma',
-        departmentName: 'Engineering',
+        departmentName: 'Operations',
         leaveType: values.leaveType,
         startDate: values.startDate,
         endDate: values.endDate,
@@ -165,38 +165,38 @@ export const MyLeaves: React.FC = () => {
       {/* Top Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">
-            Leave Requests
+          <h1 className="text-[24px] font-bold tracking-tight text-slate-900">
+            My leave
           </h1>
-          <p className="text-xs text-slate-500">
+          <p className="text-[13px] text-slate-500">
             Priya Sharma • Staff Code: MW-1003
           </p>
         </div>
       </div>
 
       {/* Single Total Leave Number Hero Card (No types of leaves) */}
-      <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs">
+      <div className="p-4 rounded-xl bg-white border border-slate-200/90 shadow-xs">
         <div className="flex items-center justify-between">
           <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <span className="text-[13px] font-bold uppercase tracking-wider text-slate-400">
               Available Leaves
             </span>
             <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-3xl font-extrabold text-slate-900 tabular-nums">
+              <span className="text-[24px] font-extrabold text-slate-900 tabular-nums">
                 {totalRemaining}
               </span>
-              <span className="text-sm font-medium text-slate-400">
+              <span className="text-[13px] font-medium text-slate-400">
                 / {totalAllocated} Total Days
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-1">
-              {totalUsed} days availed this calendar year
+            <p className="text-[13px] text-slate-500 mt-1">
+              {totalUsed} days used this year
             </p>
           </div>
 
           <div className="text-right">
-            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              Active Quota
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[13px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              Annual balance
             </span>
           </div>
         </div>
@@ -206,7 +206,7 @@ export const MyLeaves: React.FC = () => {
             variant="primary"
             onClick={() => setIsApplyModalOpen(true)}
             leftIcon={<Plus className="w-4 h-4" />}
-            className="w-full !py-2.5 !text-xs font-semibold"
+            className="w-full !py-2.5 !text-[13px] font-semibold"
           >
             Apply for Leave
           </Button>
@@ -221,13 +221,13 @@ export const MyLeaves: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by reason or date..."
-            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-600"
+            aria-label="Search leave requests" placeholder="Search by reason or date..."
+            className="w-full pl-9 pr-3 py-2 text-[13px] rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-600"
           />
         </div>
 
         {/* Status Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[13px] no-scrollbar">
           {(
             [
               { key: 'ALL', label: 'All Requests' },
@@ -254,22 +254,22 @@ export const MyLeaves: React.FC = () => {
         </div>
       </div>
 
-      {/* Leave Requests Mobile Cards (No wide table) */}
+      {/* My leave Mobile Cards (No wide table) */}
       <div className="space-y-2.5">
-        <div className="flex items-center justify-between text-xs text-slate-500 px-1">
+        <div className="flex items-center justify-between text-[13px] text-slate-500 px-1">
           <span className="font-semibold text-slate-700">Leave History</span>
           <span>{filteredLeaves.length} record(s)</span>
         </div>
 
         {isLoading ? (
-          <div className="p-8 text-center text-xs text-slate-400 bg-white rounded-2xl border border-slate-200">
+          <div className="p-8 text-center text-[13px] text-slate-400 bg-white rounded-xl border border-slate-200">
             Loading leave records...
           </div>
         ) : filteredLeaves.length === 0 ? (
-          <div className="p-8 text-center bg-white rounded-2xl border border-slate-200">
+          <div className="p-8 text-center bg-white rounded-xl border border-slate-200">
             <Calendar className="w-8 h-8 mx-auto text-slate-300 stroke-[1.5]" />
-            <p className="text-xs font-semibold text-slate-700 mt-2">No leave requests found</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">
+            <p className="text-[13px] font-semibold text-slate-700 mt-2">No leave requests found</p>
+            <p className="text-[13px] text-slate-400 mt-0.5">
               {searchQuery || statusFilter !== 'ALL'
                 ? 'Try adjusting your search or filters'
                 : 'Click Apply for Leave above to submit a request'}
@@ -279,15 +279,15 @@ export const MyLeaves: React.FC = () => {
           filteredLeaves.map((req) => (
             <div
               key={req.id}
-              className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-2.5"
+              className="p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-xs space-y-2.5"
             >
               {/* Header: Date Range & Status Badge */}
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <span className="text-xs font-bold text-slate-900 block">
+                  <span className="text-[13px] font-bold text-slate-900 block">
                     {formatDate(req.startDate)} to {formatDate(req.endDate)}
                   </span>
-                  <span className="text-[11px] text-slate-500 font-medium">
+                  <span className="text-[13px] text-slate-500 font-medium">
                     Duration: <strong className="text-slate-800">{req.days} day{req.days > 1 ? 's' : ''}</strong>
                   </span>
                 </div>
@@ -308,8 +308,8 @@ export const MyLeaves: React.FC = () => {
               </div>
 
               {/* Reason */}
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-700">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
+              <div className="py-2 text-[13px] text-slate-700">
+                <span className="text-[13px] uppercase font-bold text-slate-400 block mb-0.5">
                   Reason
                 </span>
                 <p className="line-clamp-2">{req.reason}</p>
@@ -317,16 +317,16 @@ export const MyLeaves: React.FC = () => {
 
               {/* Reviewer Feedback (if any) */}
               {req.reviewerComments && (
-                <div className="text-[11px] text-slate-500 italic bg-amber-50/60 p-2 rounded-lg border border-amber-100/80">
+                <div className="text-[13px] text-slate-500 italic bg-amber-50/60 p-2 rounded-lg border border-amber-100/80">
                   <span className="font-semibold text-amber-900 not-italic">Reviewer Note: </span>
                   {req.reviewerComments}
                 </div>
               )}
 
               {/* Footer: Applied Date */}
-              <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-100">
+              <div className="flex items-center justify-between text-[13px] text-slate-400 pt-1 border-t border-slate-100">
                 <span>Applied: {formatDate(req.appliedOn)}</span>
-                <span className="font-mono text-[10px] text-slate-400">Ref: {req.id}</span>
+                <span className="font-mono text-[13px] text-slate-400">Ref: {req.id}</span>
               </div>
             </div>
           ))
@@ -341,8 +341,8 @@ export const MyLeaves: React.FC = () => {
         subtitle="Submit a formal request for management approval"
         size="md"
       >
-        <form onSubmit={handleSubmit(onApplySubmit)} className="space-y-4 text-xs">
-          <div className="grid grid-cols-2 gap-3">
+        <form onSubmit={handleSubmit(onApplySubmit)} className="space-y-4 text-[13px]">
+          <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-3">
             <Input
               label="Start Date"
               type="date"
@@ -359,7 +359,7 @@ export const MyLeaves: React.FC = () => {
 
           <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-between text-indigo-950">
             <span className="font-medium">Total Days:</span>
-            <span className="font-bold font-mono text-sm">{computedDays} day{computedDays > 1 ? 's' : ''}</span>
+            <span className="font-bold font-mono text-[13px]">{computedDays} day{computedDays > 1 ? 's' : ''}</span>
           </div>
 
           <div>
@@ -370,10 +370,10 @@ export const MyLeaves: React.FC = () => {
               {...register('reason')}
               rows={3}
               placeholder="State the reason for your time off..."
-              className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-600"
+              className="w-full rounded-xl border border-slate-300 p-2.5 text-[13px] text-slate-900 focus:outline-none focus:border-indigo-600"
             />
             {errors.reason && (
-              <p className="text-rose-600 text-xs mt-1">{errors.reason.message}</p>
+              <p className="text-rose-600 text-[13px] mt-1">{errors.reason.message}</p>
             )}
           </div>
 
@@ -383,7 +383,7 @@ export const MyLeaves: React.FC = () => {
               variant="outline"
               size="md"
               onClick={() => setIsApplyModalOpen(false)}
-              className="w-1/2 !py-2.5 !text-xs font-semibold"
+              className="w-1/2 !py-2.5 !text-[13px] font-semibold"
             >
               Cancel
             </Button>
@@ -392,7 +392,7 @@ export const MyLeaves: React.FC = () => {
               variant="primary"
               size="md"
               isLoading={isSubmitting}
-              className="w-1/2 !py-2.5 !text-xs font-semibold"
+              className="w-1/2 !py-2.5 !text-[13px] font-semibold"
             >
               Submit Request
             </Button>

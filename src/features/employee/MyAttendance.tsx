@@ -106,20 +106,20 @@ export const MyAttendance: React.FC = () => {
     <div className="space-y-4 pb-6">
       {/* Header Banner */}
       <div>
-        <h1 className="text-xl font-bold tracking-tight text-slate-900">Attendance & Shifts</h1>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Priya Sharma / Hyderabad Center / Morning Shift (09:00 AM - 01:00 PM)
+        <h1 className="text-[24px] font-bold tracking-tight text-slate-900">Attendance</h1>
+        <p className="text-[13px] text-slate-500 mt-0.5">
+          Your daily check-ins and shift history
         </p>
       </div>
 
       {/* Hero Attendance Action Card */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs space-y-3">
-        <div className="flex items-center justify-between text-xs">
+      <div className="bg-white rounded-xl border border-slate-200/90 p-4 shadow-xs space-y-3">
+        <div className="flex items-center justify-between text-[13px]">
           <div>
-            <span className="text-[11px] font-semibold text-indigo-600 uppercase tracking-wider block">
+            <span className="text-[13px] font-semibold text-indigo-600 uppercase tracking-wider block">
               Today's Status
             </span>
-            <span className="text-sm font-bold text-slate-900">
+            <span className="text-[13px] font-bold text-slate-900">
               {new Date().toLocaleDateString('en-US', {
                 weekday: 'short',
                 day: 'numeric',
@@ -130,67 +130,41 @@ export const MyAttendance: React.FC = () => {
 
           <div>
             {todayRec?.checkIn && !todayRec.checkOut ? (
-              <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+              <span className="text-[13px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
                 Active Shift
               </span>
             ) : todayRec?.checkOut ? (
-              <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200">
+              <span className="text-[13px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200">
                 Completed ({todayRec.workHours} hrs)
               </span>
             ) : (
-              <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
-                Not Punched In
+              <span className="text-[13px] font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                Not checked in
               </span>
             )}
           </div>
         </div>
 
         {/* Timestamps Row */}
-        <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+        <div className="grid grid-cols-2 gap-2 text-[13px] py-3 border-y border-slate-100">
           <div>
-            <span className="text-slate-400 text-[10px] block">Punch In</span>
+            <span className="text-slate-400 text-[13px] block">Punch In</span>
             <span className="font-mono font-bold text-slate-800">
               {todayRec?.checkIn ? formatTime(todayRec.checkIn) : '--:--'}
             </span>
           </div>
           <div>
-            <span className="text-slate-400 text-[10px] block">Punch Out</span>
+            <span className="text-slate-400 text-[13px] block">Punch Out</span>
             <span className="font-mono font-bold text-slate-800">
               {todayRec?.checkOut ? formatTime(todayRec.checkOut) : '--:--'}
             </span>
           </div>
         </div>
 
-        {/* Touch-Friendly Action Buttons */}
-        <div className="grid grid-cols-2 gap-2.5 pt-1">
-          <Button
-            variant="primary"
-            size="md"
-            onClick={handleOpenBiometricLogin}
-            disabled={!!todayRec?.checkIn}
-            className={`w-full py-3 text-xs font-semibold ${
-              !todayRec?.checkIn
-                ? '!bg-emerald-600 hover:!bg-emerald-700 text-white'
-                : 'opacity-60 cursor-not-allowed'
-            }`}
-          >
-            {!todayRec?.checkIn ? 'Attendance Login' : 'Punched In'}
-          </Button>
-
-          <Button
-            variant="danger"
-            size="md"
-            onClick={handleOpenBiometricLogout}
-            disabled={!todayRec?.checkIn || !!todayRec?.checkOut}
-            className={`w-full py-3 text-xs font-semibold ${
-              todayRec?.checkIn && !todayRec?.checkOut
-                ? '!bg-rose-600 hover:!bg-rose-700 text-white'
-                : 'opacity-60 cursor-not-allowed'
-            }`}
-          >
-            {todayRec?.checkOut ? 'Shift Closed' : 'Attendance Logout'}
-          </Button>
-        </div>
+        {/* One clear action for the current shift. */}
+        <Button variant="primary" onClick={todayRec?.checkIn ? handleOpenBiometricLogout : handleOpenBiometricLogin} disabled={!!todayRec?.checkOut || isLoading} className="w-full !bg-slate-800 disabled:!bg-slate-200 disabled:!text-slate-600 !py-3">
+          {todayRec?.checkOut ? 'Shift complete' : todayRec?.checkIn ? 'Check out' : 'Check in'}
+        </Button>
       </div>
 
       {/* Filter and Search Pills */}
@@ -199,14 +173,14 @@ export const MyAttendance: React.FC = () => {
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
           <input
             type="text"
-            placeholder="Search dates or notes..."
+            aria-label="Search attendance" placeholder="Search dates or notes..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-indigo-600"
+            className="w-full pl-9 pr-3 py-2 text-[13px] rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-indigo-600"
           />
         </div>
 
-        <div className="flex items-center gap-1.5 text-xs overflow-x-auto pb-1">
+        <div className="flex items-center gap-1.5 text-[13px] overflow-x-auto pb-1">
           <button
             onClick={() => setStatusFilter('ALL')}
             className={`px-3 py-1.5 rounded-lg font-medium transition-colors shrink-0 ${
@@ -242,17 +216,17 @@ export const MyAttendance: React.FC = () => {
 
       {/* Mobile Timesheet Cards Feed (Replaces Wide Table) */}
       <div className="space-y-2.5">
-        <div className="flex items-center justify-between text-xs text-slate-500 px-0.5">
-          <span className="font-semibold text-slate-700">Timesheet Logs</span>
+        <div className="flex items-center justify-between text-[13px] text-slate-500 px-0.5">
+          <span className="font-semibold text-slate-700">Attendance history</span>
           <span>{filteredRecords.length} records</span>
         </div>
 
         {isLoading ? (
-          <div className="p-8 text-center text-xs text-slate-400 bg-white rounded-xl border border-slate-200">
+          <div className="p-8 text-center text-[13px] text-slate-400 bg-white rounded-xl border border-slate-200">
             Loading attendance records...
           </div>
         ) : filteredRecords.length === 0 ? (
-          <div className="p-8 text-center text-xs text-slate-400 bg-white rounded-xl border border-slate-200">
+          <div className="p-8 text-center text-[13px] text-slate-400 bg-white rounded-xl border border-slate-200">
             No attendance logs found matching filters.
           </div>
         ) : (
@@ -268,10 +242,10 @@ export const MyAttendance: React.FC = () => {
                 {/* Card Top: Date & Status */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="font-bold text-xs text-slate-900 block">
+                    <span className="font-bold text-[13px] text-slate-900 block">
                       {formatDate(record.date)}
                     </span>
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-[13px] text-slate-400">
                       {record.shift === 'EVENING'
                         ? 'Evening Shift (01:00 PM - 09:00 PM)'
                         : 'Morning Shift (09:00 AM - 01:00 PM)'}
@@ -279,7 +253,7 @@ export const MyAttendance: React.FC = () => {
                   </div>
 
                   <span
-                    className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${
+                    className={`text-[13px] font-semibold px-2 py-0.5 rounded-md ${
                       isPresent
                         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                         : isLate
@@ -292,21 +266,21 @@ export const MyAttendance: React.FC = () => {
                 </div>
 
                 {/* Card Middle: Punch Times & Effective Hours */}
-                <div className="grid grid-cols-3 gap-2 py-2 border-y border-slate-100 text-xs">
+                <div className="grid grid-cols-3 gap-2 py-2 border-y border-slate-100 text-[13px]">
                   <div>
-                    <span className="text-[10px] text-slate-400 block">In</span>
+                    <span className="text-[13px] text-slate-400 block">In</span>
                     <span className="font-mono font-semibold text-slate-800">
                       {record.checkIn ? formatTime(record.checkIn) : '--:--'}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block">Out</span>
+                    <span className="text-[13px] text-slate-400 block">Out</span>
                     <span className="font-mono font-semibold text-slate-800">
                       {record.checkOut ? formatTime(record.checkOut) : '--:--'}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block">Duration</span>
+                    <span className="text-[13px] text-slate-400 block">Duration</span>
                     <span className="font-mono font-bold text-slate-900">
                       {record.workHours ? `${record.workHours} hrs` : '--'}
                     </span>
@@ -314,17 +288,17 @@ export const MyAttendance: React.FC = () => {
                 </div>
 
                 {/* Card Footer: Regularization Action if Late or Absent */}
-                <div className="flex items-center justify-between pt-0.5 text-xs">
-                  <span className="text-[11px] text-slate-400 truncate max-w-[200px]">
+                <div className="flex items-center justify-between pt-0.5 text-[13px]">
+                  <span className="text-[13px] text-slate-400 truncate max-w-[200px]">
                     {record.notes || 'Biometric Face Verified'}
                   </span>
 
                   {record.regularizationStatus === 'PENDING' ? (
-                    <span className="text-[11px] text-amber-600 font-medium">
+                    <span className="text-[13px] text-amber-600 font-medium">
                       Regularization Pending
                     </span>
                   ) : record.regularizationStatus === 'APPROVED' ? (
-                    <span className="text-[11px] text-emerald-600 font-medium">
+                    <span className="text-[13px] text-emerald-600 font-medium">
                       Regularized
                     </span>
                   ) : isLate || record.status === 'ABSENT' ? (
@@ -334,9 +308,9 @@ export const MyAttendance: React.FC = () => {
                         setRegularizeReason(record.regularizationReason || '');
                         setIsModalOpen(true);
                       }}
-                      className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold underline"
+                      className="text-[13px] text-indigo-600 hover:text-indigo-700 font-semibold underline"
                     >
-                      Request Regularize
+                      Correct attendance
                     </button>
                   ) : null}
                 </div>
@@ -351,11 +325,11 @@ export const MyAttendance: React.FC = () => {
         <Modal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          title="Request Regularization"
+          title="Correct attendance"
           subtitle={`Log for ${formatDate(selectedRecord.date)}`}
           size="sm"
         >
-          <form onSubmit={handleRegularizeSubmit} className="space-y-3.5 text-xs">
+          <form onSubmit={handleRegularizeSubmit} className="space-y-3.5 text-[13px]">
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
               <div className="flex justify-between">
                 <span className="text-slate-500">Date:</span>
@@ -369,7 +343,7 @@ export const MyAttendance: React.FC = () => {
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Reason for Time Deviation *
+                What needs correcting? *
               </label>
               <textarea
                 value={regularizeReason}
@@ -377,7 +351,7 @@ export const MyAttendance: React.FC = () => {
                 placeholder="e.g. Venue deployment / Metro signal interruption"
                 rows={3}
                 required
-                className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-600"
+                className="w-full rounded-xl border border-slate-300 p-2.5 text-[13px] text-slate-900 focus:outline-none focus:border-indigo-600"
               />
             </div>
 
