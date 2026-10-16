@@ -11,12 +11,15 @@ public interface EmployeeService {
     Optional<Employee> getEmployeeByCode(String code);
     Optional<Employee> getEmployeeByEmail(String email);
     Employee onboardEmployee(Employee employee);
+    Employee onboardEmployee(Employee employee, String portalUrl);
     Employee createEmployee(Employee employee);
     Optional<Employee> updateEmployee(Long id, Employee employee);
     boolean deleteEmployee(Long id);
 
     boolean resendWelcomeEmail(Long id);
+    boolean resendWelcomeEmail(Long id, String portalUrl);
     boolean resendWelcomeEmailByEmail(String email);
+    boolean resendWelcomeEmailByEmail(String email, String portalUrl);
 
     // Backward-compatibility aliases
     default List<Employee> getAllStudents() { return getAllEmployees(); }

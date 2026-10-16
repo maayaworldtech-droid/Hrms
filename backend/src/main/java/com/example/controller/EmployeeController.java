@@ -7,6 +7,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.servlet.http.HttpServletRequest;
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 
@@ -42,8 +44,9 @@ public class EmployeeController {
     }
 
     @PostMapping({"", "/onboard", "/create"})
-    public ResponseEntity<Employee> onboardEmployee(@RequestBody Employee employee) {
-        Employee created = employeeService.onboardEmployee(employee);
+    public ResponseEntity<Employee> onboardEmployee(@RequestBody Employee employee, HttpServletRequest request) {
+        String portalUrl = extractPortalUrl(request);
+        Employee created = employeeService.onboardEmployee(employee, portalUrl);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
@@ -64,14 +67,38 @@ public class EmployeeController {
     }
 
     @PostMapping("/{id}/resend-email")
-    public ResponseEntity<Map<String, Object>> resendEmail(@PathVariable Long id) {
-        boolean sent = employeeService.resendWelcomeEmail(id);
+    public ResponseEntity<Map<String, Object>> resendEmail(@PathVariable Long id, HttpServletRequest request) {
+        String portalUrl = extractPortalUrl(request);
+        boolean sent = employeeService.resendWelcomeEmail(id, portalUrl);
         return ResponseEntity.ok(Map.of("success", sent, "message", sent ? "Email sent successfully" : "Failed to dispatch email"));
     }
 
     @PostMapping("/resend-email")
-    public ResponseEntity<Map<String, Object>> resendEmailByQuery(@RequestParam String email) {
-        boolean sent = employeeService.resendWelcomeEmailByEmail(email);
+    public ResponseEntity<Map<String, Object>> resendEmailByQuery(@RequestParam String email, HttpServletRequest request) {
+        String portalUrl = extractPortalUrl(request);
+        boolean sent = employeeService.resendWelcomeEmailByEmail(email, portalUrl);
         return ResponseEntity.ok(Map.of("success", sent, "message", sent ? "Email sent successfully" : "Failed to dispatch email"));
+    }
+
+    private String extractPortalUrl(HttpServletRequest request) {
+        if (request == null) return null;
+        String origin = request.getHeader("Origin");
+        if (origin != null && !origin.trim().isEmpty() && !origin.equalsIgnoreCase("null")) {
+            return origin.trim() + "/login";
+        }
+        String referer = request.getHeader("Referer");
+        if (referer != null && !referer.trim().isEmpty()) {
+            try {
+                URI uri = URI.create(referer);
+                String scheme = uri.getScheme() != null ? uri.getScheme() : "http";
+                String host = uri.getHost();
+                int port = uri.getPort();
+                if (host != null) {
+                    String base = scheme + "://" + host + (port > 0 && port != 80 && port != 443 ? ":" + port : "");
+                    return base + "/login";
+                }
+            } catch (Exception ignored) {}
+        }
+        return null;
     }
 }

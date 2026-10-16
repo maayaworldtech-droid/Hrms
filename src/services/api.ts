@@ -78,11 +78,33 @@ export const api = {
     },
 
     forgotPassword: async (email: string) => {
-      return { success: true, message: `Password reset instructions dispatched to ${email}.` };
+      return fetchJSON<{
+        success: boolean;
+        message: string;
+        emailSent?: boolean;
+        email?: string;
+      }>(`${API_BASE}/auth/forgot-password`, {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      });
     },
 
-    resetPassword: async (tokenOrPayload: string | { token: string; password: string }, _password?: string) => {
-      return { success: true, message: 'Your password has been successfully reset. Please log in.' };
+    resetPassword: async (
+      payloadOrToken: string | { email?: string; token: string; password: string },
+      newPassword?: string
+    ) => {
+      const payload =
+        typeof payloadOrToken === 'string'
+          ? { token: payloadOrToken, password: newPassword || '' }
+          : payloadOrToken;
+      return fetchJSON<{
+        success: boolean;
+        message: string;
+        email?: string;
+      }>(`${API_BASE}/auth/reset-password`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
     },
 
     getCurrentUser: async (): Promise<User | null> => {

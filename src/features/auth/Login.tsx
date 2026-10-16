@@ -1,19 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAppDispatch } from '@/store';
 import { setUser, setPasswordChanged } from '@/store/slices/authSlice';
 import { addToast } from '@/store/slices/uiSlice';
 import { api } from '@/services/api';
 import { Button } from '@/components/common/Button';
-import { Input } from '@/components/common/Input';
-import { Lock, Mail, ShieldCheck, ArrowRight, KeyRound, CheckCircle2 } from 'lucide-react';
+import { Lock, Mail, ArrowRight, KeyRound, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import maayaLogo from '@/assets/logo-new.png';
 
 const loginSchema = z.object({
-  email: z.string().email('Please enter a valid work email address'),
+  email: z.string().email('Please enter a valid corporate email address'),
   password: z.string().min(4, 'Password is required'),
 });
 
@@ -33,7 +32,12 @@ type ForceChangeValues = z.infer<typeof forceChangeSchema>;
 export const Login: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Extract email dynamically from URL query parameters (e.g. from onboarding email link)
+  const initialEmail = searchParams.get('email') || '';
 
   // First-time login forced password change state
   const [pendingUser, setPendingUser] = useState<any | null>(null);
@@ -47,10 +51,17 @@ export const Login: React.FC = () => {
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: 'shyamsundaryedla1@gmail.com',
-      password: 'Admin@12345',
+      email: initialEmail,
+      password: '',
     },
   });
+
+  // Sync email when search params change
+  useEffect(() => {
+    if (initialEmail) {
+      setValue('email', initialEmail);
+    }
+  }, [initialEmail, setValue]);
 
   const {
     register: registerChange,
@@ -60,10 +71,12 @@ export const Login: React.FC = () => {
     resolver: zodResolver(forceChangeSchema),
   });
 
+  // Automatically route user to their respective portal based strictly on their backend role
   const redirectByRole = (role: string) => {
-    if (role === 'ADMIN') {
+    const cleanRole = (role || '').toUpperCase();
+    if (cleanRole === 'ADMIN') {
       navigate('/admin/dashboard');
-    } else if (role === 'MANAGER') {
+    } else if (cleanRole === 'MANAGER') {
       navigate('/manager/dashboard');
     } else {
       navigate('/employee/dashboard');
@@ -74,7 +87,7 @@ export const Login: React.FC = () => {
     setIsLoading(true);
     try {
       const res = await api.auth.login({
-        email: values.email,
+        email: values.email.trim(),
         password: values.password,
       });
 
@@ -91,8 +104,8 @@ export const Login: React.FC = () => {
         dispatch(
           addToast({
             type: 'info',
-            title: 'First-time Login Detected',
-            message: 'For security, please set a new personal password before accessing your dashboard.',
+            title: 'Initial Sign-In Verification',
+            message: 'Please set your permanent password to complete your account setup.',
           })
         );
         return;
@@ -118,8 +131,8 @@ export const Login: React.FC = () => {
       dispatch(
         addToast({
           type: 'success',
-          title: 'Authentication Successful',
-          message: `Logged in as ${userData.fullName || userData.email} (${userData.role || 'EMPLOYEE'})`,
+          title: 'Welcome Back',
+          message: `Signed in as ${userData.fullName || userData.email}. Redirecting to your workplace...`,
         })
       );
 
@@ -128,8 +141,8 @@ export const Login: React.FC = () => {
       dispatch(
         addToast({
           type: 'error',
-          title: 'Sign In Failed',
-          message: err.message || 'Could not authenticate. Verify your credentials and database connection.',
+          title: 'Authentication Failed',
+          message: err.message || 'Unable to sign in. Please verify your corporate email and password.',
         })
       );
     } finally {
@@ -170,7 +183,7 @@ export const Login: React.FC = () => {
       dispatch(
         addToast({
           type: 'success',
-          title: 'Password Set Successfully',
+          title: 'Password Updated',
           message: 'Your account is secured. Directing you to your portal...',
         })
       );
@@ -180,180 +193,189 @@ export const Login: React.FC = () => {
       dispatch(
         addToast({
           type: 'error',
-          title: 'Password Change Failed',
+          title: 'Update Failed',
           message: err.message || 'Could not update password. Please try again.',
         })
       );
     }
   };
 
-  const handleQuickFill = (email: string, pass: string) => {
-    setValue('email', email);
-    setValue('password', pass);
-  };
-
   return (
-    <div className="min-h-screen bg-[#F4F6F9] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        {/* Maaya World Official Logo */}
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Subtle brand ambient glow per design.md Section 2.5.4 */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(59,104,245,0.06),transparent)] pointer-events-none" />
+
+      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center relative z-10">
+        {/* Official Maaya World Logo */}
         <div className="flex items-center justify-center mb-4">
           <img
             src={maayaLogo}
             alt="Maaya World Logo"
-            className="h-12 w-auto object-contain"
+            className="h-11 w-auto object-contain"
           />
         </div>
-        <h1 className="text-xl font-bold tracking-tight text-slate-900">
-          Maaya World HRMS
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+          Sign In to Your Account
         </h1>
-        <p className="mt-1 text-xs text-slate-500">
-          Enterprise Workforce, Payroll & Operations Suite
-        </p>
       </div>
 
-      <div className="mt-7 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-6 shadow-xs border border-slate-200/90 rounded-2xl sm:px-10">
+      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
+        <div className="bg-white py-8 px-6 sm:px-9 shadow-sm hover:shadow-md transition-shadow border border-slate-200/90 rounded-2xl">
           {showForceChange ? (
             /* First-Time Login: Mandatory Password Change View */
-            <div className="space-y-4">
-              <div className="text-center pb-2 border-b border-slate-100">
-                <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-2">
+            <div className="space-y-5">
+              <div className="text-center pb-3 border-b border-slate-100">
+                <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-2.5">
                   <KeyRound className="w-5 h-5" />
                 </div>
-                <h2 className="text-base font-bold text-slate-900">Create Your New Password</h2>
+                <h2 className="text-base font-bold text-slate-900">Create New Password</h2>
                 <p className="text-xs text-slate-500 mt-1">
-                  Welcome to Maaya World, <strong className="text-slate-700">{pendingUser?.fullName}</strong>. Please set a secure password for your staff account.
+                  Welcome to Maaya World, <strong className="text-slate-700">{pendingUser?.fullName}</strong>. Please set a confidential password to complete activation.
                 </p>
               </div>
 
               <form onSubmit={handleSubmitChange(onForceChangePassword)} className="space-y-4">
-                <Input
-                  label="New Password"
-                  type="password"
-                  placeholder="At least 6 characters"
-                  leftIcon={<Lock className="w-4 h-4" />}
-                  error={changeErrors.newPassword?.message}
-                  {...registerChange('newPassword')}
-                />
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="password"
+                      placeholder="At least 6 characters"
+                      className={`block w-full h-11 pl-10 pr-3 text-sm text-slate-900 bg-white border ${
+                        changeErrors.newPassword ? 'border-rose-400 focus:ring-rose-500' : 'border-slate-300 focus:border-blue-600 focus:ring-blue-500/10'
+                      } rounded-lg focus:outline-none focus:ring-4 transition-all`}
+                      {...registerChange('newPassword')}
+                    />
+                  </div>
+                  {changeErrors.newPassword && (
+                    <p className="text-xs text-rose-600 mt-1">{changeErrors.newPassword.message}</p>
+                  )}
+                </div>
 
-                <Input
-                  label="Confirm New Password"
-                  type="password"
-                  placeholder="Repeat new password"
-                  leftIcon={<Lock className="w-4 h-4" />}
-                  error={changeErrors.confirmPassword?.message}
-                  {...registerChange('confirmPassword')}
-                />
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Confirm New Password
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="password"
+                      placeholder="Repeat new password"
+                      className={`block w-full h-11 pl-10 pr-3 text-sm text-slate-900 bg-white border ${
+                        changeErrors.confirmPassword ? 'border-rose-400 focus:ring-rose-500' : 'border-slate-300 focus:border-blue-600 focus:ring-blue-500/10'
+                      } rounded-lg focus:outline-none focus:ring-4 transition-all`}
+                      {...registerChange('confirmPassword')}
+                    />
+                  </div>
+                  {changeErrors.confirmPassword && (
+                    <p className="text-xs text-rose-600 mt-1">{changeErrors.confirmPassword.message}</p>
+                  )}
+                </div>
 
                 <Button
                   type="submit"
                   variant="primary"
-                  className="w-full mt-2"
+                  className="w-full !h-11 mt-2 text-sm font-semibold !bg-slate-900 hover:!bg-slate-800"
                   isLoading={isSubmittingChange}
                   rightIcon={<CheckCircle2 className="w-4 h-4" />}
                 >
-                  Activate Account & Enter Portal
+                  Activate Account & Enter Workplace
                 </Button>
               </form>
             </div>
           ) : (
-            /* Main Login Form */
-            <>
-              {/* Quick Preset Buttons for verified database roles */}
-              <div className="mb-6 pb-5 border-b border-slate-100 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                    Official Sign-In Credentials
-                  </span>
-                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-semibold border border-emerald-200">
-                    PostgreSQL Live
-                  </span>
-                </div>
-
-                {/* Primary Admin Access Button */}
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('shyamsundaryedla1@gmail.com', 'Admin@12345')}
-                  className="w-full p-2.5 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100/70 text-left transition-colors cursor-pointer flex items-center justify-between"
-                >
-                  <div>
-                    <div className="text-xs font-bold text-blue-900">HR Administrator</div>
-                    <div className="text-[11px] text-blue-700">shyamsundaryedla1@gmail.com</div>
+            /* Clean Corporate Login Form (No Role Mentions) */
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Mail className="w-4 h-4" />
                   </div>
-                  <span className="text-[11px] font-semibold text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-200">
-                    Use Admin
-                  </span>
-                </button>
-
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => handleQuickFill('rajesh.kumar@maayaworld.com', 'Manager@12345')}
-                    className="p-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-left transition-colors cursor-pointer"
-                  >
-                    <div className="font-semibold text-slate-800 text-[11px]">Team Manager</div>
-                    <div className="text-[10px] text-slate-500 truncate">rajesh.kumar@maaya...</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleQuickFill('priya.sharma@maayaworld.com', 'Welcome@2026')}
-                    className="p-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-left transition-colors cursor-pointer"
-                  >
-                    <div className="font-semibold text-slate-800 text-[11px]">Staff Employee</div>
-                    <div className="text-[10px] text-slate-500 truncate">priya.sharma@maaya...</div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Login Form */}
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                <Input
-                  label="Work Email Address"
-                  type="email"
-                  placeholder="name@maayaworld.com"
-                  leftIcon={<Mail className="w-4 h-4" />}
-                  error={errors.email?.message}
-                  {...register('email')}
-                />
-
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-semibold text-slate-700">
-                      Password
-                    </label>
-                    <Link
-                      to="/forgot-password"
-                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
-                    >
-                      Forgot password?
-                    </Link>
-                  </div>
-                  <Input
-                    type="password"
-                    placeholder="••••••••"
-                    leftIcon={<Lock className="w-4 h-4" />}
-                    error={errors.password?.message}
-                    {...register('password')}
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    placeholder="name@themaayaworld.com"
+                    className={`block w-full h-11 pl-10 pr-3 text-sm text-slate-900 bg-white border ${
+                      errors.email ? 'border-rose-400 focus:ring-rose-500' : 'border-slate-300 focus:border-blue-600 focus:ring-blue-500/10'
+                    } rounded-lg focus:outline-none focus:ring-4 transition-all`}
+                    {...register('email')}
                   />
                 </div>
-
-                <Button
-                  type="submit"
-                  variant="primary"
-                  className="w-full mt-2"
-                  isLoading={isLoading}
-                  rightIcon={<ArrowRight className="w-4 h-4" />}
-                >
-                  Sign In to Workplace
-                </Button>
-              </form>
-
-              <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-center gap-2 text-xs text-slate-500">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span>256-bit SSL Encrypted & ZeptoMail Integrated</span>
+                {errors.email && (
+                  <p className="text-xs text-rose-600 mt-1">{errors.email.message}</p>
+                )}
               </div>
-            </>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Password
+                  </label>
+                  <Link
+                    to="/forgot-password"
+                    className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    placeholder="Enter your password"
+                    className={`block w-full h-11 pl-10 pr-10 text-sm text-slate-900 bg-white border ${
+                      errors.password ? 'border-rose-400 focus:ring-rose-500' : 'border-slate-300 focus:border-blue-600 focus:ring-blue-500/10'
+                    } rounded-lg focus:outline-none focus:ring-4 transition-all`}
+                    {...register('password')}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="text-xs text-rose-600 mt-1">{errors.password.message}</p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    defaultChecked
+                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20"
+                  />
+                  <span className="text-xs text-slate-600">Remember this workstation</span>
+                </label>
+              </div>
+
+              <Button
+                type="submit"
+                variant="primary"
+                className="w-full !h-11 mt-2 text-sm font-semibold !bg-slate-900 hover:!bg-slate-800 text-white shadow-xs"
+                isLoading={isLoading}
+                rightIcon={<ArrowRight className="w-4 h-4" />}
+              >
+                Sign In to Workplace
+              </Button>
+            </form>
           )}
         </div>
       </div>

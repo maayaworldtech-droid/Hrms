@@ -54,6 +54,11 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     public Employee onboardEmployee(Employee employee) {
+        return onboardEmployee(employee, null);
+    }
+
+    @Override
+    public Employee onboardEmployee(Employee employee, String portalUrl) {
         Employee target = employee;
         if (employee.getEmail() != null && !employee.getEmail().trim().isEmpty()) {
             Optional<Employee> existingOpt = employeeRepository.findByEmail(employee.getEmail().trim());
@@ -140,10 +145,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         final String fullName = saved.getFullName();
         final String code = saved.getEmployeeCode();
         final String pwd = plainPassword;
+        final String targetUrl = portalUrl;
 
         new Thread(() -> {
             try {
-                boolean sent = zeptoMailService.sendOnboardingEmail(email, fullName, code, pwd);
+                boolean sent = zeptoMailService.sendOnboardingEmail(email, fullName, code, pwd, targetUrl);
                 System.out.println("Onboarding email status for " + email + ": " + (sent ? "SENT" : "FAILED_OR_SIMULATED"));
             } catch (Exception e) {
                 System.err.println("Could not dispatch onboarding email for " + email + ": " + e.getMessage());
@@ -155,16 +161,26 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     public boolean resendWelcomeEmail(Long id) {
-        return employeeRepository.findById(id).map(this::sendWelcomeEmailToEmployee).orElse(false);
+        return resendWelcomeEmail(id, null);
+    }
+
+    @Override
+    public boolean resendWelcomeEmail(Long id, String portalUrl) {
+        return employeeRepository.findById(id).map(emp -> sendWelcomeEmailToEmployee(emp, portalUrl)).orElse(false);
     }
 
     @Override
     public boolean resendWelcomeEmailByEmail(String email) {
-        if (email == null || email.trim().isEmpty()) return false;
-        return employeeRepository.findByEmail(email.trim()).map(this::sendWelcomeEmailToEmployee).orElse(false);
+        return resendWelcomeEmailByEmail(email, null);
     }
 
-    private boolean sendWelcomeEmailToEmployee(Employee emp) {
+    @Override
+    public boolean resendWelcomeEmailByEmail(String email, String portalUrl) {
+        if (email == null || email.trim().isEmpty()) return false;
+        return employeeRepository.findByEmail(email.trim()).map(emp -> sendWelcomeEmailToEmployee(emp, portalUrl)).orElse(false);
+    }
+
+    private boolean sendWelcomeEmailToEmployee(Employee emp, String portalUrl) {
         String pwd = emp.getPassword();
         if (pwd == null || pwd.trim().isEmpty()) {
             int randomDigits = 1000 + new Random().nextInt(9000);
@@ -173,7 +189,7 @@ public class EmployeeServiceImpl implements EmployeeService {
             emp.setMustChangePassword(true);
             employeeRepository.save(emp);
         }
-        return zeptoMailService.sendOnboardingEmail(emp.getEmail(), emp.getFullName(), emp.getEmployeeCode(), pwd);
+        return zeptoMailService.sendOnboardingEmail(emp.getEmail(), emp.getFullName(), emp.getEmployeeCode(), pwd, portalUrl);
     }
 
     @Override
