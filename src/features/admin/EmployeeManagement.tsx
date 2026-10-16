@@ -15,7 +15,7 @@ import { Input } from '@/components/common/Input';
 import { Select } from '@/components/common/Select';
 import { formatINR, formatDate } from '@/utils/formatters';
 
-import  { UserPlus, Eye, Trash2, MapPin, Clock, Copy, CheckCircle2, ShieldAlert, Check } from 'lucide-react';
+import  { UserPlus, Eye, Trash2, MapPin, Clock, Copy, CheckCircle2, ShieldAlert, Check, Mail } from 'lucide-react';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 
@@ -232,6 +232,36 @@ export const EmployeeManagement: React.FC = () => {
     }
   };
 
+  const [resendingId, setResendingId] = useState<string | null>(null);
+
+  const handleResendEmail = async (emp: Employee) => {
+    try {
+      setResendingId(emp.id);
+      const res = await api.employees.resendWelcomeEmail(emp.id);
+      if (res.success) {
+        dispatch(
+          addToast({
+            type: 'success',
+            title: 'Welcome Email Sent',
+            message: `Login credentials dispatched to ${emp.email} via ZeptoMail.`,
+          })
+        );
+      } else {
+        dispatch(
+          addToast({
+            type: 'error',
+            title: 'Dispatch Failed',
+            message: res.message || 'Could not send email.',
+          })
+        );
+      }
+    } catch {
+      dispatch(addToast({ type: 'error', title: 'Dispatch Failed', message: 'Could not contact mail service.' }));
+    } finally {
+      setResendingId(null);
+    }
+  };
+
   const managers = [...new Map([{ id: MOCK_USERS.manager.id, name: MOCK_USERS.manager.name }, ...employees.filter(employee => employee.role === 'MANAGER').map(employee => ({ id: employee.id, name: employee.fullName }))].map(manager => [manager.id,manager])).values()];
   const unassigned = employees.filter(employee => employee.id !== MOCK_USERS.admin.id && employee.id !== MOCK_USERS.manager.id && employee.role !== 'ADMIN' && !getReportingManager(employee).id).length;
 
@@ -313,6 +343,16 @@ export const EmployeeManagement: React.FC = () => {
       align: 'right',
       render: (row) => (
         <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleResendEmail(row)}
+            disabled={resendingId === row.id}
+            className="!h-7 !w-7 !p-0 text-slate-400 hover:text-emerald-600"
+            title="Resend Onboarding / Login Credentials Email"
+          >
+            <Mail className={`w-3.5 h-3.5 ${resendingId === row.id ? 'animate-spin' : ''}`} />
+          </Button>
           <Button
             variant="ghost"
             size="sm"

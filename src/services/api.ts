@@ -271,6 +271,18 @@ export const api = {
       await fetchJSON(`${API_BASE}/employees/${cleanId}`, { method: 'DELETE' });
       return true;
     },
+
+    resendWelcomeEmail: async (idOrEmail: string | number): Promise<{ success: boolean; message: string }> => {
+      const cleanId = String(idOrEmail).replace('emp-', '');
+      if (cleanId.includes('@')) {
+        return fetchJSON<{ success: boolean; message: string }>(`${API_BASE}/employees/resend-email?email=${encodeURIComponent(cleanId)}`, {
+          method: 'POST',
+        });
+      }
+      return fetchJSON<{ success: boolean; message: string }>(`${API_BASE}/employees/${cleanId}/resend-email`, {
+        method: 'POST',
+      });
+    },
   },
 
   // Attendance Endpoints

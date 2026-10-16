@@ -54,40 +54,71 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     public Employee onboardEmployee(Employee employee) {
+        Employee target = employee;
+        if (employee.getEmail() != null && !employee.getEmail().trim().isEmpty()) {
+            Optional<Employee> existingOpt = employeeRepository.findByEmail(employee.getEmail().trim());
+            if (existingOpt.isPresent()) {
+                target = existingOpt.get();
+                if (employee.getFirstName() != null) target.setFirstName(employee.getFirstName());
+                if (employee.getLastName() != null) target.setLastName(employee.getLastName());
+                if (employee.getJobTitle() != null) target.setJobTitle(employee.getJobTitle());
+                if (employee.getDepartment() != null) target.setDepartment(employee.getDepartment());
+                if (employee.getPhone() != null) target.setPhone(employee.getPhone());
+                if (employee.getAddress() != null) target.setAddress(employee.getAddress());
+                if (employee.getMonthlySalary() != null) target.setMonthlySalary(employee.getMonthlySalary());
+                if (employee.getCtcAnnual() != null) target.setCtcAnnual(employee.getCtcAnnual());
+                if (employee.getBankName() != null) target.setBankName(employee.getBankName());
+                if (employee.getAccountNumber() != null) target.setAccountNumber(employee.getAccountNumber());
+                if (employee.getIfscCode() != null) target.setIfscCode(employee.getIfscCode());
+                if (employee.getPanNumber() != null) target.setPanNumber(employee.getPanNumber());
+                if (employee.getUanNumber() != null) target.setUanNumber(employee.getUanNumber());
+                if (employee.getRole() != null) target.setRole(employee.getRole());
+                if (employee.getStatus() != null) target.setStatus(employee.getStatus());
+                if (employee.getEmploymentType() != null) target.setEmploymentType(employee.getEmploymentType());
+                if (employee.getShift() != null) target.setShift(employee.getShift());
+                if (employee.getDateOfJoining() != null) target.setDateOfJoining(employee.getDateOfJoining());
+            }
+        }
+
         // Auto-generate employee code if missing or empty
-        if (employee.getEmployeeCode() == null || employee.getEmployeeCode().trim().isEmpty()) {
+        if (target.getEmployeeCode() == null || target.getEmployeeCode().trim().isEmpty()) {
             long count = employeeRepository.count();
             String nextCode = String.format("MW-%04d", 1001 + count);
             while (employeeRepository.existsByEmployeeCode(nextCode)) {
                 count++;
                 nextCode = String.format("MW-%04d", 1001 + count);
             }
-            employee.setEmployeeCode(nextCode);
+            target.setEmployeeCode(nextCode);
         }
 
         // Auto-generate secure temporary password if not provided
         String plainPassword = employee.getPassword();
         if (plainPassword == null || plainPassword.trim().isEmpty()) {
-            int randomDigits = 1000 + new Random().nextInt(9000);
-            plainPassword = "Maaya@" + randomDigits;
-            employee.setPassword(plainPassword);
+            if (target.getPassword() == null || target.getPassword().trim().isEmpty() || target.isMustChangePassword()) {
+                int randomDigits = 1000 + new Random().nextInt(9000);
+                plainPassword = "Maaya@" + randomDigits;
+                target.setPassword(plainPassword);
+                target.setMustChangePassword(true);
+            } else {
+                plainPassword = target.getPassword();
+            }
+        } else {
+            target.setPassword(plainPassword);
+            target.setMustChangePassword(true);
         }
 
-        // Force password change on first login
-        employee.setMustChangePassword(true);
-
-        if (employee.getRole() == null || employee.getRole().trim().isEmpty()) {
-            employee.setRole("EMPLOYEE");
+        if (target.getRole() == null || target.getRole().trim().isEmpty()) {
+            target.setRole("EMPLOYEE");
         }
-        if (employee.getStatus() == null || employee.getStatus().trim().isEmpty()) {
-            employee.setStatus("ACTIVE");
+        if (target.getStatus() == null || target.getStatus().trim().isEmpty()) {
+            target.setStatus("ACTIVE");
         }
-        if (employee.getEmploymentType() == null || employee.getEmploymentType().trim().isEmpty()) {
-            employee.setEmploymentType("FULL_TIME");
+        if (target.getEmploymentType() == null || target.getEmploymentType().trim().isEmpty()) {
+            target.setEmploymentType("FULL_TIME");
         }
 
         // Save employee to PostgreSQL
-        Employee saved = employeeRepository.save(employee);
+        Employee saved = employeeRepository.save(target);
 
         // Initialize Leave Balance for this employee
         if (leaveBalanceRepository.findByEmployeeId(saved.getId()).isEmpty()) {
@@ -120,6 +151,29 @@ public class EmployeeServiceImpl implements EmployeeService {
         }).start();
 
         return saved;
+    }
+
+    @Override
+    public boolean resendWelcomeEmail(Long id) {
+        return employeeRepository.findById(id).map(this::sendWelcomeEmailToEmployee).orElse(false);
+    }
+
+    @Override
+    public boolean resendWelcomeEmailByEmail(String email) {
+        if (email == null || email.trim().isEmpty()) return false;
+        return employeeRepository.findByEmail(email.trim()).map(this::sendWelcomeEmailToEmployee).orElse(false);
+    }
+
+    private boolean sendWelcomeEmailToEmployee(Employee emp) {
+        String pwd = emp.getPassword();
+        if (pwd == null || pwd.trim().isEmpty()) {
+            int randomDigits = 1000 + new Random().nextInt(9000);
+            pwd = "Maaya@" + randomDigits;
+            emp.setPassword(pwd);
+            emp.setMustChangePassword(true);
+            employeeRepository.save(emp);
+        }
+        return zeptoMailService.sendOnboardingEmail(emp.getEmail(), emp.getFullName(), emp.getEmployeeCode(), pwd);
     }
 
     @Override

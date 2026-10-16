@@ -15,6 +15,9 @@ public interface EmployeeService {
     Optional<Employee> updateEmployee(Long id, Employee employee);
     boolean deleteEmployee(Long id);
 
+    boolean resendWelcomeEmail(Long id);
+    boolean resendWelcomeEmailByEmail(String email);
+
     // Backward-compatibility aliases
     default List<Employee> getAllStudents() { return getAllEmployees(); }
     default Optional<Employee> getStudentById(Long id) { return getEmployeeById(id); }

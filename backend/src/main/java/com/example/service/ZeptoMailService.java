@@ -21,11 +21,8 @@ public class ZeptoMailService {
     @Value("${zeptomail.from.name:Maaya World}")
     private String fromName;
 
-    @Value("${zeptomail.from.email:noreply@maayaworld.com}")
+    @Value("${zeptomail.from.email:noreply@themaayaworld.com}")
     private String fromEmail;
-
-    @Value("${zeptomail.bounce.address:bounce@maayaworld.com}")
-    private String bounceAddress;
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -55,17 +52,15 @@ public class ZeptoMailService {
                 + "</div>";
 
         try {
-            // Escape quotes and newlines for clean JSON
-            String jsonPayload = String.format(
-                    "{\"bounce_address\":\"%s\",\"from\":{\"address\":\"%s\",\"name\":\"%s\"},\"to\":[{\"email_address\":{\"address\":\"%s\",\"name\":\"%s\"}}],\"subject\":\"%s\",\"htmlbody\":\"%s\"}",
-                    escapeJson(bounceAddress),
-                    escapeJson(fromEmail),
-                    escapeJson(fromName),
-                    escapeJson(recipientEmail),
-                    escapeJson(recipientName),
-                    escapeJson(subject),
-                    escapeJson(htmlBody)
-            );
+            StringBuilder sb = new StringBuilder("{");
+            sb.append("\"from\":{\"address\":\"").append(escapeJson(fromEmail))
+              .append("\",\"name\":\"").append(escapeJson(fromName)).append("\"},");
+            sb.append("\"to\":[{\"email_address\":{\"address\":\"").append(escapeJson(recipientEmail))
+              .append("\",\"name\":\"").append(escapeJson(recipientName)).append("\"}}],");
+            sb.append("\"subject\":\"").append(escapeJson(subject)).append("\",");
+            sb.append("\"htmlbody\":\"").append(escapeJson(htmlBody)).append("\"}");
+
+            String jsonPayload = sb.toString();
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(zeptoUrl))
@@ -76,10 +71,13 @@ public class ZeptoMailService {
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            System.out.println("ZeptoMail response code: " + response.statusCode());
-            System.out.println("ZeptoMail response body: " + response.body());
-
-            return response.statusCode() >= 200 && response.statusCode() < 300;
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                System.out.println("ZeptoMail SUCCESS [HTTP " + response.statusCode() + "] to " + recipientEmail);
+                return true;
+            } else {
+                System.err.println("ZeptoMail FAILED [HTTP " + response.statusCode() + "]: " + response.body());
+                return false;
+            }
         } catch (Exception e) {
             System.err.println("Error dispatching ZeptoMail onboarding email: " + e.getMessage());
             return false;

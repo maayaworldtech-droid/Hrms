@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -60,5 +61,17 @@ public class EmployeeController {
             return ResponseEntity.noContent().build();
         }
         return ResponseEntity.notFound().build();
+    }
+
+    @PostMapping("/{id}/resend-email")
+    public ResponseEntity<Map<String, Object>> resendEmail(@PathVariable Long id) {
+        boolean sent = employeeService.resendWelcomeEmail(id);
+        return ResponseEntity.ok(Map.of("success", sent, "message", sent ? "Email sent successfully" : "Failed to dispatch email"));
+    }
+
+    @PostMapping("/resend-email")
+    public ResponseEntity<Map<String, Object>> resendEmailByQuery(@RequestParam String email) {
+        boolean sent = employeeService.resendWelcomeEmailByEmail(email);
+        return ResponseEntity.ok(Map.of("success", sent, "message", sent ? "Email sent successfully" : "Failed to dispatch email"));
     }
 }
