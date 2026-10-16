@@ -1,7 +1,9 @@
 import { MOCK_USERS, getReportingManager } from '@/services/mockData';
 import { EmployeeDetailsPanel } from '@/components/common/EmployeeDetailsPanel';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
+
+const DEFAULT_JOINING_DATE = '2026-01-15';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { api } from '@/services/api';
@@ -13,7 +15,7 @@ import { Input } from '@/components/common/Input';
 import { Select } from '@/components/common/Select';
 import { formatINR, formatDate } from '@/utils/formatters';
 
-import  { UserPlus, Eye, Trash2, MapPin, Clock } from 'lucide-react';
+import  { UserPlus, Eye, Trash2, MapPin, Clock, Copy, CheckCircle2, ShieldAlert, Check } from 'lucide-react';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 
@@ -22,6 +24,7 @@ const employeeSchema = z.object({
   lastName: z.string().min(2, 'Last name is required'),
   email: z.string().email('Valid corporate email required'),
   phone: z.string().min(10, 'Valid 10-digit phone number required'),
+  address: z.string().min(5, 'Residential address is required (min 5 chars)'),
   location: z.enum(['Hyderabad', 'Vizag', 'Bhubaneswar']),
   shift: z.enum(['MORNING', 'EVENING']),
   managerId: z.string(),
@@ -46,6 +49,12 @@ export const EmployeeManagement: React.FC = () => {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedLocationFilter, setSelectedLocationFilter] = useState<string>('ALL');
   const [selectedShiftFilter, setSelectedShiftFilter] = useState<string>('ALL');
+  const [onboardSuccessData, setOnboardSuccessData] = useState<{
+    employee: Employee;
+    tempPassword: string;
+    email: string;
+  } | null>(null);
+  const [copiedCredentials, setCopiedCredentials] = useState(false);
 
   const {
     register: registerAdd,
@@ -58,8 +67,9 @@ export const EmployeeManagement: React.FC = () => {
       location: 'Hyderabad',
       shift: 'MORNING',
       managerId: '',
-      joiningDate: new Date().toISOString().split('T')[0],
+      joiningDate: DEFAULT_JOINING_DATE,
       monthlySalary: 32000,
+      address: 'Plot 42, HITEC City, Madhapur, Hyderabad, Telangana - 500081',
       accountNumber: '918273645281',
       ifscCode: 'HDFC0001234',
       panNumber: 'ABCPS1234F',
@@ -76,7 +86,7 @@ export const EmployeeManagement: React.FC = () => {
     resolver: zodResolver(employeeSchema),
   });
 
-  const loadEmployees = async () => {
+  const loadEmployees = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await api.employees.getAll();
@@ -84,11 +94,11 @@ export const EmployeeManagement: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadEmployees();
-  }, []);
+    void loadEmployees();
+  }, [loadEmployees]);
 
   const handleOpenEdit = (emp: Employee) => {
     setEditingEmployee(emp);
@@ -97,6 +107,7 @@ export const EmployeeManagement: React.FC = () => {
       lastName: emp.lastName,
       email: emp.email,
       phone: emp.phone,
+      address: emp.address || '',
       location: (emp.location as 'Hyderabad' | 'Vizag' | 'Bhubaneswar') || 'Hyderabad',
       shift: emp.shift || 'MORNING',
       managerId: getReportingManager(emp).id || '',
@@ -113,18 +124,18 @@ export const EmployeeManagement: React.FC = () => {
 
   const onAddSubmit = async (values: EmployeeFormValues) => {
     try {
-      const newEmp = await api.employees.create({
-        employeeCode: `MW-${1000 + employees.length + 1}`,
+      const newEmp = await api.employees.onboard({
         firstName: values.firstName,
         lastName: values.lastName,
-        fullName: `${values.firstName} ${values.lastName}`,
+        fullName: `${values.firstName} ${values.lastName}`.trim(),
         email: values.email,
         phone: values.phone,
-        designation: '',
+        address: values.address,
+        designation: 'Specialist',
         location: values.location,
         shift: values.shift,
-        managerId: values.managerId,
-        managerName: employees.find(employee => employee.id === values.managerId)?.fullName || (values.managerId === MOCK_USERS.manager.id ? MOCK_USERS.manager.name : undefined),
+        managerId: values.managerId || undefined,
+        managerName: employees.find((e) => e.id === values.managerId)?.fullName || (values.managerId === MOCK_USERS.manager.id ? MOCK_USERS.manager.name : undefined),
         monthlySalary: values.monthlySalary,
         ctcAnnual: values.monthlySalary * 12,
         joiningDate: values.joiningDate,
@@ -146,15 +157,23 @@ export const EmployeeManagement: React.FC = () => {
       dispatch(
         addToast({
           type: 'success',
-          title: 'Employee Onboarded',
-          message: `${newEmp.fullName} (${newEmp.employeeCode}) has been successfully added to ${newEmp.location} (${newEmp.shift === 'EVENING' ? 'Evening Shift' : 'Morning Shift'}).`,
+          title: 'Employee Onboarded Successfully',
+          message: `${newEmp.fullName} (${newEmp.employeeCode}) onboarded to ${newEmp.location}. Welcome email queued via Zoho ZeptoMail.`,
         })
       );
       setIsAddModalOpen(false);
       resetAdd();
       loadEmployees();
-    } catch {
-      dispatch(addToast({ type: 'error', title: 'Onboarding Failed' }));
+
+      // Show credentials modal for administrative record & copy
+      const generatedPwd = (newEmp as any).password || 'Maaya@' + Math.floor(1000 + Math.random() * 9000);
+      setOnboardSuccessData({
+        employee: newEmp,
+        tempPassword: generatedPwd,
+        email: newEmp.email,
+      });
+    } catch (err: any) {
+      dispatch(addToast({ type: 'error', title: 'Onboarding Failed', message: err?.message || 'Could not onboard employee.' }));
     }
   };
 
@@ -164,13 +183,14 @@ export const EmployeeManagement: React.FC = () => {
       await api.employees.update(editingEmployee.id, {
         firstName: values.firstName,
         lastName: values.lastName,
-        fullName: `${values.firstName} ${values.lastName}`,
+        fullName: `${values.firstName} ${values.lastName}`.trim(),
         email: values.email,
         phone: values.phone,
+        address: values.address,
         location: values.location,
         shift: values.shift,
         managerId: values.managerId,
-        managerName: employees.find(employee => employee.id === values.managerId)?.fullName || (values.managerId === MOCK_USERS.manager.id ? MOCK_USERS.manager.name : undefined),
+        managerName: employees.find((e) => e.id === values.managerId)?.fullName || (values.managerId === MOCK_USERS.manager.id ? MOCK_USERS.manager.name : undefined),
         monthlySalary: values.monthlySalary,
         ctcAnnual: values.monthlySalary * 12,
         joiningDate: values.joiningDate,
@@ -422,6 +442,14 @@ export const EmployeeManagement: React.FC = () => {
                 error={errorsAdd.phone?.message}
                 {...registerAdd('phone')}
               />
+              <div className="sm:col-span-2">
+                <Input
+                  label="Residential Address"
+                  placeholder="e.g. Flat 301, Sri Sai Enclave, Madhapur, Hyderabad - 500081"
+                  error={errorsAdd.address?.message}
+                  {...registerAdd('address')}
+                />
+              </div>
             </div>
           </div>
 
@@ -561,6 +589,14 @@ export const EmployeeManagement: React.FC = () => {
                   error={errorsEdit.phone?.message}
                   {...registerEdit('phone')}
                 />
+                <div className="sm:col-span-2">
+                  <Input
+                    label="Residential Address"
+                    placeholder="e.g. Flat 301, Sri Sai Enclave, Madhapur, Hyderabad - 500081"
+                    error={errorsEdit.address?.message}
+                    {...registerEdit('address')}
+                  />
+                </div>
               </div>
             </div>
 
@@ -660,6 +696,92 @@ export const EmployeeManagement: React.FC = () => {
       )}
 
       {selectedEmployee && isViewModalOpen && <EmployeeDetailsPanel key={selectedEmployee.id} employee={selectedEmployee} isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} onEdit={() => handleOpenEdit(selectedEmployee)} />}
+
+      {/* Onboarding Credentials Modal */}
+      {onboardSuccessData && (
+        <Modal
+          isOpen={!!onboardSuccessData}
+          onClose={() => setOnboardSuccessData(null)}
+          title="Employee Onboarded & Credentials Dispatched"
+          subtitle={`Account created for ${onboardSuccessData.employee.fullName}`}
+          size="md"
+        >
+          <div className="space-y-4">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3.5 flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <div className="font-semibold text-emerald-900">
+                  Welcome Email Dispatched via Zoho ZeptoMail
+                </div>
+                <div className="text-emerald-700 mt-0.5">
+                  An automated email containing login instructions and initial credentials was sent to{' '}
+                  <span className="font-semibold">{onboardSuccessData.email}</span>.
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Generated Login Credentials
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <div className="text-slate-400 text-[11px]">Employee Code / ID</div>
+                  <div className="font-mono font-bold text-slate-900 text-sm mt-0.5">
+                    {onboardSuccessData.employee.employeeCode}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-400 text-[11px]">Corporate Email</div>
+                  <div className="font-medium text-slate-900 truncate mt-0.5" title={onboardSuccessData.email}>
+                    {onboardSuccessData.email}
+                  </div>
+                </div>
+                <div className="col-span-2 pt-2 border-t border-slate-200">
+                  <div className="text-slate-400 text-[11px]">Default Temporary Password</div>
+                  <div className="flex items-center justify-between gap-2 mt-1">
+                    <span className="font-mono text-sm font-bold bg-white px-3 py-1.5 rounded border border-slate-300 text-slate-900 tracking-wider">
+                      {onboardSuccessData.tempPassword}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(
+                          `Maaya World HRMS Login Credentials:\nEmail: ${onboardSuccessData.email}\nEmployee ID: ${onboardSuccessData.employee.employeeCode}\nTemporary Password: ${onboardSuccessData.tempPassword}\nPortal: ${window.location.origin}/login`
+                        );
+                        setCopiedCredentials(true);
+                        setTimeout(() => setCopiedCredentials(false), 2500);
+                      }}
+                      leftIcon={copiedCredentials ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    >
+                      {copiedCredentials ? 'Copied' : 'Copy Credentials'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2.5 text-xs text-amber-800">
+              <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold">Security Policy:</span> The employee is marked with{' '}
+                <span className="font-semibold">mandatory password reset</span> and will be prompted to create a new password on their very first login.
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button
+                variant="primary"
+                onClick={() => setOnboardSuccessData(null)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/services/api';
 import { Payslip, Employee } from '@/types';
 import { Badge } from '@/components/common/Badge';
@@ -7,14 +7,8 @@ import { Modal } from '@/components/common/Modal';
 import { formatINR, numberToIndianWords } from '@/utils/formatters';
 import { useAppSelector } from '@/store';
 import {
-  CreditCard,
   Printer,
-  Download,
   Eye,
-  Building2,
-  ShieldCheck,
-  CheckCircle2,
-  Calendar,
   FileText,
 } from 'lucide-react';
 import maayaLogo from '@/assets/logo-new.png';
@@ -31,7 +25,7 @@ export const MySalary: React.FC = () => {
   const currentStructure = payslips[0]?.components;
   const [loadError, setLoadError] = useState(false);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true); setLoadError(false);
     try {
       const [data, person] = await Promise.all([api.payroll.getPayslipsByEmployee(employeeId), api.employees.getById(employeeId)]); setEmployee(person || null);
@@ -42,11 +36,11 @@ export const MySalary: React.FC = () => {
     } catch { setLoadError(true); } finally {
       setIsLoading(false);
     }
-  };
+  }, [employeeId]);
 
   useEffect(() => {
-    loadData();
-  }, [employeeId]);
+    void loadData();
+  }, [loadData]);
 
   const openPayslipModal = (slip: Payslip) => {
     setSelectedPayslip(slip);

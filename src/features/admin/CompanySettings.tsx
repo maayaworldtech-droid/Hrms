@@ -4,13 +4,9 @@ import { CompanySettings as CompanySettingsType, AuditLog } from '@/types';
 import { Card, CardHeader, CardContent } from '@/components/common/Card';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
-import { Badge } from '@/components/common/Badge';
 import {
-  Settings,
   Building2,
-  ShieldCheck,
   Save,
-  Check,
   History,
   Clock,
 } from 'lucide-react';

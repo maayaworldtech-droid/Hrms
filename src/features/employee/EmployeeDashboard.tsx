@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/services/api';
 import { AttendanceRecord, LeaveBalance, Employee } from '@/types';
@@ -15,7 +15,6 @@ import {
   ChevronRight,
   FileText,
   ShieldCheck,
-  Sparkles,
   ArrowRight,
 } from 'lucide-react';
 
@@ -30,7 +29,16 @@ export const EmployeeDashboard: React.FC = () => {
   const [error, setError] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
 
-  const load = async () => {
+  const [todayDateString] = useState(() =>
+    new Date().toLocaleDateString('en-IN', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      timeZone: 'Asia/Kolkata',
+    })
+  );
+
+  const load = useCallback(async () => {
     setLoading(true);
     setError(false);
     try {
@@ -67,11 +75,11 @@ export const EmployeeDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [employeeId]);
 
   useEffect(() => {
     void load();
-  }, [employeeId]);
+  }, [load]);
 
   if (loading) {
     return (
@@ -114,12 +122,6 @@ export const EmployeeDashboard: React.FC = () => {
   const completed = !!attendance?.checkOut;
   const working = !!attendance?.checkIn && !completed;
 
-  const todayDateString = new Date().toLocaleDateString('en-IN', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    timeZone: 'Asia/Kolkata',
-  });
 
   return (
     <div className="employee-home">

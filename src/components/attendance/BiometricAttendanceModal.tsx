@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '@/services/api';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
@@ -8,7 +8,6 @@ import {
   checkVenueGeofence,
   TEST_LOCATION_PRESETS,
   VENUE_GEOFENCES,
-  SimulatedLocationPreset,
   GeofenceCheckResult,
 } from '@/utils/geolocation';
 import { Button } from '@/components/common/Button';
@@ -22,7 +21,6 @@ import {
   RefreshCw,
   X,
   ShieldCheck,
-  Building2,
   Navigation,
 } from 'lucide-react';
 
@@ -138,7 +136,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
         setCameraActive(false);
         setCameraError('Webcam feed unavailable. Biometric visual sensor simulation activated.');
       }
-    } catch (err: any) {
+    } catch {
       setCameraActive(false);
       setCameraError('Camera access not granted. Visual recognition simulated for authentication.');
     }
@@ -154,7 +152,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
   };
 
   // Trigger Automatic Face Scan Flow
-  const triggerFaceScan = () => {
+  const triggerFaceScan = useCallback(() => {
     setScanState('SCANNING');
     setScanProgress(0);
     setScanMessage('Detecting face & biometric landmarks...');
@@ -174,7 +172,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
         setScanMessage(`Biometric Identity Verified: ${employee.fullName}`);
       }
     }, 200);
-  };
+  }, [employee.fullName]);
 
   // Open/Close Lifecycle
   useEffect(() => {
@@ -190,7 +188,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
       setScanState('IDLE');
       setScanProgress(0);
     }
-  }, [isOpen]);
+  }, [isOpen, triggerFaceScan]);
 
   // Clean up stream on unmount
   useEffect(() => {

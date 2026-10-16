@@ -2,7 +2,6 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store';
 import { setMobileMenuOpen, toggleSidebar } from '@/store/slices/uiSlice';
-import { switchRole } from '@/store/slices/authSlice';
 import maayaLogo from '@/assets/logo-new.png';
 import {
   LayoutDashboard,
@@ -18,8 +17,6 @@ import {
   ChevronRight,
   X,
   CreditCard,
-  Briefcase,
-  ShieldCheck,
 } from 'lucide-react';
 
 interface NavSection {
@@ -211,56 +208,7 @@ export const Sidebar: React.FC = () => {
           ))}
         </div>
 
-        {/* Mobile-Only Role Switcher Drawer Section */}
-        <div className="lg:hidden p-3 border-t border-[#E4E7EC] bg-[#F7F8FA] space-y-2">
-          <span className="text-[11px] font-medium text-[#667085] block px-1">
-            Switch View
-          </span>
-          <div className="grid grid-cols-3 gap-1.5 text-xs">
-            <button
-              onClick={() => {
-                dispatch(switchRole('ADMIN'));
-                closeMobile();
-                navigate('/admin/dashboard');
-              }}
-              className={`p-2 rounded-lg text-center font-medium transition-colors ${
-                activeRole === 'ADMIN'
-                  ? 'bg-[#2A4FE0] text-white'
-                  : 'bg-white border border-[#D0D5DD] text-[#344054] hover:bg-[#F0F2F5]'
-              }`}
-            >
-              Admin
-            </button>
-            <button
-              onClick={() => {
-                dispatch(switchRole('MANAGER'));
-                closeMobile();
-                navigate('/manager/dashboard');
-              }}
-              className={`p-2 rounded-lg text-center font-medium transition-colors ${
-                activeRole === 'MANAGER'
-                  ? 'bg-[#2A4FE0] text-white'
-                  : 'bg-white border border-[#D0D5DD] text-[#344054] hover:bg-[#F0F2F5]'
-              }`}
-            >
-              Manager
-            </button>
-            <button
-              onClick={() => {
-                dispatch(switchRole('EMPLOYEE'));
-                closeMobile();
-                navigate('/employee/dashboard');
-              }}
-              className={`p-2 rounded-lg text-center font-medium transition-colors ${
-                activeRole === 'EMPLOYEE'
-                  ? 'bg-[#2A4FE0] text-white'
-                  : 'bg-white border border-[#D0D5DD] text-[#344054] hover:bg-[#F0F2F5]'
-              }`}
-            >
-              Employee
-            </button>
-          </div>
-        </div>
+
 
         {/* Bottom Workspace Status & Collapse Toggle */}
         <div className="p-2.5 border-t border-[#E4E7EC] bg-[#F7F8FA] flex items-center justify-between">

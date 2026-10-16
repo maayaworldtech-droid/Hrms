@@ -1,25 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/services/api';
 import { AttendanceRecord } from '@/types';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { formatDate, formatTime } from '@/utils/formatters';
-import { useAppDispatch } from '@/store';
+import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 import { BiometricAttendanceModal } from '@/components/attendance/BiometricAttendanceModal';
-import {
-  Clock,
-  LogIn,
-  LogOut,
-  CheckCircle2,
-  AlertCircle,
-  Search,
-  Filter,
-  Calendar,
-} from 'lucide-react';
+import { Search } from 'lucide-react';
 
 export const MyAttendance: React.FC = () => {
   const dispatch = useAppDispatch();
+  const user = useAppSelector((state) => state.auth.user);
+  const employeeId = user?.id || 'emp-003';
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
@@ -32,9 +25,7 @@ export const MyAttendance: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PRESENT' | 'LATE'>('ALL');
 
-  const employeeId = 'emp-003'; // Priya Sharma
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await api.attendance.getByEmployee(employeeId);
@@ -42,13 +33,20 @@ export const MyAttendance: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [employeeId]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    void loadData();
+  }, [loadData]);
 
-  const today = new Date().toISOString().split('T')[0];
+  const [today] = useState(() => new Date().toISOString().split('T')[0]);
+  const [todayFormatted] = useState(() =>
+    new Date().toLocaleDateString('en-US', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    })
+  );
   const todayRec = attendance.find((a) => a.date === today);
 
   const handleOpenBiometricLogin = () => {
@@ -120,11 +118,7 @@ export const MyAttendance: React.FC = () => {
               Today's Status
             </span>
             <span className="text-[13px] font-bold text-slate-900">
-              {new Date().toLocaleDateString('en-US', {
-                weekday: 'short',
-                day: 'numeric',
-                month: 'short',
-              })}
+              {todayFormatted}
             </span>
           </div>
 

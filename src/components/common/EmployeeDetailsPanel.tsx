@@ -34,7 +34,7 @@ export const EmployeeDetailsPanel = ({ employee, isOpen, onClose, onEdit }: { em
       <button className="workspace-icon" aria-label="Close employee details" onClick={onClose}><X size={20}/></button>
     </div>
     <div className="ops-detail-tabs" aria-label="Employee sections">{sections.map(item => <button key={item} aria-pressed={section === item} className={section === item ? 'active' : ''} onClick={() => setSection(item)}>{item}</button>)}</div>
-    {section === 'Personal' && <>{details([['Email',employee.email],['Phone',employee.phone],['Emergency contact',employee.emergencyContact?.name],['Relationship',employee.emergencyContact?.relationship],['Emergency phone',employee.emergencyContact?.phone]])}</>}
+    {section === 'Personal' && <>{details([['Email',employee.email],['Phone',employee.phone],['Residential address',employee.address],['Emergency contact',employee.emergencyContact?.name],['Relationship',employee.emergencyContact?.relationship],['Emergency phone',employee.emergencyContact?.phone]])}</>}
     {section === 'Employment' && details([['Venue',employee.location],['Designation',employee.designation],['Department',employee.departmentName],['Employee shift',getShiftDefinition(employee.shift).name],['Joined',formatDate(employee.joiningDate)],['Employment type',employee.employmentType?.replaceAll('_',' ')],['Status',employee.status],['Reports to',getReportingManager(employee).name],['Portal role',employee.role]])}
     {(section === 'Attendance' || section === 'Payroll') && loading && <p className="ops-empty" role="status">Loading employee records…</p>}
     {(section === 'Attendance' || section === 'Payroll') && error && <p className="ops-empty" role="alert">Unable to load records. Close and reopen this panel to try again.</p>}

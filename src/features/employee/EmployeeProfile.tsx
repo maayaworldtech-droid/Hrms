@@ -6,30 +6,16 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '@/services/api';
 import { Employee } from '@/types';
 import { Button } from '@/components/common/Button';
-import { Input } from '@/components/common/Input';
 import { formatDate } from '@/utils/formatters';
 import { getShiftDefinition } from '@/utils/shiftUtils';
-import {
-  User,
-  Mail,
-  Phone,
-  Building2,
-  CreditCard,
-  ShieldCheck,
-  Save,
-  Check,
-  Briefcase,
-  MapPin,
-  Calendar,
-  LogOut,
-  Clock,
-} from 'lucide-react';
-import { useAppDispatch } from '@/store';
+import { Save, LogOut } from 'lucide-react';
+import { useAppDispatch, useAppSelector } from '@/store';
 import { logout } from '@/store/slices/authSlice';
 import { addToast } from '@/store/slices/uiSlice';
 
 const profileUpdateSchema = z.object({
   phone: z.string().min(10, 'Valid 10-digit phone number is required'),
+  address: z.string().min(5, 'Residential address is required'),
   emergencyName: z.string().min(2, 'Emergency contact name required'),
   emergencyPhone: z.string().min(10, 'Emergency phone required'),
   emergencyRelationship: z.string().min(2, 'Relationship required'),
@@ -40,10 +26,11 @@ type ProfileUpdateFormValues = z.infer<typeof profileUpdateSchema>;
 export const EmployeeProfile: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const user = useAppSelector((state) => state.auth.user);
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const employeeId = 'emp-003'; // Priya Sharma
+  const employeeId = user?.id || 'emp-003';
 
   const {
     register,
@@ -60,6 +47,7 @@ export const EmployeeProfile: React.FC = () => {
         setEmployee(data);
         reset({
           phone: data.phone,
+          address: data.address || '',
           emergencyName: data.emergencyContact?.name || '',
           emergencyPhone: data.emergencyContact?.phone || '',
           emergencyRelationship: data.emergencyContact?.relationship || 'Family',
@@ -67,13 +55,14 @@ export const EmployeeProfile: React.FC = () => {
       }
       setIsLoading(false);
     });
-  }, [reset]);
+  }, [employeeId, reset]);
 
   const onUpdateSubmit = async (values: ProfileUpdateFormValues) => {
     if (!employee) return;
     try {
       const updated = await api.employees.update(employee.id, {
         phone: values.phone,
+        address: values.address,
         emergencyContact: {
           name: values.emergencyName,
           phone: values.emergencyPhone,
@@ -200,6 +189,21 @@ export const EmployeeProfile: React.FC = () => {
               placeholder="+91 99887 76655"
               className="w-full px-3 py-2 text-[13px] rounded-xl bg-white border border-slate-200 text-slate-900 focus:outline-none focus:border-indigo-600"
             />
+          </div>
+
+          <div>
+            <label className="block text-[13px] font-semibold text-slate-700 mb-1">
+              Residential Address
+            </label>
+            <input
+              type="text"
+              {...register('address')} aria-label="Residential address" aria-invalid={!!errors.address}
+              placeholder="e.g. Flat 301, Sri Sai Enclave, Madhapur, Hyderabad - 500081"
+              className="w-full px-3 py-2 text-[13px] rounded-xl bg-white border border-slate-200 text-slate-900 focus:outline-none focus:border-indigo-600"
+            />
+            {errors.address && (
+              <p className="text-rose-500 text-xs mt-1">{errors.address.message}</p>
+            )}
           </div>
 
           <div className="pt-2 border-t border-slate-100 space-y-2">

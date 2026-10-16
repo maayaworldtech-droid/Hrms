@@ -10,16 +10,11 @@ import { Modal } from '@/components/common/Modal';
 import { Input } from '@/components/common/Input';
 import { formatDate } from '@/utils/formatters';
 import {
-  CalendarDays,
   Plus,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
   Search,
-  Filter,
   Calendar,
 } from 'lucide-react';
-import { useAppDispatch } from '@/store';
+import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 
 const applyLeaveSchema = z.object({
@@ -40,14 +35,14 @@ type ApplyLeaveFormValues = z.infer<typeof applyLeaveSchema>;
 
 export const MyLeaves: React.FC = () => {
   const dispatch = useAppDispatch();
+  const user = useAppSelector((state) => state.auth.user);
+  const employeeId = user?.id || 'emp-003';
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [balances, setBalances] = useState<LeaveBalance | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-
-  const employeeId = 'emp-003'; // Priya Sharma
 
   const {
     register,

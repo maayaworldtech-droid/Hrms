@@ -11,9 +11,11 @@ export interface User {
   employeeId: string;
   joiningDate: string;
   phone: string;
+  address?: string;
   managerId?: string;
   managerName?: string;
   status: 'ACTIVE' | 'ON_LEAVE' | 'PROBATION' | 'TERMINATED';
+  mustChangePassword?: boolean;
 }
 
 export type EmployeeLocation = 'Hyderabad' | 'Vizag' | 'Bhubaneswar';
@@ -27,6 +29,7 @@ export interface Employee {
   fullName: string;
   email: string;
   phone: string;
+  address?: string;
   designation?: string;
   location: EmployeeLocation | string;
   shift?: ShiftType;
@@ -35,6 +38,8 @@ export interface Employee {
   joiningDate: string;
   employmentType?: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN';
   role?: UserRole;
+  password?: string;
+  mustChangePassword?: boolean;
   departmentId?: string;
   departmentName?: string;
   managerId?: string;

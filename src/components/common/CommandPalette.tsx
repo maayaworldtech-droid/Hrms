@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppDispatch, useAppSelector } from '@/store';
-import { switchRole } from '@/store/slices/authSlice';
+import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 import { api } from '@/services/api';
 import { Employee } from '@/types';
@@ -11,17 +10,12 @@ import {
   Users,
   Clock,
   CalendarDays,
-  FileSpreadsheet,
   Banknote,
   BarChart3,
-  PartyPopper,
   Settings,
   User as UserIcon,
   CreditCard,
   ShieldCheck,
-  ArrowRight,
-  LogIn,
-  X,
 } from 'lucide-react';
 
 interface CommandPaletteProps {
@@ -32,7 +26,6 @@ interface CommandPaletteProps {
 export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const { activeRole } = useAppSelector((state) => state.auth);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -168,42 +161,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
       },
     ];
 
-    const roleSwitchers = [
-      {
-        id: 'role-admin',
-        title: 'Switch Role to Administrator (Sarah Jenkins)',
-        category: 'Roles & Simulation',
-        icon: ShieldCheck,
-        action: () => {
-          dispatch(switchRole('ADMIN'));
-          navigate('/admin/dashboard');
-          dispatch(addToast({ type: 'info', title: 'Role Switched', message: 'Switched to Administrator role' }));
-        },
-      },
-      {
-        id: 'role-mgr',
-        title: 'Switch Role to Team Manager (Rajesh Kumar)',
-        category: 'Roles & Simulation',
-        icon: ShieldCheck,
-        action: () => {
-          dispatch(switchRole('MANAGER'));
-          navigate('/manager/dashboard');
-          dispatch(addToast({ type: 'info', title: 'Role Switched', message: 'Switched to Manager role' }));
-        },
-      },
-      {
-        id: 'role-emp',
-        title: 'Switch Role to Individual Employee (Priya Sharma)',
-        category: 'Roles & Simulation',
-        icon: ShieldCheck,
-        action: () => {
-          dispatch(switchRole('EMPLOYEE'));
-          navigate('/employee/dashboard');
-          dispatch(addToast({ type: 'info', title: 'Role Switched', message: 'Switched to Employee role' }));
-        },
-      },
-    ];
-
     const employeeMatches = employees.map((emp) => ({
       id: `emp-${emp.id}`,
       title: `${emp.fullName} (${emp.employeeCode}) — ${emp.location} Center`,
@@ -214,8 +171,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
       },
     }));
 
-    return [...navItems, ...roleSwitchers, ...employeeMatches];
-  }, [navigate, dispatch, employees]);
+    return [...navItems, ...employeeMatches];
+  }, [navigate, employees]);
 
   // Filter commands
   const filteredCommands = useMemo(() => {

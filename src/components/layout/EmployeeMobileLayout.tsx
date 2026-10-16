@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/store';
-import { switchRole, logout } from '@/store/slices/authSlice';
+import { logout } from '@/store/slices/authSlice';
 import { markAllNotificationsAsRead } from '@/store/slices/uiSlice';
 import { ToastContainer } from '@/components/common/ToastContainer';
 import maayaLogo from '@/assets/logo-new.png';
-import { Home, Clock, CalendarDays, FileText, User, Bell, X, ChevronRight, ShieldCheck, Users, LogOut } from 'lucide-react';
+import { Home, Clock, CalendarDays, FileText, User, Bell, X, ChevronRight, LogOut } from 'lucide-react';
 import './employee.css';
 
 const destinations = [
@@ -66,8 +66,6 @@ export const EmployeeMobileLayout: React.FC = () => {
           <p className="font-semibold">{user?.name}</p>
           <p className="employee-muted mb-4">{user?.employeeId}</p>
           <button className="employee-history-link w-full" onClick={() => { setOpen(null); navigate('/employee/profile'); }}><User size={20} /><span className="text-left">My profile</span><ChevronRight size={18} /></button>
-          <button className="employee-history-link w-full" onClick={() => { setOpen(null); dispatch(switchRole('ADMIN')); navigate('/admin/dashboard'); }}><ShieldCheck size={20} /><span className="text-left">Switch to Admin</span><ChevronRight size={18} /></button>
-          <button className="employee-history-link w-full" onClick={() => { setOpen(null); dispatch(switchRole('MANAGER')); navigate('/manager/dashboard'); }}><Users size={20} /><span className="text-left">Switch to Manager</span><ChevronRight size={18} /></button>
           <button className="employee-history-link w-full text-rose-700" onClick={() => { setOpen(null); dispatch(logout()); navigate('/login'); }}><LogOut size={20} /><span className="text-left">Sign out</span></button>
         </> : notifications.length === 0 ? <p>You're all caught up. New updates will appear here.</p> : notifications.map(item => (
           <article key={item.id} className="employee-notice">

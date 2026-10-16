@@ -1,4 +1,3 @@
-import { SalaryComponent } from '@/types';
 
 /**
  * Formats a number to Indian Rupee (INR) format

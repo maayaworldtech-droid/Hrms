@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { api } from '@/services/api';
-import { Employee, Department, PayrollRun } from '@/types';
+import { Employee, Department } from '@/types';
 import { Card, CardHeader, CardContent } from '@/components/common/Card';
 import { StatCard } from '@/components/common/StatCard';
 import { Button } from '@/components/common/Button';
@@ -13,7 +13,6 @@ import {
   Clock,
   TrendingUp,
   Building2,
-  Calendar,
   FileSpreadsheet,
   CheckCircle2,
   Filter,
@@ -25,7 +24,6 @@ export const ReportsAnalytics: React.FC = () => {
   const dispatch = useAppDispatch();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>([]);
   const [selectedVenue, setSelectedVenue] = useState<string>('all');
   const [selectedPeriod, setSelectedPeriod] = useState<string>('current_quarter');
 
@@ -33,11 +31,9 @@ export const ReportsAnalytics: React.FC = () => {
     Promise.all([
       api.employees.getAll(),
       api.departments.getAll(),
-      api.payroll.getRuns(),
-    ]).then(([e, d, p]) => {
+    ]).then(([e, d]) => {
       setEmployees(e);
       setDepartments(d);
-      setPayrollRuns(p);
     });
   }, []);
 
@@ -55,7 +51,6 @@ export const ReportsAnalytics: React.FC = () => {
     return acc + annual;
   }, 0);
   const avgMonthlySalary = totalHeadcount > 0 ? Math.round(totalPayroll / (totalHeadcount * 12)) : 0;
-  const avgAnnualCTC = totalHeadcount > 0 ? Math.round(totalPayroll / totalHeadcount) : 0;
 
   const handleExportFullReport = () => {
     const headers = [
@@ -75,7 +70,7 @@ export const ReportsAnalytics: React.FC = () => {
       emp.email,
       emp.location,
       emp.departmentName || 'Operations',
-      emp.shiftTiming || 'Morning',
+      emp.shift || 'MORNING',
       emp.joiningDate,
       emp.monthlySalary || Math.round((emp.ctcAnnual || 420000) / 12),
       emp.ctcAnnual || ((emp.monthlySalary || 35000) * 12),
@@ -210,21 +205,21 @@ export const ReportsAnalytics: React.FC = () => {
           value={totalHeadcount}
           subtitle="Full-time staff in scope"
           icon={<Users className="w-5 h-5 text-[#2A4FE0]" />}
-          trend={{ value: 12.5, isPositive: true, label: 'YoY growth' }}
+          trend={{ value: 12.5, label: 'YoY growth' }}
         />
         <StatCard
           title="Average Monthly Salary"
           value={formatINR(avgMonthlySalary)}
           subtitle="Annualized CTC base"
           icon={<Banknote className="w-5 h-5 text-[#12B76A]" />}
-          trend={{ value: 5.4, isPositive: true, label: 'market benchmark' }}
+          trend={{ value: 5.4, label: 'market benchmark' }}
         />
         <StatCard
           title="Attendance Adherence"
           value="96.8%"
           subtitle="On-time biometric rate"
           icon={<Clock className="w-5 h-5 text-[#3B68F5]" />}
-          trend={{ value: 1.4, isPositive: true, label: 'vs last month' }}
+          trend={{ value: 1.4, label: 'vs last month' }}
         />
         <StatCard
           title="Compliance Score"

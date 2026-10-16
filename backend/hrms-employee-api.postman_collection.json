@@ -1,0 +1,132 @@
+{
+	"info": {
+		"_postman_id": "a91bca7e-3467-4d89-9a67-8cfb5e4c0101",
+		"name": "HRMS Employee API",
+		"description": "Postman collection for testing the Spring Boot HRMS Employee module.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Get All Employees",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8083/api/employees",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8083",
+					"path": [
+						"api",
+						"employees"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create Employee",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"employeeId\": 102,\n    \"firstName\": \"Sarah\",\n    \"lastName\": \"Connor\",\n    \"email\": \"sarah.connor@example.com\",\n    \"jobTitle\": \"Product Designer\",\n    \"department\": \"Design\",\n    \"managerId\": 1,\n    \"employmentType\": \"Full-time\",\n    \"status\": \"Active\",\n    \"dateOfJoining\": \"2026-02-01\",\n    \"location\": {\n        \"name\": \"Hyderabad Tech Hub\",\n        \"address\": \"Plot 45, HITEC City\",\n        \"city\": \"Hyderabad\",\n        \"state\": \"Telangana\",\n        \"country\": \"India\",\n        \"zipCode\": \"500081\"\n    }\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8083/api/employees/create",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8083",
+					"path": [
+						"api",
+						"employees",
+						"create"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Employee By ID",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8083/api/employees/1",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8083",
+					"path": [
+						"api",
+						"employees",
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Update Employee",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"employeeId\": 101,\n    \"firstName\": \"John\",\n    \"lastName\": \"Smith\",\n    \"email\": \"john.smith@example.com\",\n    \"jobTitle\": \"Principal Engineer\",\n    \"department\": \"Engineering\",\n    \"managerId\": 1,\n    \"employmentType\": \"Full-time\",\n    \"status\": \"Active\",\n    \"dateOfJoining\": \"2026-01-15\"\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8083/api/employees/1",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8083",
+					"path": [
+						"api",
+						"employees",
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Employee",
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8083/api/employees/1",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8083",
+					"path": [
+						"api",
+						"employees",
+						"1"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
