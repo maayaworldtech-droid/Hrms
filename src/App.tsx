@@ -135,7 +135,7 @@ export const AppContent: React.FC = () => {
             <Route
               path="/manager/dashboard"
               element={
-                <ProtectedRoute allowedRoles={['MANAGER', 'ADMIN']}>
+                <ProtectedRoute allowedRoles={['MANAGER']}>
                   <ManagerDashboard />
                 </ProtectedRoute>
               }
@@ -143,7 +143,7 @@ export const AppContent: React.FC = () => {
             <Route
               path="/manager/attendance"
               element={
-                <ProtectedRoute allowedRoles={['MANAGER', 'ADMIN']}>
+                <ProtectedRoute allowedRoles={['MANAGER']}>
                   <TeamAttendance />
                 </ProtectedRoute>
               }
@@ -151,7 +151,7 @@ export const AppContent: React.FC = () => {
             <Route
               path="/manager/leaves"
               element={
-                <ProtectedRoute allowedRoles={['MANAGER', 'ADMIN']}>
+                <ProtectedRoute allowedRoles={['MANAGER']}>
                   <TeamLeaves />
                 </ProtectedRoute>
               }

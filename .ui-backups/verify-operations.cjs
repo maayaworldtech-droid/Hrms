@@ -1,0 +1,47 @@
+const fs=require('node:fs');
+const path=require('node:path');
+const vm=require('node:vm');
+const ts=require('typescript');
+const assert=require('node:assert/strict');
+const storage=new Map();
+const localStorage={getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)};
+const cache=new Map();
+function sourceModule(filename){
+ const absolute=path.resolve(filename);
+ if(cache.has(absolute))return cache.get(absolute).exports;
+ const module={exports:{}};cache.set(absolute,module);
+ const javascript=ts.transpileModule(fs.readFileSync(absolute,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const requireSource=id=>sourceModule((id.startsWith('@/')?path.join('src',id.slice(2)):path.join(path.dirname(absolute),id))+'.ts');
+ vm.runInNewContext(javascript,{module,exports:module.exports,require:requireSource,localStorage,console,setTimeout,Date,Math,Set,Map},{filename:absolute});
+ return module.exports;
+}
+(async()=>{
+ const {api}=sourceModule('src/services/api.ts');
+ const {approvedAway,overlappingLeaveCount}=sourceModule('src/utils/operations.ts');
+ const person=(id,location='Hyderabad',shift='MORNING')=>({id,location,shift});
+ const employees=[person('a'),person('b'),person('c','Vizag'),person('d','Hyderabad','EVENING')];
+ const leave=(employeeId,startDate,endDate,status='APPROVED')=>({employeeId,startDate,endDate,status});
+ const request=leave('a','2026-10-23','2026-10-24','PENDING');
+ const records=[leave('a','2026-10-23','2026-10-24'),leave('b','2026-10-22','2026-10-23'),leave('b','2026-10-24','2026-10-25'),leave('c','2026-10-23','2026-10-24'),leave('d','2026-10-23','2026-10-24'),leave('b','2026-10-23','2026-10-24','PENDING')];
+ assert.equal(overlappingLeaveCount(request,records,employees),1,'Count colleagues once, include inclusive boundaries, exclude requester and other venue/shift');
+ assert.equal(overlappingLeaveCount(request,[leave('b','2026-10-25','2026-10-26')],employees),0,'Adjacent dates must not overlap');
+ assert.equal(overlappingLeaveCount({...request,employeeId:'unknown'},records,employees),0,'Unknown staff must not imply all venue colleagues');
+ assert.equal(approvedAway(records,'2026-10-23').size,4,'Approved leave must match selected date');
+ assert.equal(approvedAway(records,'2026-10-21').size,0,'Historical leave must not count on other dates');
+ const pending=(await api.leaves.getAll()).find(item=>item.employeeId==='emp-003' && item.status==='PENDING');
+ assert.ok(pending,'Demo employee should have a pending leave request');
+ api.auth.switchRole('ADMIN');
+ await assert.rejects(api.leaves.updateStatus(pending.id,'APPROVED','Admin'),/Only the assigned manager/);
+ api.auth.switchRole('EMPLOYEE');
+ await assert.rejects(api.leaves.updateStatus(pending.id,'APPROVED','Employee'),/Only the assigned manager/);
+ api.auth.switchRole('MANAGER');
+ const unrelated=(await api.leaves.getAll()).find(item=>item.status==='PENDING' && item.employeeId!=='emp-003');
+ assert.ok(unrelated);
+ await assert.rejects(api.leaves.updateStatus(unrelated.id,'APPROVED','Manager'),/Only the assigned manager/);
+ const result=await api.leaves.updateStatus(pending.id,'APPROVED','Rajesh Kumar','Test decision');
+ assert.equal(result.status,'APPROVED');
+ const balanceBeforeRepeat=storage.get('maaya_leave_balances_v5');
+ await assert.rejects(api.leaves.updateStatus(pending.id,'APPROVED','Rajesh Kumar'),/already been decided/);
+ assert.equal(storage.get('maaya_leave_balances_v5'),balanceBeforeRepeat,'Repeated approval must not deduct leave twice');
+ console.log('PASS: date boundaries, unique overlap counts, manager-only decisions, team isolation and duplicate approval protection. Tests used isolated in-memory storage.');
+})().catch(error=>{console.error(error);process.exitCode=1});

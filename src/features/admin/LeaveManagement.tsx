@@ -1,78 +1,53 @@
-import React, { useState, useEffect } from 'react';
+import { useOperationsFilters } from '@/hooks/useOperationsFilters';
+import { OperationsFilters } from '@/components/common/OperationsFilters';
+import { overlappingLeaveCount } from '@/utils/operations';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/services/api';
-import { LeaveRequest, LeaveStatus } from '@/types';
+import  { LeaveRequest, Employee } from '@/types';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { formatDate } from '@/utils/formatters';
-import {
-  CalendarDays,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Check,
-  X,
-  FileText,
-} from 'lucide-react';
-import { useAppDispatch } from '@/store';
+
+import  { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 
 export const LeaveManagement: React.FC = () => {
   const dispatch = useAppDispatch();
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const filters = useOperationsFilters();
+  const statusFilter = filters.status;
+  const setStatusFilter = (value: string) => filters.set('status',value);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedLeave, setSelectedLeave] = useState<LeaveRequest | null>(null);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
-  const [reviewerComments, setReviewerComments] = useState('');
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await api.leaves.getAll();
-      setLeaves(data);
-    } finally {
+      const [data, people] = await Promise.all([api.leaves.getAll(), api.employees.getAll()]);
+      setLeaves(data); setEmployees(people);
+    } catch { dispatch(addToast({ type: 'error', title: 'Could not load leave requests' })); } finally {
       setIsLoading(false);
     }
-  };
+  }, [dispatch]);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { void loadData(); }, [loadData]);
 
-  const handleUpdateStatus = async (status: 'APPROVED' | 'REJECTED') => {
-    if (!selectedLeave) return;
-    try {
-      await api.leaves.updateStatus(
-        selectedLeave.id,
-        status,
-        'Sarah Jenkins (Admin)',
-        reviewerComments || (status === 'APPROVED' ? 'Approved by People Ops' : 'Rejected due to business constraints')
-      );
-      dispatch(
-        addToast({
-          type: status === 'APPROVED' ? 'success' : 'info',
-          title: `Leave Request ${status === 'APPROVED' ? 'Approved' : 'Rejected'}`,
-          message: `Updated status for ${selectedLeave.employeeName}`,
-        })
-      );
-      setIsReviewModalOpen(false);
-      setReviewerComments('');
-      loadData();
-    } catch {
-      dispatch(addToast({ type: 'error', title: 'Action failed' }));
-    }
-  };
-
-  const filteredLeaves = leaves.filter((item) => {
+  const contextLeaves = leaves.filter(request => {
+    const employee = employees.find(person => person.id === request.employeeId);
+    return (!filters.leaveDate || (request.startDate <= filters.leaveDate && request.endDate >= filters.leaveDate)) && (filters.venue === 'ALL' || (request.location || employee?.location) === filters.venue) && (filters.shift === 'ALL' || (employee?.shift || 'MORNING') === filters.shift);
+  });
+  const filteredLeaves = contextLeaves.filter((item) => {
     if (statusFilter === 'ALL') return true;
     return item.status === statusFilter;
   });
 
-  const pendingCount = leaves.filter((l) => l.status === 'PENDING').length;
-  const approvedCount = leaves.filter((l) => l.status === 'APPROVED').length;
-  const rejectedCount = leaves.filter((l) => l.status === 'REJECTED').length;
+  const pendingCount = contextLeaves.filter((l) => l.status === 'PENDING').length;
+  const approvedCount = contextLeaves.filter((l) => l.status === 'APPROVED').length;
+  const rejectedCount = contextLeaves.filter((l) => l.status === 'REJECTED').length;
 
   const columns: Column<LeaveRequest>[] = [
     {
@@ -146,33 +121,7 @@ export const LeaveManagement: React.FC = () => {
         </Badge>
       ),
     },
-    {
-      key: 'actions',
-      header: 'Action',
-      align: 'right',
-      render: (row) => (
-        <div className="flex items-center justify-end gap-1.5">
-          {row.status === 'PENDING' ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setSelectedLeave(row);
-                setReviewerComments('');
-                setIsReviewModalOpen(true);
-              }}
-              className="!py-1 !px-2.5 text-xs text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
-            >
-              Review Request
-            </Button>
-          ) : (
-            <span className="text-slate-400 text-xs">
-              {row.reviewedBy ? `Reviewed by ${row.reviewedBy.split(' ')[0]}` : 'Decided'}
-            </span>
-          )}
-        </div>
-      ),
-    },
+    { key: 'actions', header: 'Details', align: 'right', render: row => <button className="ops-link" onClick={() => { setSelectedLeave(row); setIsReviewModalOpen(true); }}>View request</button> },
   ];
 
   return (
@@ -180,13 +129,14 @@ export const LeaveManagement: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Leave Management</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Leave records</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Review time-off requests, statutory maternity/paternity tracking, and balances
+            View leave records for staffing and payroll. Managers approve or decline requests.
           </p>
         </div>
       </div>
 
+      <OperationsFilters />
       {/* Tabs / Filters */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <button
@@ -198,7 +148,7 @@ export const LeaveManagement: React.FC = () => {
           }`}
         >
           <span className="text-[11px] font-semibold text-slate-500 uppercase">All Applications</span>
-          <p className="text-xl font-bold text-slate-900 mt-1">{leaves.length}</p>
+          <p className="text-xl font-bold text-slate-900 mt-1">{contextLeaves.length}</p>
         </button>
 
         <button
@@ -209,7 +159,7 @@ export const LeaveManagement: React.FC = () => {
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
-          <span className="text-[11px] font-semibold text-amber-600 uppercase">Pending Review</span>
+          <span className="text-[11px] font-semibold text-amber-600 uppercase">Awaiting manager</span>
           <p className="text-xl font-bold text-amber-700 mt-1">{pendingCount}</p>
         </button>
 
@@ -240,10 +190,11 @@ export const LeaveManagement: React.FC = () => {
 
       {/* Main Table */}
       <DataTable
+        key={[filters.venue,filters.shift,filters.status,filters.leaveDate].join(':')}
         data={filteredLeaves}
         columns={columns}
         searchPlaceholder="Search leave requests by employee or reason..."
-        exportFileName="pulse_leave_requests"
+        exportFileName="maaya_leave_requests"
         isLoading={isLoading}
       />
 
@@ -252,8 +203,8 @@ export const LeaveManagement: React.FC = () => {
         <Modal
           isOpen={isReviewModalOpen}
           onClose={() => setIsReviewModalOpen(false)}
-          title="Review Leave Application"
-          subtitle={`Requested by ${selectedLeave.employeeName} (${selectedLeave.departmentName})`}
+          title="Leave request details"
+          subtitle={`Requested by ${selectedLeave.employeeName} · ${selectedLeave.location || employees.find(employee => employee.id === selectedLeave.employeeId)?.location || 'Venue not specified'}`}
           size="md"
         >
           <div className="space-y-4 text-xs">
@@ -274,6 +225,7 @@ export const LeaveManagement: React.FC = () => {
               </div>
             </div>
 
+            <p className="ops-muted">{overlappingLeaveCount(selectedLeave, leaves, employees)} colleagues on the same venue shift have approved leave overlapping these dates.</p>
             <div>
               <label className="block font-bold text-slate-700 mb-1">Reason Provided</label>
               <div className="p-3 rounded-lg border border-slate-200 bg-white text-slate-800 leading-relaxed">
@@ -281,42 +233,9 @@ export const LeaveManagement: React.FC = () => {
               </div>
             </div>
 
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">Reviewer Note / Feedback</label>
-              <textarea
-                value={reviewerComments}
-                onChange={(e) => setReviewerComments(e.target.value)}
-                placeholder="Optional feedback for applicant..."
-                rows={3}
-                className="w-full rounded-lg border border-slate-300 p-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsReviewModalOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={() => handleUpdateStatus('REJECTED')}
-                leftIcon={<X className="w-4 h-4" />}
-              >
-                Reject Request
-              </Button>
-              <Button
-                variant="success"
-                size="sm"
-                onClick={() => handleUpdateStatus('APPROVED')}
-                leftIcon={<Check className="w-4 h-4" />}
-              >
-                Approve Request
-              </Button>
-            </div>
+            <dl className="ops-definition"><dt>Status</dt><dd>{selectedLeave.status.toLowerCase()}</dd><dt>Reviewed by</dt><dd>{selectedLeave.reviewedBy || 'Awaiting manager decision'}</dd><dt>Decision note</dt><dd>{selectedLeave.reviewerComments || 'No note recorded'}</dd></dl>
+            <p className="ops-muted">Leave decisions are managed by the employee’s assigned Manager.</p>
+            <div className="flex justify-end"><Button variant="outline" onClick={() => setIsReviewModalOpen(false)}>Close</Button></div>
           </div>
         </Modal>
       )}

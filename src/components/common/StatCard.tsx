@@ -24,11 +24,11 @@ export const StatCard: React.FC<StatCardProps> = ({
   className = '',
 }) => {
   const iconColors = {
-    indigo: 'text-indigo-600 bg-indigo-50/70 border-indigo-100',
-    emerald: 'text-emerald-600 bg-emerald-50/70 border-emerald-100',
-    amber: 'text-amber-600 bg-amber-50/70 border-amber-100',
-    rose: 'text-rose-600 bg-rose-50/70 border-rose-100',
-    slate: 'text-slate-600 bg-slate-100 border-slate-200',
+    indigo: 'text-[#2A4FE0] bg-[#EEF4FF] border-[#BDD3FF]/50',
+    emerald: 'text-[#027A48] bg-[#ECFDF3] border-[#ABEFC6]/50',
+    amber: 'text-[#B54708] bg-[#FFFAEB] border-[#FEDF89]/50',
+    rose: 'text-[#B42318] bg-[#FEF3F2] border-[#FECDCA]/50',
+    slate: 'text-[#344054] bg-[#F0F2F5] border-[#D0D5DD]/50',
   };
 
   const isPositive = trend ? trend.value > 0 : false;
@@ -36,15 +36,15 @@ export const StatCard: React.FC<StatCardProps> = ({
 
   return (
     <div
-      className={`bg-white rounded-xl border border-slate-200/90 p-4 sm:p-5 shadow-xs transition-colors hover:border-slate-300 ${className}`}
+      className={`bg-white rounded-xl border border-[#E4E7EC] p-5 shadow-xs transition-all duration-150 hover:border-[#D0D5DD] hover:shadow-sm ${className}`}
     >
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <p className="text-[13px] font-medium text-[#475467]">
           {title}
         </p>
         {icon && (
           <div
-            className={`w-7 h-7 rounded-lg flex items-center justify-center border shrink-0 ${iconColors[variant]}`}
+            className={`w-8 h-8 rounded-lg flex items-center justify-center border shrink-0 ${iconColors[variant]}`}
           >
             {icon}
           </div>
@@ -52,33 +52,33 @@ export const StatCard: React.FC<StatCardProps> = ({
       </div>
 
       <div className="mt-3">
-        <h4 className="text-2xl font-bold tracking-tight text-slate-900 tabular-nums font-sans">
+        <h4 className="text-[32px] font-semibold tracking-tight text-[#101828] tabular-nums font-sans leading-none">
           {value}
         </h4>
 
         {(trend || subtitle) && (
-          <div className="mt-2 flex items-center flex-wrap gap-2 text-xs">
+          <div className="mt-3 flex items-center flex-wrap gap-2 text-xs">
             {trend && (
               <span
-                className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-medium text-[11px] tabular-nums ${
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium text-[11px] tabular-nums ${
                   isPositive
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                    ? 'bg-[#ECFDF3] text-[#027A48] border border-[#ABEFC6]/60'
                     : isNegative
-                    ? 'bg-rose-50 text-rose-700 border border-rose-200/60'
-                    : 'bg-slate-100 text-slate-600 border border-slate-200'
+                    ? 'bg-[#FEF3F2] text-[#B42318] border border-[#FECDCA]/60'
+                    : 'bg-[#F0F2F5] text-[#344054] border border-[#D0D5DD]'
                 }`}
               >
                 {isPositive ? (
-                  <TrendingUp className="w-3 h-3 text-emerald-600" />
+                  <TrendingUp className="w-3 h-3 text-[#12B76A]" />
                 ) : isNegative ? (
-                  <TrendingDown className="w-3 h-3 text-rose-600" />
+                  <TrendingDown className="w-3 h-3 text-[#F04438]" />
                 ) : (
-                  <Minus className="w-3 h-3 text-slate-500" />
+                  <Minus className="w-3 h-3 text-[#667085]" />
                 )}
                 {trend.value > 0 ? `+${trend.value}%` : `${trend.value}%`}
               </span>
             )}
-            <span className="text-[11px] text-slate-500 truncate">{trend?.label || subtitle}</span>
+            <span className="text-xs text-[#667085] truncate">{trend?.label || subtitle}</span>
           </div>
         )}
       </div>

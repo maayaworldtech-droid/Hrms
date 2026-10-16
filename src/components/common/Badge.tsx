@@ -21,40 +21,56 @@ export const Badge: React.FC<BadgeProps> = ({
   children,
   variant = 'neutral',
   size = 'md',
+  dot = true,
   className = '',
 }) => {
-  const variantStyles: Record<BadgeVariant, { text: string }> = {
+  const variantStyles: Record<BadgeVariant, { bg: string; text: string; dot: string }> = {
     success: {
-      text: 'text-emerald-600',
+      bg: 'bg-[#ECFDF3]',
+      text: 'text-[#027A48]',
+      dot: 'bg-[#12B76A]',
     },
     warning: {
-      text: 'text-amber-600',
+      bg: 'bg-[#FFFAEB]',
+      text: 'text-[#B54708]',
+      dot: 'bg-[#F79009]',
     },
     error: {
-      text: 'text-rose-600',
+      bg: 'bg-[#FEF3F2]',
+      text: 'text-[#B42318]',
+      dot: 'bg-[#F04438]',
     },
     info: {
-      text: 'text-sky-600',
+      bg: 'bg-[#EEF4FF]',
+      text: 'text-[#233FB8]',
+      dot: 'bg-[#3B68F5]',
     },
     purple: {
-      text: 'text-indigo-600',
+      bg: 'bg-[#F4F3FF]',
+      text: 'text-[#5925DC]',
+      dot: 'bg-[#7A5AF8]',
     },
     cyan: {
-      text: 'text-teal-600',
+      bg: 'bg-[#F0FDF9]',
+      text: 'text-[#0E7090]',
+      dot: 'bg-[#06AED4]',
     },
     neutral: {
-      text: 'text-slate-600',
+      bg: 'bg-[#F0F2F5]',
+      text: 'text-[#344054]',
+      dot: 'bg-[#667085]',
     },
   };
 
   const style = variantStyles[variant] || variantStyles.neutral;
-  const sizeStyles = size === 'sm' ? 'text-xs font-semibold' : 'text-xs font-bold';
+  const heightClass = size === 'sm' ? 'h-5 px-2 text-[11px]' : 'h-6 px-2.5 text-xs';
 
   return (
     <span
-      className={`inline-flex items-center tracking-normal ${style.text} ${sizeStyles} ${className}`}
+      className={`inline-flex items-center gap-1.5 rounded-full font-medium tracking-normal select-none ${style.bg} ${style.text} ${heightClass} ${className}`}
     >
-      {children}
+      {dot && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${style.dot}`} />}
+      <span className="truncate">{children}</span>
     </span>
   );
 };

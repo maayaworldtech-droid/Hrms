@@ -1,0 +1,150 @@
+{
+  "checkpoint": "before-admin-manager-redesign.zip",
+  "preservePreexistingChange": "src/components/layout/EmployeeMobileLayout.tsx",
+  "files": [
+    {
+      "path": "src/App.tsx",
+      "newlyAdded": false,
+      "beforeSHA256": "FEB4D33CBE689C8984DFC7B6B9F6E533BF5E284DF29C06BFB4988560853FCBAE",
+      "afterSHA256": "C9C6AF621F390706E85DA29C62FF770D44B4069D2C2490F28EF48912CE14C98F"
+    },
+    {
+      "path": "src/components/common/CommandPalette.tsx",
+      "newlyAdded": false,
+      "beforeSHA256": "1BB32E7E2C585230930B9E6E7D962DBE0193CEA44A52D41D60BD8DCA7626D369",
+      "afterSHA256": "C1CC8C53A938EA567855806B38CED6B8893D55D2627C738F14D9414B41F8F8E2"
+    },
+    {
+      "path": "src/components/common/DataTable.tsx",
+      "newlyAdded": false,
+      "beforeSHA256": "20153A9DD64C5BD20AC6A6E60F02B8234DE66F31D069FBDA0702273CB0727BE4",
+      "afterSHA256": "A59ED7DFE1EF9525E26D72D7DFECF7DF99ABF3E20B45EDA3C6672313FC7FF997"
+    },
+    {
+      "path": "src/components/common/Modal.tsx",
+      "newlyAdded": false,
+      "beforeSHA256": "FB983C7F21D77558834086E6B63FD67EB169595C21504C50AD916F525DA4D3F9",
+      "afterSHA256": "6FFB347A48273545F8837E61E68F154F0927A33CBE545DE9F83AA0B70FE203C4"
+    },
+    {
+      "path": "src/components/layout/AppLayout.tsx",
+      "newlyAdded": false,
+      "beforeSHA256": "890A645A19223E5AE51577A9B2E2A62F07374D24D96487DA61687A4E301E83A1",
+      "afterSHA256": "72A9564AC3C43399E62DA3C32336E54D596D43C27E2C75264FBE5D51FCE8E206"
+    },
+    {
+      "path": "src/components/layout/Sidebar.tsx",
+      "newlyAdded": false,
+      "beforeSHA256": "AB79CC1553428D823AE7155B7C48417042E0D34C4660263FE84D88A57B5A67DB",
+      "afterSHA256": "766356D72DAD501D9784EA710BFBE8F923F478B44658D11B7F1B5377685DFBA4"
+    },
+    {
+      "path": "src/features/admin/AdminDashboard.tsx",
+      "newlyAdded": false,
+      "beforeSHA256": "4576C61B2D5E56B4B619E4DE6E16F03507A51714B9CCECE862375401E7472758",
+      "afterSHA256": "B22A299E39CC70EFF0489386E6DF33451AF2C60AB58BAEA1489AA6D773CDEFE0"
+    },
+    {
+      "path": "src/features/admin/AttendanceManagement.tsx",
+      "newlyAdded": false,
+      "beforeSHA256": "224EE02B98E16997851B263BD9F2C6E1DFD5843E906D62378175EA5A049D0D53",
+      "afterSHA256": "48ED362B4D29E7CFB99EF3943D1027EC270147BF058734A6DEB5841B4A69260D"
+    },
+    {
+      "path": "src/features/admin/EmployeeManagement.tsx",
+      "newlyAdded": false,
+      "beforeSHA256": "BB3203B39BB31B4B1E557E00690E28E561669EE2AF49B48600B79BE09CC3CB7F",
+      "afterSHA256": "3B4BFD8E3E3505E3267BB6E9E11CBEA40428E5D8B754C1FCAC132FD542EA0848"
+    },
+    {
+      "path": "src/features/admin/LeaveManagement.tsx",
+      "newlyAdded": false,
+      "beforeSHA256": "46C55B1E1CA7040F8A01D9175AC4E00769B88F25ABB39051A2AE01F8E9794EAB",
+      "afterSHA256": "921DB9E2FA6AFD8FABCE89325840CFDE091B239D2A60FF18E66BFEDFE7EB9CA6"
+    },
+    {
+      "path": "src/features/admin/PayrollProcessing.tsx",
+      "newlyAdded": false,
+      "beforeSHA256": "5CDAC19771DC9D483D63847397751A2C3B56319CA7ACACA551A3C74552DC01F1",
+      "afterSHA256": "2B18E6531FFEBB501578EB34F782228D4866BBFD10E4376EBDEC00F6C0F9F6B0"
+    },
+    {
+      "path": "src/features/manager/ManagerDashboard.tsx",
+      "newlyAdded": false,
+      "beforeSHA256": "3BD964F55BDF00F68FA90AEE98279C4D655834AA1E55A1B0642F5A27926F2064",
+      "afterSHA256": "DB52FCF8F6E749150B6BBB41C48D095AC476526A746DA8CDEA308380FC9E7482"
+    },
+    {
+      "path": "src/features/manager/TeamAttendance.tsx",
+      "newlyAdded": false,
+      "beforeSHA256": "D3A6EDBD0C3967C0012B34D823E64134D9C5BBE8D7F80E585845EF5FF5C6E2AC",
+      "afterSHA256": "8639CD3C493E70EBDCA7E9089AC1C8698DD67D41135AEE8FBC38F2136BE74154"
+    },
+    {
+      "path": "src/features/manager/TeamLeaves.tsx",
+      "newlyAdded": false,
+      "beforeSHA256": "2135E206C6FE7EC76C384F77535BB713A210D753F45EF8B2D7C83DB1C8BA747E",
+      "afterSHA256": "F4D6622468F837DEA68A561955297E45AD284359AA40AC52654526E7BE53A856"
+    },
+    {
+      "path": "src/services/api.ts",
+      "newlyAdded": false,
+      "beforeSHA256": "27BBA8619433475E6CAF3455950D89260B7F27C02C4D03A85B98F9BC30CC18C3",
+      "afterSHA256": "3BD13FF89352CEC1A1DC13A5EA114EF672A9804C5EA4D92EDB709FAD51B8981C"
+    },
+    {
+      "path": "src/services/mockData.ts",
+      "newlyAdded": false,
+      "beforeSHA256": "FE40DF9C00F5ED61F016C5C77B0D67CD2BEEA3CA97009C5C8F5ACC1C269EDD29",
+      "afterSHA256": "DF1289086CA88DB362B47F0542ABFAFB3496D3C4859FD9EE79879DA2B5CEC50F"
+    },
+    {
+      "path": "src/components/common/EmployeeDetailsPanel.tsx",
+      "newlyAdded": true,
+      "beforeSHA256": null,
+      "afterSHA256": "919D5DED9820AEC7F205162926FEDAFAB0B391EDD01768124CE2759544A739E6"
+    },
+    {
+      "path": "src/components/common/OperationsDashboard.tsx",
+      "newlyAdded": true,
+      "beforeSHA256": null,
+      "afterSHA256": "268338F50039B128A848B0190E673DB008CB44775A590D41819B326DABED2334"
+    },
+    {
+      "path": "src/components/common/OperationsFilters.tsx",
+      "newlyAdded": true,
+      "beforeSHA256": null,
+      "afterSHA256": "3D59D0C43946D9C864779FEA65B41AF2F0380D0F8FA4495121087DDA83DE622C"
+    },
+    {
+      "path": "src/components/common/PayrollReview.tsx",
+      "newlyAdded": true,
+      "beforeSHA256": null,
+      "afterSHA256": "FA7E31B35DCB2C4AA10FEE51A290609E98B967EA7BF92FAD518542279D707685"
+    },
+    {
+      "path": "src/components/layout/WorkspaceHeader.tsx",
+      "newlyAdded": true,
+      "beforeSHA256": null,
+      "afterSHA256": "A6A29D2451D7FD466C03414C1FDCFC7FB6A2B3589AD03F976AEC40FE859D2FA4"
+    },
+    {
+      "path": "src/components/layout/operations.css",
+      "newlyAdded": true,
+      "beforeSHA256": null,
+      "afterSHA256": "2CCAEE12021F2C9F9A1A655EAF0B2987375B1209D724B431F21C1845166EA33E"
+    },
+    {
+      "path": "src/hooks/useOperationsFilters.ts",
+      "newlyAdded": true,
+      "beforeSHA256": null,
+      "afterSHA256": "38C28861248A00570E1C162E0C23A3BA64C990C0A20DE4D6CAB48752CFB60B20"
+    },
+    {
+      "path": "src/utils/operations.ts",
+      "newlyAdded": true,
+      "beforeSHA256": null,
+      "afterSHA256": "A82B20D2B7513494B73ADC4E9B08763D3A4CDB915857A8E3AF08A02DE6F5EA82"
+    }
+  ]
+}

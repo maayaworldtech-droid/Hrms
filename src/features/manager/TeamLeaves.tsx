@@ -1,52 +1,60 @@
-import React, { useState, useEffect } from 'react';
+import { useOperationsFilters } from '@/hooks/useOperationsFilters';
+import { OperationsFilters } from '@/components/common/OperationsFilters';
+import { overlappingLeaveCount } from '@/utils/operations';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/services/api';
-import { LeaveRequest } from '@/types';
+import { getReportingManager } from '@/services/mockData';
+import { LeaveRequest, Employee } from '@/types';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { formatDate } from '@/utils/formatters';
-import { CalendarDays, Check, X } from 'lucide-react';
-import { useAppDispatch } from '@/store';
+import  { Check, X } from 'lucide-react';
+import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 
 export const TeamLeaves: React.FC = () => {
   const dispatch = useAppDispatch();
+  const user = useAppSelector(state => state.auth.user);
+  const filters = useOperationsFilters();
+  const [team, setTeam] = useState<Employee[]>([]);
+  const [saving, setSaving] = useState(false);
   const [teamLeaves, setTeamLeaves] = useState<LeaveRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedLeave, setSelectedLeave] = useState<LeaveRequest | null>(null);
   const [isDecisionModalOpen, setIsDecisionModalOpen] = useState(false);
   const [comments, setComments] = useState('');
 
-  const managerId = 'emp-002'; // Rajesh Kumar
+  const managerId = user?.id || 'emp-002';
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
       const [allEmps, allLeaves] = await Promise.all([
         api.employees.getAll(),
         api.leaves.getAll(),
       ]);
-      const myTeam = allEmps.filter((e) => e.managerId === managerId || e.departmentName === 'Engineering');
+      const myTeam = allEmps.filter((e) => getReportingManager(e).id === managerId);
+      setTeam(myTeam);
       const teamIds = new Set(myTeam.map((e) => e.id));
       setTeamLeaves(allLeaves.filter((l) => teamIds.has(l.employeeId)));
-    } finally {
+    } catch { dispatch(addToast({ type: 'error', title: 'Could not load team leave' })); } finally {
       setIsLoading(false);
     }
-  };
+  }, [dispatch,managerId]);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { void loadData(); }, [loadData]);
 
   const handleDecision = async (status: 'APPROVED' | 'REJECTED') => {
-    if (!selectedLeave) return;
+    if (!selectedLeave || saving || (status === 'REJECTED' && !comments.trim())) return;
+    setSaving(true);
     try {
       await api.leaves.updateStatus(
         selectedLeave.id,
         status,
-        'Rajesh Kumar (Team Lead)',
-        comments || (status === 'APPROVED' ? 'Approved by Team Lead' : 'Declined for project schedule')
+        user?.name || 'Venue manager',
+        comments || (status === 'APPROVED' ? 'Approved by Team Lead' : 'Declined for venue staffing requirements')
       );
       dispatch(
         addToast({
@@ -60,8 +68,13 @@ export const TeamLeaves: React.FC = () => {
       loadData();
     } catch {
       dispatch(addToast({ type: 'error', title: 'Decision recording failed' }));
-    }
+    } finally { setSaving(false); }
   };
+
+  const filtered = teamLeaves.filter(request => {
+    const employee = team.find(person => person.id === request.employeeId);
+    return (!filters.leaveDate || (request.startDate <= filters.leaveDate && request.endDate >= filters.leaveDate)) && (filters.venue === 'ALL' || (request.location || employee?.location) === filters.venue) && (filters.shift === 'ALL' || (employee?.shift || 'MORNING') === filters.shift) && (filters.status === 'ALL' || request.status === filters.status);
+  }).sort((a,b) => Number(b.status === 'PENDING') - Number(a.status === 'PENDING') || b.appliedOn.localeCompare(a.appliedOn));
 
   const columns: Column<LeaveRequest>[] = [
     {
@@ -154,16 +167,19 @@ export const TeamLeaves: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Team Leave Approvals</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Review, authorize or decline leave applications submitted by engineering direct reports
+            Review, authorize or decline leave applications submitted by your venue team
           </p>
         </div>
       </div>
 
+      <OperationsFilters venues={[...new Set(team.map(employee => employee.location))]} />
       <DataTable
-        data={teamLeaves}
+        key={[filters.venue,filters.shift,filters.status,filters.leaveDate].join(':')}
+        data={filtered}
+        mobileRender={row => <div className="space-y-2"><div className="flex justify-between gap-3"><strong>{row.employeeName}</strong><span>{row.status.toLowerCase()}</span></div><p>{formatDate(row.startDate)} – {formatDate(row.endDate)} · {row.days} days</p><p className="ops-muted">{row.reason}</p><p className="ops-muted">{overlappingLeaveCount(row, teamLeaves, team)} colleagues on this venue shift have overlapping approved leave.</p>{row.status === 'PENDING' && <button className="ops-button secondary" onClick={() => { setSelectedLeave(row); setComments(''); setIsDecisionModalOpen(true); }}>Review request</button>}</div>}
         columns={columns}
         searchPlaceholder="Filter team leave applications..."
-        exportFileName="pulse_team_leaves"
+        exportFileName="maaya_team_leaves"
         isLoading={isLoading}
       />
 
@@ -190,6 +206,7 @@ export const TeamLeaves: React.FC = () => {
               </div>
             </div>
 
+            <p className="ops-muted">{overlappingLeaveCount(selectedLeave, teamLeaves, team)} colleagues on the same venue shift have approved leave overlapping these dates. Review staffing before deciding.</p>
             <div>
               <label className="block font-bold text-slate-700 mb-1">Reason Provided</label>
               <div className="p-3 rounded-lg border border-slate-200 bg-white text-slate-800 leading-relaxed">
@@ -202,7 +219,7 @@ export const TeamLeaves: React.FC = () => {
               <textarea
                 value={comments}
                 onChange={(e) => setComments(e.target.value)}
-                placeholder="Optional notes to the team member..."
+                placeholder="Add a note (required when declining)..."
                 rows={3}
                 className="w-full rounded-lg border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-600"
               />
@@ -215,6 +232,7 @@ export const TeamLeaves: React.FC = () => {
               <Button
                 variant="danger"
                 size="sm"
+                disabled={saving || !comments.trim()}
                 onClick={() => handleDecision('REJECTED')}
                 leftIcon={<X className="w-4 h-4" />}
               >
@@ -223,6 +241,7 @@ export const TeamLeaves: React.FC = () => {
               <Button
                 variant="success"
                 size="sm"
+                disabled={saving}
                 onClick={() => handleDecision('APPROVED')}
                 leftIcon={<Check className="w-4 h-4" />}
               >

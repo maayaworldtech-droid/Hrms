@@ -1,21 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import { useOperationsFilters } from '@/hooks/useOperationsFilters';
+import { OperationsFilters } from '@/components/common/OperationsFilters';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/services/api';
-import { AttendanceRecord, AttendanceStatus } from '@/types';
+import  { AttendanceRecord } from '@/types';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { formatDate, formatTime } from '@/utils/formatters';
-import {
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  Calendar,
-  Filter,
-  Check,
-  X,
-  UserCheck,
-} from 'lucide-react';
+import  { Clock, Check } from 'lucide-react';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 
@@ -25,22 +18,22 @@ export const AttendanceManagement: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [shiftFilter, setShiftFilter] = useState<string>('ALL');
+  const filters = useOperationsFilters(true);
+  const statusFilter = filters.status;
+  const shiftFilter = filters.shift;
+  const setStatusFilter = (value: string) => filters.set('status',value);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await api.attendance.getAll();
       setAttendance(data);
-    } finally {
+    } catch { dispatch(addToast({ type: 'error', title: 'Could not load attendance' })); } finally {
       setIsLoading(false);
     }
-  };
+  }, [dispatch]);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { void loadData(); }, [loadData]);
 
   const handleApproveRegularization = async (recordId: string) => {
     try {
@@ -59,19 +52,20 @@ export const AttendanceManagement: React.FC = () => {
     }
   };
 
-  const filteredAttendance = attendance.filter((item) => {
+  const contextRecords = attendance.filter(record => (!filters.date || record.date === filters.date) && (filters.venue === 'ALL' || record.location === filters.venue) && (shiftFilter === 'ALL' || (record.shift || 'MORNING') === shiftFilter));
+  const filteredAttendance = contextRecords.filter((item) => {
     const matchShift = shiftFilter === 'ALL' || (item.shift || 'MORNING') === shiftFilter;
     if (!matchShift) return false;
     if (statusFilter === 'ALL') return true;
+    if (statusFilter === 'ISSUES') return item.status === 'ABSENT' || item.status === 'LATE' || item.regularizationStatus === 'PENDING';
     if (statusFilter === 'REGULARIZATION_PENDING') return item.regularizationStatus === 'PENDING';
     return item.status === statusFilter;
   });
 
-  const presentCount = attendance.filter((a) => a.status === 'PRESENT').length;
-  const wfhCount = attendance.filter((a) => a.status === 'WORK_FROM_HOME').length;
-  const lateCount = attendance.filter((a) => a.status === 'LATE').length;
-  const absentCount = attendance.filter((a) => a.status === 'ABSENT').length;
-  const pendingRegCount = attendance.filter((a) => a.regularizationStatus === 'PENDING').length;
+  const presentCount = contextRecords.filter((a) => a.status === 'PRESENT').length;
+  const wfhCount = contextRecords.filter((a) => a.status === 'WORK_FROM_HOME').length;
+  const lateCount = contextRecords.filter((a) => a.status === 'LATE').length;
+  const pendingRegCount = contextRecords.filter((a) => a.regularizationStatus === 'PENDING').length;
 
   const columns: Column<AttendanceRecord>[] = [
     {
@@ -190,6 +184,7 @@ export const AttendanceManagement: React.FC = () => {
         </div>
       </div>
 
+      <OperationsFilters attendance />
       {/* Metric Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <button
@@ -201,7 +196,7 @@ export const AttendanceManagement: React.FC = () => {
           }`}
         >
           <span className="text-[11px] font-semibold text-slate-500 uppercase">Total Logged</span>
-          <p className="text-xl font-bold text-slate-900 mt-1">{attendance.length}</p>
+          <p className="text-xl font-bold text-slate-900 mt-1">{contextRecords.length}</p>
         </button>
 
         <button
@@ -212,7 +207,7 @@ export const AttendanceManagement: React.FC = () => {
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
-          <span className="text-[11px] font-semibold text-emerald-600 uppercase">Office Present</span>
+          <span className="text-[11px] font-semibold text-emerald-600 uppercase">Present</span>
           <p className="text-xl font-bold text-slate-900 mt-1">{presentCount}</p>
         </button>
 
@@ -257,38 +252,25 @@ export const AttendanceManagement: React.FC = () => {
       <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-slate-200 bg-white">
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-800">
           <Clock className="w-4 h-4 text-indigo-600" />
-          <span>Active Shift Deployment</span>
+          <span>Recorded shifts</span>
         </div>
         <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
           <span>
-            Morning Shift (9:00 AM – 1:00 PM): <strong className="text-slate-900">{attendance.filter(a => (a.shift || 'MORNING') === 'MORNING').length} Staff</strong>
+            Morning Shift (9:00 AM – 1:00 PM): <strong className="text-slate-900">{contextRecords.filter(a => (a.shift || 'MORNING') === 'MORNING').length} Staff</strong>
           </span>
           <span className="text-slate-300">•</span>
           <span>
-            Evening Shift (1:00 PM – 9:00 PM): <strong className="text-slate-900">{attendance.filter(a => a.shift === 'EVENING').length} Staff</strong>
+            Evening Shift (1:00 PM – 9:00 PM): <strong className="text-slate-900">{contextRecords.filter(a => a.shift === 'EVENING').length} Staff</strong>
           </span>
         </div>
       </div>
 
       {/* Main Table */}
       <DataTable
+        key={[filters.date,filters.venue,filters.shift,filters.status].join(':')}
         data={filteredAttendance}
         columns={columns}
         searchPlaceholder="Search attendance by employee name..."
-        filterComponent={
-          <div className="flex items-center gap-2">
-            <select
-              value={shiftFilter}
-              onChange={(e) => setShiftFilter(e.target.value)}
-              aria-label="Filter by shift timing"
-              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            >
-              <option value="ALL">All Shifts</option>
-              <option value="MORNING">Morning Shift (9 AM – 1 PM)</option>
-              <option value="EVENING">Evening Shift (1 PM – 9 PM)</option>
-            </select>
-          </div>
-        }
         exportFileName="maaya_attendance_register"
         isLoading={isLoading}
       />
@@ -298,7 +280,7 @@ export const AttendanceManagement: React.FC = () => {
         <Modal
           isOpen={isReviewModalOpen}
           onClose={() => setIsReviewModalOpen(false)}
-          title="Review Regularization Request"
+          title="Review attendance correction"
           subtitle={`Submission by ${selectedRecord.employeeName}`}
           size="md"
         >

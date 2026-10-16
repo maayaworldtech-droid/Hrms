@@ -1,78 +1,18 @@
-import React from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
-import { RightUtilityBar } from './RightUtilityBar';
+import { Header } from './Header';
 import { ToastContainer } from '@/components/common/ToastContainer';
-import { useAppDispatch, useAppSelector } from '@/store';
-import { toggleMobileMenu } from '@/store/slices/uiSlice';
-import { switchRole } from '@/store/slices/authSlice';
-import { Menu } from 'lucide-react';
-import maayaLogo from '@/assets/logo-new.png';
+import './operations.css';
 
-export const AppLayout: React.FC = () => {
-  const dispatch = useAppDispatch();
-  const navigate = useNavigate();
-  const { activeRole } = useAppSelector((state) => state.auth);
-
-  return (
-    <div className="flex h-screen overflow-hidden bg-[#F4F6F9] font-sans antialiased">
-      {/* Left Zoho-style Dark Sidebar with Maaya World Branding */}
-      <Sidebar />
-
-      {/* Main Content Canvas - No Top Header on Desktop (Matches Zoho CPaaS Inspiration) */}
-      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-        {/* Minimal Mobile-Only Bar (Hidden on desktop) */}
-        <div className="lg:hidden flex h-14 items-center justify-between px-3 sm:px-4 bg-white border-b border-slate-200 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <button
-              onClick={() => dispatch(toggleMobileMenu())}
-              className="p-1.5 rounded-md text-slate-600 hover:bg-slate-100"
-              aria-label="Open navigation"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            <img src={maayaLogo} alt="Maaya World Logo" className="h-8 w-auto object-contain" />
-          </div>
-
-          {/* Quick Mobile Role Switcher */}
-          <div className="flex items-center gap-1.5">
-            {activeRole !== 'EMPLOYEE' ? (
-              <button
-                onClick={() => {
-                  dispatch(switchRole('EMPLOYEE'));
-                  navigate('/employee/dashboard');
-                }}
-                className="text-xs px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
-              >
-                Employee View
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  dispatch(switchRole('ADMIN'));
-                  navigate('/admin/dashboard');
-                }}
-                className="text-xs px-2.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200 hover:bg-indigo-100 transition-colors cursor-pointer"
-              >
-                Admin View
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Workspace Content */}
-        <main className="flex-1 overflow-y-auto px-4 py-5 sm:px-8 sm:py-6">
-          <div className="mx-auto max-w-7xl">
-            <Outlet />
-          </div>
-        </main>
-      </div>
-
-      {/* Right Zoho-style Vertical Utility Rail */}
-      <RightUtilityBar />
-
-      {/* Global Toast System */}
-      <ToastContainer />
+export const AppLayout = () => (
+  <div className="operations-app flex h-dvh overflow-hidden bg-[#F7F8FA] text-[#101828]">
+    <Sidebar />
+    <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+      <Header />
+      <main className="operations-content flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-7xl"><Outlet /></div>
+      </main>
     </div>
-  );
-};
+    <ToastContainer />
+  </div>
+);

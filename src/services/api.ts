@@ -14,7 +14,7 @@ import {
 } from '@/types';
 import {
   MOCK_USERS,
-  MOCK_EMPLOYEES,
+  getReportingManager,
   MOCK_ATTENDANCE,
   MOCK_LEAVE_REQUESTS,
   MOCK_LEAVE_BALANCES,
@@ -22,7 +22,7 @@ import {
   MOCK_AUDIT_LOGS,
   generateMockPayrollRuns,
 } from './mockData';
-import { calculateSalaryFromMonthly, calculateSalaryFromCTC } from '@/utils/salaryCalculator';
+import  { calculateSalaryFromMonthly } from '@/utils/salaryCalculator';
 
 const MOCK_HOLIDAYS: Holiday[] = [];
 const MOCK_DEPARTMENTS: Department[] = [];
@@ -62,10 +62,123 @@ function setStored<T>(key: string, value: T): void {
   }
 }
 
+// Backend REST API Base URL (Spring Boot server on port 8083)
+const BACKEND_URL = 'http://localhost:8083';
+
+export interface BackendLocation {
+  locationId?: number;
+  name?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  zipCode?: string;
+}
+
+export interface BackendEmployee {
+  id?: number;
+  employeeId?: number;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  jobTitle?: string;
+  department?: string;
+  managerId?: number;
+  employmentType?: string;
+  status?: string;
+  dateOfJoining?: string;
+  createdDate?: string;
+  updatedDate?: string;
+  location?: BackendLocation | null;
+}
+
+export function backendToFrontendEmployee(b: BackendEmployee): Employee {
+  const numId = b.id || 1;
+  const empCode = b.employeeId ? `MW-${b.employeeId}` : `MW-${1000 + numId}`;
+  const locName = b.location?.name || b.location?.city || 'Hyderabad';
+  const fullName = `${b.firstName || ''} ${b.lastName || ''}`.trim() || 'Staff Member';
+
+  const statusMap: Record<string, Employee['status']> = {
+    ACTIVE: 'ACTIVE',
+    TERMINATED: 'TERMINATED',
+    'ON LEAVE': 'PROBATION',
+    PROBATION: 'PROBATION',
+  };
+  const statusNormalized = (b.status ? statusMap[b.status.toUpperCase()] || 'ACTIVE' : 'ACTIVE') as Employee['status'];
+
+  const empTypeNormalized = (b.employmentType?.toUpperCase().includes('PART') ? 'PART_TIME' :
+    b.employmentType?.toUpperCase().includes('CONTRACT') ? 'CONTRACT' :
+    b.employmentType?.toUpperCase().includes('INTERN') ? 'INTERN' : 'FULL_TIME') as Employee['employmentType'];
+
+  return {
+    id: String(numId),
+    employeeCode: empCode,
+    firstName: b.firstName || '',
+    lastName: b.lastName || '',
+    fullName,
+    email: b.email || '',
+    phone: '+91 98765 43210',
+    designation: b.jobTitle || 'Operations Specialist',
+    location: locName,
+    shift: 'MORNING',
+    monthlySalary: 35000,
+    ctcAnnual: 420000,
+    joiningDate: b.dateOfJoining || new Date().toISOString().split('T')[0],
+    employmentType: empTypeNormalized,
+    role: (b.jobTitle?.toLowerCase().includes('manager') || (b.department && b.department.toLowerCase().includes('management')) ? 'MANAGER' : 'EMPLOYEE') as UserRole,
+    departmentName: b.department || 'Operations',
+    managerId: b.managerId ? String(b.managerId) : undefined,
+    status: statusNormalized,
+    bankDetails: {
+      accountNumber: '918273645281',
+      ifscCode: 'HDFC0001234',
+      bankName: 'HDFC Bank Ltd.',
+      panNumber: 'ABCPS1234F',
+      uanNumber: '100928374699',
+    },
+  };
+}
+
+export function frontendToBackendEmployee(f: Partial<Employee>, existingId?: number): BackendEmployee {
+  const parsedEmpId = f.employeeCode ? parseInt(f.employeeCode.replace(/\D/g, ''), 10) : undefined;
+  const rawLocation = typeof f.location === 'string' ? f.location : 'Hyderabad';
+
+  return {
+    id: existingId,
+    employeeId: parsedEmpId || (existingId ? existingId + 100 : Math.floor(100 + Math.random() * 900)),
+    firstName: f.firstName || (f.fullName ? f.fullName.split(' ')[0] : ''),
+    lastName: f.lastName || (f.fullName ? f.fullName.split(' ').slice(1).join(' ') : ''),
+    email: f.email || '',
+    jobTitle: f.designation || 'Staff',
+    department: f.departmentName || `${rawLocation} Center`,
+    managerId: f.managerId ? parseInt(f.managerId.replace(/\D/g, ''), 10) || 1 : 1,
+    employmentType: f.employmentType === 'PART_TIME' ? 'Part-time' : f.employmentType === 'CONTRACT' ? 'Contract' : 'Full-time',
+    status: f.status === 'TERMINATED' ? 'Terminated' : 'Active',
+    dateOfJoining: f.joiningDate || new Date().toISOString().split('T')[0],
+    location: {
+      name: `${rawLocation} Center`,
+      address: 'Main Facility',
+      city: rawLocation,
+      state: rawLocation === 'Vizag' ? 'Andhra Pradesh' : rawLocation === 'Bhubaneswar' ? 'Odisha' : 'Telangana',
+      country: 'India',
+      zipCode: '500081',
+    },
+  };
+}
+
 // Initialise DB in browser storage if empty
 export function initLocalStorage(): void {
-  if (!localStorage.getItem(KEYS.EMPLOYEES)) {
-    setStored(KEYS.EMPLOYEES, MOCK_EMPLOYEES);
+  // Clear any old mock employee cached data from localStorage so live PostgreSQL records take precedence
+  try {
+    const cached = localStorage.getItem(KEYS.EMPLOYEES);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && (parsed.length > 10 || parsed.some((e: any) => e.employeeCode?.startsWith('MW-1')))) {
+        localStorage.removeItem(KEYS.EMPLOYEES);
+      }
+    }
+  } catch {
+    localStorage.removeItem(KEYS.EMPLOYEES);
   }
   if (!localStorage.getItem(KEYS.ATTENDANCE)) {
     setStored(KEYS.ATTENDANCE, MOCK_ATTENDANCE);
@@ -103,8 +216,15 @@ export const api = {
   // --- AUTH SERVICES ---
   auth: {
     async login(email: string, _pass: string): Promise<User> {
-      await delay(250);
-      const employees = getStored<Employee[]>(KEYS.EMPLOYEES, MOCK_EMPLOYEES);
+      await delay(150);
+      let employees = getStored<Employee[]>(KEYS.EMPLOYEES, []);
+      if (employees.length === 0) {
+        try {
+          employees = await api.employees.getAll();
+        } catch {
+          // fallback
+        }
+      }
       const emp = employees.find((e) => e.email.toLowerCase() === email.toLowerCase());
 
       if (emp) {
@@ -113,7 +233,7 @@ export const api = {
           name: emp.fullName,
           email: emp.email,
           role: emp.role || 'EMPLOYEE',
-          designation: emp.designation || 'Venue Specialist',
+          designation: emp.designation || 'Staff',
           department: emp.departmentName || (emp.location ? `${emp.location} Center` : 'Operations'),
           employeeId: emp.employeeCode,
           joiningDate: emp.joiningDate,
@@ -126,7 +246,7 @@ export const api = {
         return user;
       }
 
-      // Default mock fallback for admin login
+      // Default mock fallback for admin / manager demo login
       if (email.includes('admin')) {
         setStored(KEYS.CURRENT_USER, MOCK_USERS.admin);
         return MOCK_USERS.admin;
@@ -172,50 +292,155 @@ export const api = {
     },
   },
 
-  // --- EMPLOYEE SERVICES ---
+  // --- EMPLOYEE SERVICES (INTEGRATED WITH POSTGRESQL SPRING BOOT BACKEND) ---
   employees: {
     async getAll(): Promise<Employee[]> {
-      await delay();
-      return getStored<Employee[]>(KEYS.EMPLOYEES, MOCK_EMPLOYEES);
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/employees`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data: BackendEmployee[] = await res.json();
+        const mapped = data.map(backendToFrontendEmployee);
+        setStored(KEYS.EMPLOYEES, mapped);
+        return mapped;
+      } catch (err) {
+        console.warn('Backend fetch failed, falling back to local cache', err);
+        return getStored<Employee[]>(KEYS.EMPLOYEES, []);
+      }
     },
 
     async getById(id: string): Promise<Employee | undefined> {
-      await delay();
-      const list = getStored<Employee[]>(KEYS.EMPLOYEES, MOCK_EMPLOYEES);
-      return list.find((e) => e.id === id);
+      try {
+        const numId = parseInt(id.replace(/\D/g, ''), 10);
+        if (!isNaN(numId)) {
+          const res = await fetch(`${BACKEND_URL}/api/employees/${numId}`);
+          if (res.ok) {
+            const data: BackendEmployee = await res.json();
+            return backendToFrontendEmployee(data);
+          }
+        }
+      } catch (err) {
+        console.warn(`Backend fetch failed for employee ID ${id}`, err);
+      }
+
+      let list = getStored<Employee[]>(KEYS.EMPLOYEES, []);
+      if (!list || list.length === 0) {
+        try {
+          list = await api.employees.getAll();
+        } catch {
+          // ignore
+        }
+      }
+
+      const found = list.find((e) => e.id === id || e.employeeCode === id);
+      if (found) return found;
+
+      const currentUser = api.auth.getCurrentUser();
+      if (currentUser) {
+        const userMatch = list.find(
+          (e) =>
+            e.email?.toLowerCase() === currentUser.email?.toLowerCase() ||
+            e.employeeCode === currentUser.employeeId
+        );
+        if (userMatch) return userMatch;
+      }
+
+      if (list.length > 0) {
+        return list[0];
+      }
+
+      return {
+        id: id || '1',
+        employeeCode: currentUser?.employeeId || 'MW-1003',
+        firstName: currentUser?.name ? currentUser.name.split(' ')[0] : 'Staff',
+        lastName: currentUser?.name ? currentUser.name.split(' ').slice(1).join(' ') : 'Member',
+        fullName: currentUser?.name || 'Staff Member',
+        email: currentUser?.email || 'employee@maayaworld.com',
+        location: 'Hyderabad Center',
+        designation: currentUser?.designation || 'Experience Host',
+        departmentName: currentUser?.department || 'Operations',
+        shift: 'MORNING',
+        shiftTiming: 'Morning (9 AM – 6 PM)',
+        joiningDate: '2023-04-03',
+        monthlySalary: 35000,
+        ctcAnnual: 420000,
+        status: 'ACTIVE',
+        attendanceCount: 24,
+        bankDetails: {
+          accountNumber: '918273645281',
+          ifscCode: 'HDFC0001234',
+          bankName: 'HDFC Bank Ltd.',
+          panNumber: 'ABCPS1234F',
+          uanNumber: '100928374699',
+        },
+      };
     },
 
     async create(data: Omit<Employee, 'id'>): Promise<Employee> {
-      await delay(200);
-      const list = getStored<Employee[]>(KEYS.EMPLOYEES, MOCK_EMPLOYEES);
-      const newEmp: Employee = {
-        ...data,
-        id: `emp-${String(list.length + 1).padStart(3, '0')}`,
-      };
-      const updated = [newEmp, ...list];
-      setStored(KEYS.EMPLOYEES, updated);
+      const backendPayload = frontendToBackendEmployee(data);
+      const res = await fetch(`${BACKEND_URL}/api/employees/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(backendPayload),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to create employee: HTTP ${res.status}`);
+      }
+
+      const created: BackendEmployee = await res.json();
+      const newEmp = backendToFrontendEmployee(created);
+
+      // Keep cache in sync
+      const list = getStored<Employee[]>(KEYS.EMPLOYEES, []);
+      setStored(KEYS.EMPLOYEES, [newEmp, ...list.filter((e) => e.id !== newEmp.id)]);
+
       api.audit.log('EMPLOYEE_ONBOARDED', 'EMPLOYEE', `Added employee ${newEmp.fullName} (${newEmp.employeeCode})`);
       return newEmp;
     },
 
     async update(id: string, updates: Partial<Employee>): Promise<Employee> {
-      await delay(200);
-      const list = getStored<Employee[]>(KEYS.EMPLOYEES, MOCK_EMPLOYEES);
+      const numId = parseInt(id, 10);
+      const backendPayload = frontendToBackendEmployee(updates, isNaN(numId) ? undefined : numId);
+      const res = await fetch(`${BACKEND_URL}/api/employees/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(backendPayload),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to update employee: HTTP ${res.status}`);
+      }
+
+      const updated: BackendEmployee = await res.json();
+      const emp = backendToFrontendEmployee(updated);
+
+      // Keep cache in sync
+      const list = getStored<Employee[]>(KEYS.EMPLOYEES, []);
       const index = list.findIndex((e) => e.id === id);
-      if (index === -1) throw new Error('Employee not found');
-      const updatedEmp = { ...list[index], ...updates };
-      list[index] = updatedEmp;
+      if (index !== -1) {
+        list[index] = emp;
+      } else {
+        list.push(emp);
+      }
       setStored(KEYS.EMPLOYEES, list);
-      api.audit.log('EMPLOYEE_UPDATED', 'EMPLOYEE', `Updated profile of ${updatedEmp.fullName}`);
-      return updatedEmp;
+
+      api.audit.log('EMPLOYEE_UPDATED', 'EMPLOYEE', `Updated profile of ${emp.fullName}`);
+      return emp;
     },
 
     async delete(id: string): Promise<void> {
-      await delay(200);
-      const list = getStored<Employee[]>(KEYS.EMPLOYEES, MOCK_EMPLOYEES);
+      const res = await fetch(`${BACKEND_URL}/api/employees/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok && res.status !== 404) {
+        throw new Error(`Failed to delete employee: HTTP ${res.status}`);
+      }
+
+      const list = getStored<Employee[]>(KEYS.EMPLOYEES, []);
       const target = list.find((e) => e.id === id);
-      const filtered = list.filter((e) => e.id !== id);
-      setStored(KEYS.EMPLOYEES, filtered);
+      setStored(KEYS.EMPLOYEES, list.filter((e) => e.id !== id));
+
       if (target) {
         api.audit.log('EMPLOYEE_DELETED', 'EMPLOYEE', `Archived employee ${target.fullName} (${target.employeeCode})`);
       }
@@ -241,7 +466,7 @@ export const api = {
     ): Promise<AttendanceRecord> {
       await delay(150);
       const list = getStored<AttendanceRecord[]>(KEYS.ATTENDANCE, MOCK_ATTENDANCE);
-      const employees = getStored<Employee[]>(KEYS.EMPLOYEES, MOCK_EMPLOYEES);
+      const employees = getStored<Employee[]>(KEYS.EMPLOYEES, []);
       const emp = employees.find((e) => e.id === employeeId);
 
       const today = new Date().toISOString().split('T')[0];
@@ -411,6 +636,12 @@ export const api = {
       if (index === -1) throw new Error('Leave request not found');
 
       const target = list[index];
+      const reviewer = api.auth.getCurrentUser();
+      const employee = getStored<Employee[]>(KEYS.EMPLOYEES, []).find(person => person.id === target.employeeId);
+      if (reviewer?.role !== 'MANAGER' || !employee || getReportingManager(employee).id !== reviewer.id) {
+        throw new Error('Only the assigned manager can decide this leave request');
+      }
+      if (target.status !== 'PENDING') throw new Error('This leave request has already been decided');
       const today = new Date().toISOString().split('T')[0];
       const updated: LeaveRequest = {
         ...target,
@@ -467,7 +698,7 @@ export const api = {
     async createRun(month: string, year: number): Promise<PayrollRun> {
       await delay(350);
       const runs = getStored<PayrollRun[]>(KEYS.PAYROLL, generateMockPayrollRuns());
-      const employees = getStored<Employee[]>(KEYS.EMPLOYEES, MOCK_EMPLOYEES);
+      const employees = getStored<Employee[]>(KEYS.EMPLOYEES, []);
 
       const payslips: Payslip[] = employees.map((emp) => {
         const components = calculateSalaryFromMonthly(emp.monthlySalary || Math.round((emp.ctcAnnual || 360000) / 12));

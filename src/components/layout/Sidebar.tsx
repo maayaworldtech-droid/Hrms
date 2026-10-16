@@ -52,7 +52,7 @@ export const Sidebar: React.FC = () => {
       items: [
         { label: 'Employee Directory', path: '/admin/employees', icon: Users },
         { label: 'Attendance Records', path: '/admin/attendance', icon: Clock },
-        { label: 'Leave Management', path: '/admin/leaves', icon: CalendarDays },
+        { label: 'Leave Records', path: '/admin/leaves', icon: CalendarDays },
       ],
     },
     {
@@ -127,31 +127,31 @@ export const Sidebar: React.FC = () => {
       {/* Mobile Backdrop */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs lg:hidden"
+          className="fixed inset-0 z-40 bg-[#101828]/50 backdrop-blur-xs lg:hidden"
           onClick={closeMobile}
         />
       )}
 
-      {/* Sidebar Container (Zoho CPaaS Inspiration) */}
+      {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 flex flex-col bg-[#070D19] text-slate-300 border-r border-slate-800/80 transition-all duration-200 ease-in-out lg:static ${
-          sidebarCollapsed ? 'w-18' : 'w-62'
+        className={`fixed top-0 bottom-0 left-0 z-40 flex flex-col bg-white text-[#475467] border-r border-[#E4E7EC] transition-all duration-200 ease-in-out lg:static ${
+          sidebarCollapsed ? 'w-16' : 'w-60'
         } ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
         {/* Brand Header with Maaya World Logo */}
-        <div className="flex h-16 items-center justify-between px-4 sm:px-5 border-b border-slate-800/80 bg-[#070D19]">
+        <div className="flex h-14 items-center justify-between px-4 border-b border-[#E4E7EC] bg-white">
           <div className={`flex items-center ${sidebarCollapsed ? 'justify-center w-full' : 'justify-start'} overflow-hidden`}>
             {sidebarCollapsed ? (
               <img
                 src="/favicon.png"
                 alt="Maaya World Logo"
-                className="h-9 w-9 object-contain"
+                className="h-7 w-7 object-contain"
               />
             ) : (
               <img
                 src={maayaLogo}
                 alt="Maaya World Logo"
-                className="h-[46px] w-auto max-w-[190px] object-contain drop-shadow-[0_0_12px_rgba(227,58,53,0.25)]"
+                className="h-8 w-auto max-w-[170px] object-contain"
               />
             )}
           </div>
@@ -159,7 +159,7 @@ export const Sidebar: React.FC = () => {
           {/* Mobile Close Button */}
           <button
             onClick={closeMobile}
-            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white lg:hidden"
+            className="rounded-lg p-1.5 text-[#667085] hover:bg-[#F0F2F5] hover:text-[#101828] lg:hidden"
             aria-label="Close navigation"
           >
             <X className="w-4 h-4" />
@@ -171,14 +171,14 @@ export const Sidebar: React.FC = () => {
           {sections.map((section, sIdx) => (
             <div key={sIdx} className="space-y-1">
               {!sidebarCollapsed && section.title && (
-                <div className="flex items-center justify-between px-2.5 pt-2 pb-1">
-                  <span className="text-[11px] font-medium text-slate-400">
+                <div className="flex items-center justify-between px-3 pt-3 pb-1">
+                  <span className="text-[11px] font-semibold text-[#475467] tracking-tight">
                     {section.title}
                   </span>
                   {section.hasAddAction && (
                     <button
                       onClick={section.onAddClick}
-                      className="text-slate-400 hover:text-white p-0.5 rounded hover:bg-slate-800/60 transition-colors"
+                      className="text-[#475467] hover:text-[#101828] p-0.5 rounded hover:bg-[#F0F2F5] transition-colors"
                       title="Quick Action"
                     >
                       <Plus className="w-3.5 h-3.5" />
@@ -194,15 +194,15 @@ export const Sidebar: React.FC = () => {
                     to={item.path}
                     onClick={closeMobile}
                     className={({ isActive }) =>
-                      `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-all ${
+                      `group flex items-center gap-2.5 px-3 py-2 text-sm transition-all relative ${
                         isActive
-                          ? 'bg-[#14213B] text-white font-semibold border border-[#23355C] shadow-xs'
-                          : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 font-medium'
+                          ? 'bg-[#EEF4FF] text-[#2A4FE0] font-semibold border-l-3 border-[#2A4FE0] rounded-r-lg'
+                          : 'text-[#344054] hover:bg-[#F0F2F5] hover:text-[#101828] font-medium rounded-lg'
                       } ${sidebarCollapsed ? 'justify-center px-0' : ''}`
                     }
                     title={sidebarCollapsed ? item.label : undefined}
                   >
-                    <Icon className="w-4 h-4 shrink-0" />
+                    <Icon className="w-4 h-4 shrink-0 transition-colors" />
                     {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
                   </NavLink>
                 );
@@ -212,8 +212,8 @@ export const Sidebar: React.FC = () => {
         </div>
 
         {/* Mobile-Only Role Switcher Drawer Section */}
-        <div className="lg:hidden p-3 border-t border-slate-800 bg-[#060B15]/95 space-y-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block px-1">
+        <div className="lg:hidden p-3 border-t border-[#E4E7EC] bg-[#F7F8FA] space-y-2">
+          <span className="text-[11px] font-medium text-[#667085] block px-1">
             Switch View
           </span>
           <div className="grid grid-cols-3 gap-1.5 text-xs">
@@ -223,10 +223,10 @@ export const Sidebar: React.FC = () => {
                 closeMobile();
                 navigate('/admin/dashboard');
               }}
-              className={`p-2 rounded-lg text-center transition-colors ${
+              className={`p-2 rounded-lg text-center font-medium transition-colors ${
                 activeRole === 'ADMIN'
-                  ? 'bg-indigo-600 text-white font-bold'
-                  : 'bg-slate-800/90 text-slate-300 hover:bg-slate-700'
+                  ? 'bg-[#2A4FE0] text-white'
+                  : 'bg-white border border-[#D0D5DD] text-[#344054] hover:bg-[#F0F2F5]'
               }`}
             >
               Admin
@@ -237,10 +237,10 @@ export const Sidebar: React.FC = () => {
                 closeMobile();
                 navigate('/manager/dashboard');
               }}
-              className={`p-2 rounded-lg text-center transition-colors ${
+              className={`p-2 rounded-lg text-center font-medium transition-colors ${
                 activeRole === 'MANAGER'
-                  ? 'bg-amber-600 text-white font-bold'
-                  : 'bg-slate-800/90 text-slate-300 hover:bg-slate-700'
+                  ? 'bg-[#2A4FE0] text-white'
+                  : 'bg-white border border-[#D0D5DD] text-[#344054] hover:bg-[#F0F2F5]'
               }`}
             >
               Manager
@@ -251,10 +251,10 @@ export const Sidebar: React.FC = () => {
                 closeMobile();
                 navigate('/employee/dashboard');
               }}
-              className={`p-2 rounded-lg text-center transition-colors ${
+              className={`p-2 rounded-lg text-center font-medium transition-colors ${
                 activeRole === 'EMPLOYEE'
-                  ? 'bg-emerald-600 text-white font-bold'
-                  : 'bg-slate-800/90 text-slate-300 hover:bg-slate-700'
+                  ? 'bg-[#2A4FE0] text-white'
+                  : 'bg-white border border-[#D0D5DD] text-[#344054] hover:bg-[#F0F2F5]'
               }`}
             >
               Employee
@@ -263,15 +263,16 @@ export const Sidebar: React.FC = () => {
         </div>
 
         {/* Bottom Workspace Status & Collapse Toggle */}
-        <div className="p-2.5 border-t border-slate-800/80 bg-[#060B15] flex items-center justify-between">
+        <div className="p-2.5 border-t border-[#E4E7EC] bg-[#F7F8FA] flex items-center justify-between">
           {!sidebarCollapsed ? (
-            <div className="flex items-center justify-between w-full px-1 text-[11px] text-slate-400">
+            <div className="flex items-center justify-between w-full px-1 text-xs text-[#667085]">
               <div className="flex items-center gap-1.5 min-w-0">
-                <span className="truncate">Maaya World Cloud</span>
+                <span className="w-2 h-2 rounded-full bg-[#12B76A] shrink-0" />
+                <span className="truncate font-medium text-[#344054]">Maaya World HRMS</span>
               </div>
               <button
                 onClick={() => dispatch(toggleSidebar())}
-                className="hidden lg:flex p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+                className="hidden lg:flex p-1 rounded-md hover:bg-[#E4E7EC] text-[#667085] hover:text-[#101828] transition-colors"
                 title="Collapse sidebar"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -280,7 +281,7 @@ export const Sidebar: React.FC = () => {
           ) : (
             <button
               onClick={() => dispatch(toggleSidebar())}
-              className="hidden lg:flex mx-auto p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+              className="hidden lg:flex mx-auto p-1 rounded-md hover:bg-[#E4E7EC] text-[#667085] hover:text-[#101828] transition-colors"
               title="Expand sidebar"
             >
               <ChevronRight className="w-4 h-4" />

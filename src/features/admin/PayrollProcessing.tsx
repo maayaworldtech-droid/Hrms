@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import confetti from 'canvas-confetti';
+import { PayrollReview } from '@/components/common/PayrollReview';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/services/api';
 import { PayrollRun, Payslip } from '@/types';
 import { DataTable, Column } from '@/components/common/DataTable';
@@ -7,25 +7,15 @@ import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { formatINR, formatDate, numberToIndianWords } from '@/utils/formatters';
-import {
-  Banknote,
-  CheckCircle2,
-  Download,
-  Eye,
-  Printer,
-  Calendar,
-  Layers,
-  ArrowRight,
-  ShieldCheck,
-  Building2,
-  FileText,
-} from 'lucide-react';
-import { useAppDispatch } from '@/store';
+import  { Banknote, Printer, Calendar } from 'lucide-react';
+import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 import maayaLogo from '@/assets/logo-new.png';
 
 export const PayrollProcessing: React.FC = () => {
   const dispatch = useAppDispatch();
+  const user = useAppSelector(state => state.auth.user);
+  const [saving, setSaving] = useState(false);
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRun, setSelectedRun] = useState<PayrollRun | null>(null);
@@ -33,24 +23,27 @@ export const PayrollProcessing: React.FC = () => {
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
   const [isPayslipModalOpen, setIsPayslipModalOpen] = useState(false);
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
-  const [newRunMonth, setNewRunMonth] = useState('November');
-  const [newRunYear, setNewRunYear] = useState(2026);
+  const [newRunMonth, setNewRunMonth] = useState(() => new Date().toLocaleDateString('en-US', {month: 'long', timeZone: 'Asia/Kolkata'}));
+  const [newRunYear, setNewRunYear] = useState(() => Number(new Date().toLocaleDateString('en-US', {year: 'numeric', timeZone: 'Asia/Kolkata'})));
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await api.payroll.getRuns();
       setRuns(data);
-    } finally {
+    } catch { dispatch(addToast({ type: 'error', title: 'Could not load payroll' })); } finally {
       setIsLoading(false);
     }
-  };
+  }, [dispatch]);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { void loadData(); }, [loadData]);
 
   const handleCreateRun = async () => {
+    if (saving || !Number.isInteger(newRunYear) || newRunYear < 2000 || newRunYear > 2100) return;
+    if (runs.some(run => run.month === newRunMonth && run.year === newRunYear && run.status === 'DISBURSED')) {
+      dispatch(addToast({ type: 'error', title: 'This pay cycle is already finalized', message: 'Choose another month or year.' })); return;
+    }
+    setSaving(true);
     try {
       const run = await api.payroll.createRun(newRunMonth, newRunYear);
       dispatch(
@@ -61,32 +54,30 @@ export const PayrollProcessing: React.FC = () => {
         })
       );
       setIsRunModalOpen(false);
+      setSelectedRun(run); setIsRegisterModalOpen(true);
       loadData();
     } catch {
       dispatch(addToast({ type: 'error', title: 'Generation failed' }));
-    }
+    } finally { setSaving(false); }
   };
 
   const handleDisburse = async (runId: string) => {
+    if (saving) return;
+    setSaving(true);
     try {
-      await api.payroll.disburseRun(runId, 'Sarah Jenkins (VP People)');
-      confetti({
-        particleCount: 80,
-        spread: 60,
-        origin: { y: 0.6 },
-      });
+      await api.payroll.disburseRun(runId, user?.name || 'People operations');
       dispatch(
         addToast({
           type: 'success',
-          title: 'Salaries Disbursed Successfully',
-          message: 'NEFT payment batches dispatched. Employee payslips are now downloadable.',
+          title: 'Payroll finalized',
+          message: 'Payment status recorded. Employee payslips are now available.',
         })
       );
       setIsRegisterModalOpen(false);
       loadData();
     } catch {
-      dispatch(addToast({ type: 'error', title: 'Disbursement failed' }));
-    }
+      dispatch(addToast({ type: 'error', title: 'Finalization failed' }));
+    } finally { setSaving(false); }
   };
 
   const columns: Column<PayrollRun>[] = [
@@ -183,9 +174,9 @@ export const PayrollProcessing: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Payroll Processing & Disbursal</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Payroll</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Generate monthly salary registers, review statutory deductions & disburse NEFT payout batches
+            Review attendance, check adjustments and finalize monthly salary registers.
           </p>
         </div>
         <Button
@@ -202,7 +193,7 @@ export const PayrollProcessing: React.FC = () => {
         data={runs}
         columns={columns}
         searchPlaceholder="Search payroll by month or year..."
-        exportFileName="pulse_payroll_cycles"
+        exportFileName="maaya_payroll_cycles"
         isLoading={isLoading}
       />
 
@@ -211,7 +202,7 @@ export const PayrollProcessing: React.FC = () => {
         isOpen={isRunModalOpen}
         onClose={() => setIsRunModalOpen(false)}
         title="Initialize New Payroll Run"
-        subtitle="Calculates gross earnings, attendance deductions, EPF, PT & TDS for all active employees"
+        subtitle="Generate a draft from employee salary records, then review attendance and payroll amounts."
         size="md"
       >
         <div className="space-y-4 text-xs">
@@ -240,20 +231,13 @@ export const PayrollProcessing: React.FC = () => {
             />
           </div>
 
-          <div className="p-3.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs">
-            <span className="font-bold">Automated Calculations:</span>
-            <ul className="list-disc list-inside mt-1 space-y-0.5 text-indigo-800">
-              <li>Pulls approved leaves and checks loss-of-pay days</li>
-              <li>Applies 12% EPFO and 200 INR PT state statutory rules</li>
-              <li>Generates individual downloadable payslips</li>
-            </ul>
-          </div>
+          <p className="ops-muted">Generate a draft first. Review attendance, loss of pay, salary components and banking before finalizing. Generating again replaces an existing unfinalized draft for the selected month.</p>
 
           <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={() => setIsRunModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" size="sm" onClick={handleCreateRun}>
+            <Button variant="primary" size="sm" disabled={saving || !Number.isInteger(newRunYear) || newRunYear < 2000 || newRunYear > 2100} onClick={handleCreateRun}>
               Generate Payroll Draft
             </Button>
           </div>
@@ -269,98 +253,7 @@ export const PayrollProcessing: React.FC = () => {
           subtitle={`${selectedRun.totalEmployees} employees • Status: ${selectedRun.status}`}
           size="2xl"
         >
-          <div className="space-y-4 text-xs">
-            {/* Summary Metrics */}
-            <div className="grid grid-cols-3 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-              <div>
-                <span className="text-slate-500">Gross Total</span>
-                <p className="text-base font-bold text-slate-900">{formatINR(selectedRun.totalGrossPay)}</p>
-              </div>
-              <div>
-                <span className="text-slate-500">Deductions Total</span>
-                <p className="text-base font-bold text-rose-600">{formatINR(selectedRun.totalDeductions)}</p>
-              </div>
-              <div>
-                <span className="text-slate-500">Net Disbursal Amount</span>
-                <p className="text-base font-bold text-emerald-600">{formatINR(selectedRun.totalNetPay)}</p>
-              </div>
-            </div>
-
-            {/* Payslips Table */}
-            <div className="max-h-96 overflow-y-auto border border-slate-200 rounded-xl">
-              <table className="w-full text-left text-xs text-slate-600">
-                <thead className="bg-slate-50 sticky top-0 border-b border-slate-200 text-[11px] font-semibold uppercase text-slate-500">
-                  <tr>
-                    <th className="py-2.5 px-3">Employee</th>
-                    <th className="py-2.5 px-3">Gross Pay</th>
-                    <th className="py-2.5 px-3">EPF (12%)</th>
-                    <th className="py-2.5 px-3">PT</th>
-                    <th className="py-2.5 px-3">TDS</th>
-                    <th className="py-2.5 px-3">Net Pay</th>
-                    <th className="py-2.5 px-3">Status</th>
-                    <th className="py-2.5 px-3 text-right">View</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {selectedRun.payslips.map((ps) => (
-                    <tr key={ps.id} className="hover:bg-slate-50">
-                      <td className="py-2.5 px-3 font-semibold text-slate-900">
-                        {ps.employeeName}
-                        <div className="text-[10px] text-slate-400 font-mono">{ps.employeeCode}</div>
-                      </td>
-                      <td className="py-2.5 px-3 font-mono">{formatINR(ps.components.grossMonthly)}</td>
-                      <td className="py-2.5 px-3 font-mono text-rose-600">{formatINR(ps.components.epfEmployee)}</td>
-                      <td className="py-2.5 px-3 font-mono text-rose-600">₹200</td>
-                      <td className="py-2.5 px-3 font-mono text-rose-600">{formatINR(ps.components.tds)}</td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-emerald-700">{formatINR(ps.components.netMonthly)}</td>
-                      <td className="py-2.5 px-3">
-                        <Badge variant={ps.paymentStatus === 'PAID' ? 'success' : 'warning'} size="sm">
-                          {ps.paymentStatus}
-                        </Badge>
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedPayslip(ps);
-                            setIsPayslipModalOpen(true);
-                          }}
-                          className="!p-1 text-indigo-600"
-                        >
-                          <FileText className="w-4 h-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-              <span className="text-slate-500">
-                {selectedRun.status === 'DISBURSED'
-                  ? `Disbursed on ${formatDate(selectedRun.disbursedAt)} by ${selectedRun.disbursedBy}`
-                  : 'Ready for bank clearance'}
-              </span>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setIsRegisterModalOpen(false)}>
-                  Close
-                </Button>
-                {selectedRun.status !== 'DISBURSED' && (
-                  <Button
-                    variant="success"
-                    size="sm"
-                    onClick={() => handleDisburse(selectedRun.id)}
-                    leftIcon={<CheckCircle2 className="w-4 h-4" />}
-                  >
-                    Authorize & Disburse Salaries
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
+          <PayrollReview key={selectedRun.id} run={selectedRun} saving={saving} onFinalize={() => handleDisburse(selectedRun.id)} onView={slip => { setSelectedPayslip(slip); setIsPayslipModalOpen(true); }} />
         </Modal>
       )}
 

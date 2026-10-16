@@ -77,7 +77,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
       },
       {
         id: 'nav-leaves-mgmt',
-        title: 'Company Leave Applications',
+        title: 'Company Leave Records',
         category: 'Navigation',
         icon: CalendarDays,
         action: () => navigate('/admin/leaves'),
@@ -113,7 +113,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
         category: 'Navigation',
         icon: LayoutDashboard,
         action: () => navigate('/manager/dashboard'),
-        role: ['MANAGER', 'ADMIN'],
+        role: ['MANAGER'],
       },
       {
         id: 'nav-mgr-att',
@@ -121,7 +121,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
         category: 'Navigation',
         icon: Clock,
         action: () => navigate('/manager/attendance'),
-        role: ['MANAGER', 'ADMIN'],
+        role: ['MANAGER'],
       },
       {
         id: 'nav-mgr-leaves',
@@ -129,7 +129,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
         category: 'Navigation',
         icon: CalendarDays,
         action: () => navigate('/manager/leaves'),
-        role: ['MANAGER', 'ADMIN'],
+        role: ['MANAGER'],
       },
       {
         id: 'nav-emp-dash',

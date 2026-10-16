@@ -1,3 +1,5 @@
+import { MOCK_USERS, getReportingManager } from '@/services/mockData';
+import { EmployeeDetailsPanel } from '@/components/common/EmployeeDetailsPanel';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,20 +12,8 @@ import { Modal } from '@/components/common/Modal';
 import { Input } from '@/components/common/Input';
 import { Select } from '@/components/common/Select';
 import { formatINR, formatDate } from '@/utils/formatters';
-import { calculateSalaryFromMonthly } from '@/utils/salaryCalculator';
-import {
-  UserPlus,
-  Eye,
-  Pencil,
-  Trash2,
-  CreditCard,
-  Phone,
-  Mail,
-  Briefcase,
-  MapPin,
-  Calendar,
-  Clock,
-} from 'lucide-react';
+
+import  { UserPlus, Eye, Trash2, MapPin, Clock } from 'lucide-react';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 
@@ -34,6 +24,7 @@ const employeeSchema = z.object({
   phone: z.string().min(10, 'Valid 10-digit phone number required'),
   location: z.enum(['Hyderabad', 'Vizag', 'Bhubaneswar']),
   shift: z.enum(['MORNING', 'EVENING']),
+  managerId: z.string(),
   joiningDate: z.string().min(1, 'Joining date required'),
   monthlySalary: z.coerce.number().min(10000, 'Minimum monthly salary is ₹10,000'),
   accountNumber: z.string().min(8, 'Bank account number required'),
@@ -66,6 +57,7 @@ export const EmployeeManagement: React.FC = () => {
     defaultValues: {
       location: 'Hyderabad',
       shift: 'MORNING',
+      managerId: '',
       joiningDate: new Date().toISOString().split('T')[0],
       monthlySalary: 32000,
       accountNumber: '918273645281',
@@ -107,6 +99,7 @@ export const EmployeeManagement: React.FC = () => {
       phone: emp.phone,
       location: (emp.location as 'Hyderabad' | 'Vizag' | 'Bhubaneswar') || 'Hyderabad',
       shift: emp.shift || 'MORNING',
+      managerId: getReportingManager(emp).id || '',
       joiningDate: emp.joiningDate,
       monthlySalary: emp.monthlySalary || Math.round((emp.ctcAnnual || 360000) / 12),
       accountNumber: emp.bankDetails?.accountNumber || '',
@@ -130,6 +123,8 @@ export const EmployeeManagement: React.FC = () => {
         designation: '',
         location: values.location,
         shift: values.shift,
+        managerId: values.managerId,
+        managerName: employees.find(employee => employee.id === values.managerId)?.fullName || (values.managerId === MOCK_USERS.manager.id ? MOCK_USERS.manager.name : undefined),
         monthlySalary: values.monthlySalary,
         ctcAnnual: values.monthlySalary * 12,
         joiningDate: values.joiningDate,
@@ -174,6 +169,8 @@ export const EmployeeManagement: React.FC = () => {
         phone: values.phone,
         location: values.location,
         shift: values.shift,
+        managerId: values.managerId,
+        managerName: employees.find(employee => employee.id === values.managerId)?.fullName || (values.managerId === MOCK_USERS.manager.id ? MOCK_USERS.manager.name : undefined),
         monthlySalary: values.monthlySalary,
         ctcAnnual: values.monthlySalary * 12,
         joiningDate: values.joiningDate,
@@ -214,6 +211,9 @@ export const EmployeeManagement: React.FC = () => {
       loadEmployees();
     }
   };
+
+  const managers = [...new Map([{ id: MOCK_USERS.manager.id, name: MOCK_USERS.manager.name }, ...employees.filter(employee => employee.role === 'MANAGER').map(employee => ({ id: employee.id, name: employee.fullName }))].map(manager => [manager.id,manager])).values()];
+  const unassigned = employees.filter(employee => employee.id !== MOCK_USERS.admin.id && employee.id !== MOCK_USERS.manager.id && employee.role !== 'ADMIN' && !getReportingManager(employee).id).length;
 
   // Filtered dataset by Location and Shift
   const filteredEmployees = useMemo(() => {
@@ -368,8 +368,10 @@ export const EmployeeManagement: React.FC = () => {
         </Button>
       </div>
 
+      {unassigned > 0 && <p className="ops-muted">{unassigned} employees have no reporting Manager. Open an employee and use Edit → Reports to to assign their leave approver.</p>}
       {/* Main Employee Directory Data Table */}
       <DataTable
+        key={[selectedLocationFilter,selectedShiftFilter].join(':')}
         columns={columns}
         data={filteredEmployees}
         isLoading={isLoading}
@@ -448,6 +450,7 @@ export const EmployeeManagement: React.FC = () => {
                 error={errorsAdd.shift?.message}
                 {...registerAdd('shift')}
               />
+              <Select id="add-reporting-manager" label="Reports to" options={[{value: '',label: 'Not assigned'}, ...managers.map(manager => ({value: manager.id,label: manager.name}))]} error={errorsAdd.managerId?.message} helperText="This Manager reviews leave requests." {...registerAdd('managerId')} />
               <Input
                 label="Joining Date"
                 type="date"
@@ -586,6 +589,7 @@ export const EmployeeManagement: React.FC = () => {
                   error={errorsEdit.shift?.message}
                   {...registerEdit('shift')}
                 />
+                <Select id="edit-reporting-manager" label="Reports to" options={[{value: '',label: 'Not assigned'}, ...managers.filter(manager => manager.id !== editingEmployee.id).map(manager => ({value: manager.id,label: manager.name}))]} error={errorsEdit.managerId?.message} helperText="This Manager reviews leave requests." {...registerEdit('managerId')} />
                 <Input
                   label="Joining Date"
                   type="date"
@@ -655,148 +659,7 @@ export const EmployeeManagement: React.FC = () => {
         </Modal>
       )}
 
-      {/* View Employee Detail Modal */}
-      {selectedEmployee && (
-        <Modal
-          isOpen={isViewModalOpen}
-          onClose={() => setIsViewModalOpen(false)}
-          title={`Employee Record: ${selectedEmployee.fullName}`}
-          subtitle={`${selectedEmployee.employeeCode} • ${selectedEmployee.location} Center`}
-          size="lg"
-        >
-          <div className="space-y-4 text-xs text-slate-700">
-            {/* Top Profile Summary */}
-            <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50/80 border border-slate-200">
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div className="w-12 h-12 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-base shrink-0">
-                  {selectedEmployee.firstName?.[0] || 'M'}
-                  {selectedEmployee.lastName?.[0] || 'W'}
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-sm font-bold text-slate-900 truncate">{selectedEmployee.fullName}</h3>
-                  <div className="flex flex-wrap items-center gap-2 mt-1 text-slate-500 text-[11px]">
-                    <span className="flex items-center gap-1 font-medium text-indigo-600">
-                      <MapPin className="w-3 h-3 text-indigo-500" />
-                      {selectedEmployee.location} Center
-                    </span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1 text-slate-600">
-                      <Clock className="w-3 h-3 text-slate-400" />
-                      {selectedEmployee.shift === 'EVENING' ? 'Evening Shift (1:00 PM – 9:00 PM)' : 'Morning Shift (9:00 AM – 1:00 PM)'}
-                    </span>
-                    <span>•</span>
-                    <span className="font-mono">{selectedEmployee.employeeCode}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Edit button in view modal */}
-              <Button
-                variant="primary"
-                size="sm"
-                leftIcon={<Pencil className="w-3.5 h-3.5" />}
-                onClick={() => handleOpenEdit(selectedEmployee)}
-              >
-                Edit
-              </Button>
-            </div>
-
-            {/* Compensation & Bank Info */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div className="p-3.5 rounded-xl border border-slate-200 space-y-2">
-                <h4 className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
-                  <CreditCard className="w-3.5 h-3.5 text-indigo-600" />
-                  Monthly Compensation
-                </h4>
-                <div className="pt-1 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500">Monthly Salary:</span>
-                    <span className="font-bold font-mono text-base text-slate-900">
-                      {formatINR(selectedEmployee.monthlySalary || Math.round((selectedEmployee.ctcAnnual || 360000) / 12))}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-[11px] pt-1 border-t border-slate-100">
-                    <span className="text-slate-500">Basic (50%):</span>
-                    <span className="font-mono text-slate-700">
-                      {formatINR(calculateSalaryFromMonthly(selectedEmployee.monthlySalary || Math.round((selectedEmployee.ctcAnnual || 360000) / 12)).basic)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-[11px]">
-                    <span className="text-slate-500">Estimated Take-Home:</span>
-                    <span className="font-bold font-mono text-emerald-600">
-                      {formatINR(calculateSalaryFromMonthly(selectedEmployee.monthlySalary || Math.round((selectedEmployee.ctcAnnual || 360000) / 12)).netMonthly)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-3.5 rounded-xl border border-slate-200 space-y-2">
-                <h4 className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
-                  <Briefcase className="w-3.5 h-3.5 text-indigo-600" />
-                  Banking & Statutory Details
-                </h4>
-                <div className="pt-1 space-y-1 text-[11px]">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Bank Name:</span>
-                    <span className="font-medium text-slate-800">{selectedEmployee.bankDetails?.bankName || 'HDFC Bank'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Account No:</span>
-                    <span className="font-mono text-slate-800">{selectedEmployee.bankDetails?.accountNumber}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">IFSC Code:</span>
-                    <span className="font-mono text-slate-800">{selectedEmployee.bankDetails?.ifscCode}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Income Tax PAN:</span>
-                    <span className="font-mono text-slate-800">{selectedEmployee.bankDetails?.panNumber}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">EPFO UAN:</span>
-                    <span className="font-mono text-slate-800">{selectedEmployee.bankDetails?.uanNumber}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Contact Details */}
-            <div className="p-3 rounded-lg bg-slate-50/60 border border-slate-200/70 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-600">
-              <span className="flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-slate-400" />
-                {selectedEmployee.email}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Phone className="w-3.5 h-3.5 text-slate-400" />
-                {selectedEmployee.phone}
-              </span>
-              <span className="flex items-center gap-1.5 font-mono">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                Joined {formatDate(selectedEmployee.joiningDate)}
-              </span>
-            </div>
-
-            {/* Bottom Actions */}
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsViewModalOpen(false)}
-              >
-                Close
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                leftIcon={<Pencil className="w-3.5 h-3.5" />}
-                onClick={() => handleOpenEdit(selectedEmployee)}
-              >
-                Edit Employee Details
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      )}
+      {selectedEmployee && isViewModalOpen && <EmployeeDetailsPanel key={selectedEmployee.id} employee={selectedEmployee} isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} onEdit={() => handleOpenEdit(selectedEmployee)} />}
     </div>
   );
 };

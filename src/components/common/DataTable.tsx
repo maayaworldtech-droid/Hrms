@@ -37,6 +37,7 @@ interface DataTableProps<T> {
   emptyTitle?: string;
   emptyDescription?: string;
   headerAction?: React.ReactNode;
+  mobileRender?: (item: T) => React.ReactNode;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -54,6 +55,7 @@ export function DataTable<T extends Record<string, any>>({
   emptyTitle = 'No records found',
   emptyDescription = 'There are no records matching your current filter criteria.',
   headerAction,
+  mobileRender,
 }: DataTableProps<T>) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortKey, setSortKey] = useState<string | undefined>(defaultSortKey);
@@ -141,12 +143,12 @@ export function DataTable<T extends Record<string, any>>({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden flex flex-col">
+    <div className="bg-white rounded-xl border border-[#E4E7EC] shadow-xs overflow-hidden flex flex-col">
       {/* Table Toolbar */}
-      <div className="p-3.5 sm:p-4 border-b border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white">
+      <div className="p-3.5 sm:p-4 border-b border-[#E4E7EC] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white">
         <div className="flex flex-1 items-center gap-2 max-w-md">
           <div className="relative w-full">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-4 h-4 text-[#667085] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               ref={searchInputRef}
               type="text"
@@ -156,7 +158,8 @@ export function DataTable<T extends Record<string, any>>({
                 setCurrentPage(1);
               }}
               placeholder={searchPlaceholder}
-              className="w-full pl-8.5 pr-8 py-1.5 text-xs bg-slate-50/60 hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+              aria-label={searchPlaceholder}
+              className="w-full h-9 pl-9 pr-8 text-sm bg-[#F7F8FA] hover:bg-white border border-[#D0D5DD] rounded-lg text-[#101828] placeholder-[#667085] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#3B68F5]/20 focus:border-[#3B68F5] transition-all"
             />
             {searchQuery ? (
               <button
@@ -164,13 +167,13 @@ export function DataTable<T extends Record<string, any>>({
                   setSearchQuery('');
                   setCurrentPage(1);
                 }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#667085] hover:text-[#101828] p-0.5"
                 title="Clear search"
               >
-                <X className="w-3 h-3" />
+                <X className="w-3.5 h-3.5" />
               </button>
             ) : (
-              <kbd className="hidden sm:inline-block absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] px-1.5 py-0.5 text-slate-400 font-mono border border-slate-200 rounded bg-white">
+              <kbd className="hidden sm:inline-block absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] px-1.5 py-0.5 text-[#667085] font-mono border border-[#D0D5DD] rounded bg-white shadow-xs">
                 /
               </kbd>
             )}
@@ -197,14 +200,17 @@ export function DataTable<T extends Record<string, any>>({
       </div>
 
       {/* Table Body */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs text-slate-600">
-          <thead className="bg-slate-50/70 border-b border-slate-200/80 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+      {mobileRender && <div className="ops-mobile-list px-4 divide-y divide-[#E4E7EC]">
+        {isLoading ? <p className="ops-empty" role="status">Loading records…</p> : paginatedData.length ? paginatedData.map((row, index) => <article key={row.id || index} className="py-4">{mobileRender(row)}</article>) : <div className="ops-empty"><p className="font-semibold">{emptyTitle}</p><p>{emptyDescription}</p>{searchQuery && <button className="ops-link" onClick={() => setSearchQuery('')}>Clear search</button>}</div>}
+      </div>}
+      <div className={mobileRender ? 'ops-desktop-table' : 'overflow-x-auto'}>
+        <table className="w-full text-left text-sm text-[#344054]">
+          <thead className="bg-[#F7F8FA] border-b border-[#E4E7EC] text-[13px] font-medium text-[#475467] sticky top-0 z-10">
             <tr>
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`py-2.5 px-4 font-semibold ${
+                  className={`py-3 px-4 font-medium tracking-normal ${
                     col.align === 'center'
                       ? 'text-center'
                       : col.align === 'right'
@@ -215,19 +221,19 @@ export function DataTable<T extends Record<string, any>>({
                   {col.sortable ? (
                     <button
                       onClick={() => handleSort(col.key)}
-                      className={`inline-flex items-center gap-1.5 hover:text-slate-900 transition-colors focus:outline-none ${
-                        sortKey === col.key ? 'text-indigo-600 font-bold' : ''
+                      className={`inline-flex items-center gap-1.5 hover:text-[#101828] transition-colors focus:outline-none ${
+                        sortKey === col.key ? 'text-[#2A4FE0] font-semibold' : ''
                       }`}
                     >
                       <span>{col.header}</span>
                       {sortKey === col.key ? (
                         sortOrder === 'asc' ? (
-                          <ArrowUp className="w-3 h-3 text-indigo-600" />
+                          <ArrowUp className="w-3.5 h-3.5 text-[#2A4FE0]" />
                         ) : (
-                          <ArrowDown className="w-3 h-3 text-indigo-600" />
+                          <ArrowDown className="w-3.5 h-3.5 text-[#2A4FE0]" />
                         )
                       ) : (
-                        <ArrowUpDown className="w-3 h-3 text-slate-300" />
+                        <ArrowUpDown className="w-3.5 h-3.5 text-[#98A2B3]" />
                       )}
                     </button>
                   ) : (
@@ -238,30 +244,30 @@ export function DataTable<T extends Record<string, any>>({
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-[#E4E7EC]">
             {isLoading ? (
               Array.from({ length: 4 }).map((_, idx) => (
                 <tr key={idx} className="animate-pulse">
                   {columns.map((_, cIdx) => (
-                    <td key={cIdx} className="py-3 px-4">
-                      <div className="h-3.5 bg-slate-200 rounded w-3/4" />
+                    <td key={cIdx} className="py-3.5 px-4">
+                      <div className="h-4 bg-[#F0F2F5] rounded w-3/4" />
                     </td>
                   ))}
                 </tr>
               ))
             ) : paginatedData.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="py-12 px-4 text-center">
+                <td colSpan={columns.length} className="py-14 px-4 text-center">
                   <div className="flex flex-col items-center justify-center">
-                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-2.5 border border-slate-200/60">
+                    <div className="w-10 h-10 rounded-full bg-[#F0F2F5] flex items-center justify-center text-[#667085] mb-3 border border-[#E4E7EC]">
                       <Filter className="w-4 h-4" />
                     </div>
-                    <p className="text-xs font-semibold text-slate-800">{emptyTitle}</p>
-                    <p className="text-[11px] text-slate-500 mt-0.5 max-w-sm">{emptyDescription}</p>
+                    <p className="text-sm font-semibold text-[#101828]">{emptyTitle}</p>
+                    <p className="text-xs text-[#667085] mt-1 max-w-sm">{emptyDescription}</p>
                     {searchQuery && (
                       <button
                         onClick={() => setSearchQuery('')}
-                        className="mt-3 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                        className="mt-3 text-xs text-[#2A4FE0] hover:underline font-medium"
                       >
                         Reset search filter
                       </button>
@@ -274,18 +280,18 @@ export function DataTable<T extends Record<string, any>>({
                 <tr
                   key={row.id || idx}
                   onClick={() => onRowClick?.(row)}
-                  className={`transition-colors ${
-                    onRowClick ? 'cursor-pointer hover:bg-slate-50/80' : 'hover:bg-slate-50/50'
+                  className={`h-12 transition-colors duration-100 ${
+                    onRowClick ? 'cursor-pointer hover:bg-[#F0F2F5]' : 'hover:bg-[#F7F8FA]'
                   }`}
                 >
                   {columns.map((col) => (
                     <td
                       key={col.key}
-                      className={`py-2.5 px-4 text-slate-700 ${
+                      className={`py-3 px-4 text-[#344054] ${
                         col.align === 'center'
                           ? 'text-center'
                           : col.align === 'right'
-                          ? 'text-right'
+                          ? 'text-right tabular-nums'
                           : 'text-left'
                       } ${col.className || ''}`}
                     >
@@ -301,7 +307,7 @@ export function DataTable<T extends Record<string, any>>({
 
       {/* Pagination Footer */}
       {!isLoading && sortedData.length > 0 && (
-        <div className="p-3 px-4 bg-slate-50/60 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+        <div className="p-3 px-4 bg-[#F7F8FA] border-t border-[#E4E7EC] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#475467]">
           <div className="flex items-center gap-2">
             <span className="tabular-nums">
               Showing {(currentPage - 1) * itemsPerPage + 1} to{' '}
@@ -315,12 +321,9 @@ export function DataTable<T extends Record<string, any>>({
                 setCurrentPage(1);
               }}
               aria-label="Records per page"
-              className="ml-2 bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="ml-2 bg-white border border-[#D0D5DD] rounded-md px-2 py-1 text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-[#3B68F5]/20 focus:border-[#3B68F5]"
             >
-              <option value={5}>5 / page</option>
-              <option value={10}>10 / page</option>
-              <option value={20}>20 / page</option>
-              <option value={50}>50 / page</option>
+              {[...new Set([5, 10, pageSize, 20, 50])].sort((a,b) => a-b).map(size => <option key={size} value={size}>{size} / page</option>)}
             </select>
           </div>
 
@@ -330,12 +333,12 @@ export function DataTable<T extends Record<string, any>>({
               size="sm"
               disabled={currentPage === 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="h-7 w-7 !p-0"
+              className="h-8 w-8 !p-0"
               aria-label="Previous page"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
+              <ChevronLeft className="w-4 h-4" />
             </Button>
-            <span className="px-2 text-slate-700 tabular-nums">
+            <span className="px-2 text-[#101828] font-medium tabular-nums">
               Page {currentPage} of {totalPages}
             </span>
             <Button
@@ -343,10 +346,10 @@ export function DataTable<T extends Record<string, any>>({
               size="sm"
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="h-7 w-7 !p-0"
+              className="h-8 w-8 !p-0"
               aria-label="Next page"
             >
-              <ChevronRight className="w-3.5 h-3.5" />
+              <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
         </div>
