@@ -49,7 +49,7 @@ export const Header: React.FC = () => {
 
   const handleLogout = () => {
     dispatch(logout());
-    navigate('/login');
+    navigate('/admin/dashboard');
   };
 
   const roleBadges: Record<UserRole, { label: string; dot: string; text: string; bg: string }> = {

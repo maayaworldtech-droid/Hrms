@@ -18,7 +18,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { isAuthenticated, activeRole } = useAppSelector((state) => state.auth);
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/admin/dashboard" replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(activeRole)) {

@@ -84,7 +84,7 @@ export const EmployeeProfile: React.FC = () => {
 
   const handleSignOut = () => {
     dispatch(logout());
-    navigate('/login');
+    navigate('/admin/dashboard');
   };
 
   if (isLoading || !employee) {

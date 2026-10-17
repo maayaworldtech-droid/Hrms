@@ -66,7 +66,7 @@ export const EmployeeMobileLayout: React.FC = () => {
           <p className="font-semibold">{user?.name}</p>
           <p className="employee-muted mb-4">{user?.employeeId}</p>
           <button className="employee-history-link w-full" onClick={() => { setOpen(null); navigate('/employee/profile'); }}><User size={20} /><span className="text-left">My profile</span><ChevronRight size={18} /></button>
-          <button className="employee-history-link w-full text-rose-700" onClick={() => { setOpen(null); dispatch(logout()); navigate('/login'); }}><LogOut size={20} /><span className="text-left">Sign out</span></button>
+          <button className="employee-history-link w-full text-rose-700" onClick={() => { setOpen(null); dispatch(logout()); navigate('/admin/dashboard'); }}><LogOut size={20} /><span className="text-left">Sign out</span></button>
         </> : notifications.length === 0 ? <p>You're all caught up. New updates will appear here.</p> : notifications.map(item => (
           <article key={item.id} className="employee-notice">
             <h3>{item.title}</h3><p>{item.message}</p><small>{item.timestamp}</small>

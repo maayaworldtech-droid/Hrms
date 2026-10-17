@@ -44,19 +44,7 @@ const queryClient = new QueryClient({
 });
 
 const RoleRootRedirect: React.FC = () => {
-  const { activeRole, isAuthenticated } = useAppSelector((state) => state.auth);
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (activeRole === 'ADMIN') {
-    return <Navigate to="/admin/dashboard" replace />;
-  }
-  if (activeRole === 'MANAGER') {
-    return <Navigate to="/manager/dashboard" replace />;
-  }
-  return <Navigate to="/employee/dashboard" replace />;
+  return <Navigate to="/admin/dashboard" replace />;
 };
 
 export const AppContent: React.FC = () => {
@@ -64,10 +52,10 @@ export const AppContent: React.FC = () => {
     <BrowserRouter>
       <ErrorBoundary>
         <Routes>
-          {/* Public Authentication Screens */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
+          {/* Public Authentication Screens redirected directly to admin */}
+          <Route path="/login" element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="/forgot-password" element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="/reset-password" element={<Navigate to="/admin/dashboard" replace />} />
 
           {/* Protected Application Workspace */}
           <Route element={<AppLayout />}>
