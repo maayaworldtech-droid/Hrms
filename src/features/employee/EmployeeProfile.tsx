@@ -14,9 +14,6 @@ import { addToast } from '@/store/slices/uiSlice';
 const profileUpdateSchema = z.object({
   phone: z.string().min(10, '10-digit number required'),
   address: z.string().min(5, 'Address required'),
-  emergencyName: z.string().min(2, 'Name required'),
-  emergencyPhone: z.string().min(10, 'Phone required'),
-  emergencyRelationship: z.string().min(2, 'Relationship required'),
 });
 
 type ProfileUpdateFormValues = z.infer<typeof profileUpdateSchema>;
@@ -47,9 +44,6 @@ export const EmployeeProfile: React.FC = () => {
         reset({
           phone: data.phone || '',
           address: data.address || '',
-          emergencyName: data.emergencyContact?.name || '',
-          emergencyPhone: data.emergencyContact?.phone || '',
-          emergencyRelationship: data.emergencyContact?.relationship || 'Family',
         });
       }
       setIsLoading(false);
@@ -62,11 +56,6 @@ export const EmployeeProfile: React.FC = () => {
       const updated = await api.employees.update(employee.id, {
         phone: values.phone,
         address: values.address,
-        emergencyContact: {
-          name: values.emergencyName,
-          phone: values.emergencyPhone,
-          relationship: values.emergencyRelationship,
-        },
       });
       setEmployee(updated);
       setIsEditing(false);
@@ -189,29 +178,7 @@ export const EmployeeProfile: React.FC = () => {
             />
           </div>
 
-          <div className="pt-2 border-t border-[var(--border-default)] space-y-2">
-            <span className="block text-[11px] font-semibold text-slate-700">Emergency Contact</span>
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="text"
-                {...register('emergencyName')}
-                placeholder="Name"
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white border border-[var(--border-default)] text-slate-900 outline-none focus:border-[var(--brand-400)]"
-              />
-              <input
-                type="text"
-                {...register('emergencyRelationship')}
-                placeholder="Relationship"
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white border border-[var(--border-default)] text-slate-900 outline-none focus:border-[var(--brand-400)]"
-              />
-            </div>
-            <input
-              type="text"
-              {...register('emergencyPhone')}
-              placeholder="Emergency Phone"
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white border border-[var(--border-default)] text-slate-900 outline-none focus:border-[var(--brand-400)]"
-            />
-          </div>
+
 
           <div className="pt-2 flex items-center justify-end gap-2">
             <button
@@ -272,20 +239,7 @@ export const EmployeeProfile: React.FC = () => {
               </span>
             </div>
 
-            <div className="py-2 flex items-start justify-between gap-3">
-              <span className="text-slate-500 shrink-0 flex items-center gap-1.5">
-                <ShieldAlert className="w-3.5 h-3.5 text-slate-400" />
-                Emergency
-              </span>
-              <div className="text-right">
-                <div className="font-medium text-slate-900">
-                  {employee.emergencyContact?.name || 'Contact'} ({employee.emergencyContact?.relationship || 'Family'})
-                </div>
-                <div className="text-slate-500 text-[11px] mt-0.5">
-                  {employee.emergencyContact?.phone || '—'}
-                </div>
-              </div>
-            </div>
+
           </div>
         </div>
       )}

@@ -2,8 +2,6 @@ import { MOCK_USERS, getReportingManager } from '@/services/mockData';
 import { EmployeeDetailsPanel } from '@/components/common/EmployeeDetailsPanel';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
-
-const DEFAULT_JOINING_DATE = '2026-01-15';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { api } from '@/services/api';
@@ -15,9 +13,140 @@ import { Input } from '@/components/common/Input';
 import { Select } from '@/components/common/Select';
 import { formatINR, formatDate } from '@/utils/formatters';
 
-import { UserPlus, Eye, Trash2, MapPin, Clock, Copy, CheckCircle2, ShieldAlert, Check } from 'lucide-react';
+import { UserPlus, Eye, Trash2, MapPin, Clock, Copy, CheckCircle2, ShieldAlert, Check, ArrowLeft, ChevronDown, Search } from 'lucide-react';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
+
+const INDIAN_STATES = [
+  'Andhra Pradesh',
+  'Arunachal Pradesh',
+  'Assam',
+  'Bihar',
+  'Chhattisgarh',
+  'Goa',
+  'Gujarat',
+  'Haryana',
+  'Himachal Pradesh',
+  'Jharkhand',
+  'Karnataka',
+  'Kerala',
+  'Madhya Pradesh',
+  'Maharashtra',
+  'Manipur',
+  'Meghalaya',
+  'Mizoram',
+  'Nagaland',
+  'Odisha',
+  'Punjab',
+  'Rajasthan',
+  'Sikkim',
+  'Tamil Nadu',
+  'Telangana',
+  'Tripura',
+  'Uttar Pradesh',
+  'Uttarakhand',
+  'West Bengal',
+  'Andaman and Nicobar Islands',
+  'Chandigarh',
+  'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi',
+  'Jammu and Kashmir',
+  'Ladakh',
+  'Lakshadweep',
+  'Puducherry',
+] as const;
+
+
+
+const onboardingSchema = z.object({
+  // Step 1: Basic Information & Split Address
+  firstName: z
+    .string()
+    .trim()
+    .min(1, 'First name is required')
+    .min(2, 'First name must be at least 2 characters'),
+  lastName: z
+    .string()
+    .trim()
+    .min(1, 'Last name is required'),
+  email: z
+    .string()
+    .trim()
+    .min(1, 'Corporate email is required')
+    .email('Valid corporate email address required'),
+  phone: z
+    .string()
+    .trim()
+    .min(1, 'Phone number is required')
+    .regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit mobile number'),
+  addressLine: z
+    .string()
+    .trim()
+    .min(1, 'Address line is required')
+    .min(3, 'Address line must be at least 3 characters'),
+  city: z
+    .string()
+    .trim()
+    .min(1, 'City is required')
+    .min(2, 'City must be at least 2 characters'),
+  pincode: z
+    .string()
+    .trim()
+    .min(1, 'PIN code is required')
+    .regex(/^\d{6}$/, 'Enter a valid 6-digit postal PIN code'),
+  state: z
+    .string()
+    .trim()
+    .min(1, 'Please select a state or union territory'),
+
+  // Step 2: Work Location & Compensation
+  location: z.enum(['Hyderabad', 'Vizag', 'Bhubaneswar'], {
+    errorMap: () => ({ message: 'Please select a center location' }),
+  }),
+  shift: z.enum(['MORNING', 'EVENING'], {
+    errorMap: () => ({ message: 'Please select an operational shift' }),
+  }),
+  managerId: z
+    .string()
+    .trim()
+    .min(1, 'Please select a reporting manager'),
+  joiningDate: z
+    .string()
+    .trim()
+    .min(1, 'Joining date is required'),
+  monthlySalary: z.coerce
+    .number({ invalid_type_error: 'Monthly salary is required' })
+    .min(10000, 'Minimum monthly salary is ₹10,000'),
+
+  // Step 3: Bank Account Details
+  bankName: z
+    .string()
+    .trim()
+    .min(1, 'Bank name is required')
+    .min(2, 'Bank name must be at least 2 characters'),
+  accountNumber: z
+    .string()
+    .trim()
+    .min(1, 'Bank account number is required')
+    .regex(/^\d{9,18}$/, 'Enter a valid bank account number (9 to 18 digits)'),
+  ifscCode: z
+    .string()
+    .trim()
+    .min(1, 'Bank IFSC code is required')
+    .regex(/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/, 'Enter a valid 11-character IFSC code'),
+  panNumber: z
+    .string()
+    .trim()
+    .min(1, 'Income Tax PAN is required')
+    .regex(/^[A-Za-z]{5}[0-9]{4}[A-Za-z]{1}$/, 'Enter a valid 10-character PAN number'),
+  uanNumber: z
+    .string()
+    .trim()
+    .min(1, 'EPFO UAN number is required')
+    .regex(/^\d{12}$/, 'Enter a valid 12-digit UAN number'),
+});
+
+type OnboardingFormValues = z.infer<typeof onboardingSchema>;
 
 const employeeSchema = z.object({
   firstName: z.string().min(2, 'First name is required'),
@@ -42,7 +171,8 @@ export const EmployeeManagement: React.FC = () => {
   const dispatch = useAppDispatch();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAddingEmployee, setIsAddingEmployee] = useState(false);
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
@@ -60,20 +190,31 @@ export const EmployeeManagement: React.FC = () => {
     register: registerAdd,
     handleSubmit: handleSubmitAdd,
     reset: resetAdd,
+    trigger: triggerAdd,
+    setValue: setValueAdd,
+    watch: watchAdd,
     formState: { errors: errorsAdd, isSubmitting: isSubmittingAdd },
-  } = useForm<EmployeeFormValues>({
-    resolver: zodResolver(employeeSchema),
+  } = useForm<OnboardingFormValues>({
+    resolver: zodResolver(onboardingSchema),
     defaultValues: {
-      location: 'Hyderabad',
-      shift: 'MORNING',
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      addressLine: '',
+      city: '',
+      pincode: '',
+      state: '',
+      location: '' as any,
+      shift: '' as any,
       managerId: '',
-      joiningDate: DEFAULT_JOINING_DATE,
-      monthlySalary: 32000,
-      address: 'Plot 42, HITEC City, Madhapur, Hyderabad, Telangana - 500081',
-      accountNumber: '918273645281',
-      ifscCode: 'HDFC0001234',
-      panNumber: 'ABCPS1234F',
-      uanNumber: '100928374699',
+      joiningDate: '',
+      monthlySalary: '' as any,
+      bankName: '',
+      accountNumber: '',
+      ifscCode: '',
+      panNumber: '',
+      uanNumber: '',
     },
   });
 
@@ -122,15 +263,45 @@ export const EmployeeManagement: React.FC = () => {
     setIsEditModalOpen(true);
   };
 
-  const onAddSubmit = async (values: EmployeeFormValues) => {
+  const handleNextStep1 = async () => {
+    const isValid = await triggerAdd([
+      'firstName',
+      'lastName',
+      'email',
+      'phone',
+      'addressLine',
+      'city',
+      'pincode',
+      'state',
+    ]);
+    if (isValid) {
+      setCurrentStep(2);
+    }
+  };
+
+  const handleNextStep2 = async () => {
+    const isValid = await triggerAdd([
+      'location',
+      'shift',
+      'managerId',
+      'joiningDate',
+      'monthlySalary',
+    ]);
+    if (isValid) {
+      setCurrentStep(3);
+    }
+  };
+
+  const onAddSubmit = async (values: OnboardingFormValues) => {
     try {
+      const fullAddress = `${values.addressLine}, ${values.city}, ${values.state} - ${values.pincode}`.trim();
       const newEmp = await api.employees.onboard({
         firstName: values.firstName,
         lastName: values.lastName,
         fullName: `${values.firstName} ${values.lastName}`.trim(),
         email: values.email,
         phone: values.phone,
-        address: values.address,
+        address: fullAddress,
         designation: 'Specialist',
         location: values.location,
         shift: values.shift,
@@ -142,8 +313,8 @@ export const EmployeeManagement: React.FC = () => {
         employmentType: 'FULL_TIME',
         bankDetails: {
           accountNumber: values.accountNumber,
-          ifscCode: values.ifscCode,
-          bankName: 'HDFC Bank Ltd.',
+          ifscCode: values.ifscCode.toUpperCase(),
+          bankName: values.bankName,
           panNumber: values.panNumber.toUpperCase(),
           uanNumber: values.uanNumber,
         },
@@ -161,7 +332,8 @@ export const EmployeeManagement: React.FC = () => {
           message: `${newEmp.fullName} (${newEmp.employeeCode}) onboarded to ${newEmp.location}. Welcome email queued via Zoho ZeptoMail.`,
         })
       );
-      setIsAddModalOpen(false);
+      setIsAddingEmployee(false);
+      setCurrentStep(1);
       resetAdd();
       loadEmployees();
 
@@ -246,6 +418,16 @@ export const EmployeeManagement: React.FC = () => {
 
   const columns: Column<Employee>[] = [
     {
+      key: 'employeeCode',
+      header: 'Employee ID',
+      sortable: true,
+      render: (row) => (
+        <span className="font-mono text-xs font-semibold text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+          {row.employeeCode}
+        </span>
+      ),
+    },
+    {
       key: 'fullName',
       header: 'Employee Details',
       sortable: true,
@@ -258,7 +440,7 @@ export const EmployeeManagement: React.FC = () => {
           <div className="min-w-0">
             <div className="font-semibold text-slate-900 truncate">{row.fullName}</div>
             <div className="text-[11px] text-slate-400 font-mono mt-0.5 truncate">
-              {row.employeeCode} — {row.email}
+              {row.email}
             </div>
           </div>
         </div>
@@ -286,14 +468,6 @@ export const EmployeeManagement: React.FC = () => {
             {row.shift === 'EVENING' ? 'Evening (1 PM – 9 PM)' : 'Morning (9 AM – 1 PM)'}
           </span>
         </div>
-      ),
-    },
-    {
-      key: 'joiningDate',
-      header: 'Joining Date',
-      sortable: true,
-      render: (row) => (
-        <span className="tabular-nums text-slate-700 font-mono">{formatDate(row.joiningDate)}</span>
       ),
     },
     {
@@ -366,6 +540,364 @@ export const EmployeeManagement: React.FC = () => {
     </div>
   );
 
+  if (isAddingEmployee) {
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto pb-12">
+        {/* Top Header with Back Navigation */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (window.confirm('Are you sure you want to exit onboarding? Unsaved changes will be discarded.')) {
+                  setIsAddingEmployee(false);
+                  setCurrentStep(1);
+                  resetAdd();
+                }
+              }}
+              leftIcon={<ArrowLeft className="w-4 h-4" />}
+            >
+              Back to Directory
+            </Button>
+            <div className="h-5 w-px bg-slate-200 hidden sm:block" />
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-slate-900 font-sans">
+                Onboard New Employee
+              </h1>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 font-medium">
+              Step {currentStep} of 3
+            </span>
+            <div className="w-28 h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+              <div
+                className="h-full bg-[#3182C8] transition-all duration-300"
+                style={{ width: currentStep === 1 ? '33.3%' : currentStep === 2 ? '66.6%' : '100%' }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Stepper Navigation Indicator */}
+        <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-xs">
+          <div className="flex items-center justify-between">
+            {[
+              { step: 1, title: 'Basic Information' },
+              { step: 2, title: 'Work & Compensation' },
+              { step: 3, title: 'Bank Account Details' },
+            ].map((item, idx) => {
+              const isCurrent = currentStep === item.step;
+              const isCompleted = currentStep > item.step;
+              return (
+                <React.Fragment key={item.step}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (item.step < currentStep) setCurrentStep(item.step as 1 | 2 | 3);
+                    }}
+                    disabled={item.step > currentStep}
+                    className={`flex items-center gap-3 text-left transition-colors ${
+                      isCurrent
+                        ? 'text-sky-700 font-semibold'
+                        : isCompleted
+                        ? 'text-slate-700 hover:text-slate-900 cursor-pointer'
+                        : 'text-slate-400 cursor-not-allowed opacity-60'
+                    }`}
+                  >
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all shrink-0 ${
+                        isCompleted
+                          ? 'bg-emerald-600 text-white'
+                          : isCurrent
+                          ? 'bg-[#3182C8] text-white ring-4 ring-sky-100'
+                          : 'bg-slate-100 text-slate-500 border border-slate-300'
+                      }`}
+                    >
+                      {isCompleted ? <Check className="w-4 h-4" /> : item.step}
+                    </div>
+                    <div className="hidden md:block text-left">
+                      <div className="text-xs font-semibold leading-tight">{item.title}</div>
+                    </div>
+                  </button>
+                  {idx < 2 && (
+                    <div
+                      className={`flex-1 h-0.5 mx-3 transition-colors ${
+                        currentStep > item.step ? 'bg-emerald-500' : 'bg-slate-200'
+                      }`}
+                    />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Main Form Content Card */}
+        <div className="bg-white rounded-xl border border-slate-200 p-6 sm:p-8 shadow-xs">
+          <form onSubmit={handleSubmitAdd(onAddSubmit)} className="space-y-6 text-xs">
+            {/* Step 1: Basic Information & Split Address */}
+            {currentStep === 1 && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 mb-3">
+                    Personal & Contact Details
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input
+                      label="First Name"
+                      required
+                      error={errorsAdd.firstName?.message}
+                      {...registerAdd('firstName')}
+                    />
+                    <Input
+                      label="Last Name"
+                      required
+                      error={errorsAdd.lastName?.message}
+                      {...registerAdd('lastName')}
+                    />
+                    <Input
+                      label="Corporate Email"
+                      type="email"
+                      required
+                      error={errorsAdd.email?.message}
+                      {...registerAdd('email')}
+                    />
+                    <Input
+                      label="Phone Number"
+                      required
+                      error={errorsAdd.phone?.message}
+                      {...registerAdd('phone')}
+                    />
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-5">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-3">
+                    Residential Address
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="sm:col-span-3">
+                      <Input
+                        label="Address Line / Street"
+                        required
+                        error={errorsAdd.addressLine?.message}
+                        {...registerAdd('addressLine')}
+                      />
+                    </div>
+                    <Input
+                      label="City"
+                      required
+                      error={errorsAdd.city?.message}
+                      {...registerAdd('city')}
+                    />
+                    <Select
+                      label="State / Union Territory"
+                      required
+                      options={[
+                        { value: '', label: 'Select State / Union Territory' },
+                        ...INDIAN_STATES.map((st) => ({ value: st, label: st })),
+                      ]}
+                      error={errorsAdd.state?.message}
+                      {...registerAdd('state')}
+                    />
+                    <Input
+                      label="Pincode"
+                      required
+                      error={errorsAdd.pincode?.message}
+                      {...registerAdd('pincode')}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Work Location & Compensation */}
+            {currentStep === 2 && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 mb-3">
+                    Work Location & Operational Shift
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Select
+                      label="Center Location"
+                      required
+                      options={[
+                        { value: '', label: 'Select Center Location' },
+                        { value: 'Hyderabad', label: 'Hyderabad (Prism Mall)' },
+                        { value: 'Vizag', label: 'Vizag (Beach Road)' },
+                        { value: 'Bhubaneswar', label: 'Bhubaneswar (KIIT Chowk)' },
+                      ]}
+                      error={errorsAdd.location?.message}
+                      {...registerAdd('location')}
+                    />
+                    <Select
+                      label="Shift Timing"
+                      required
+                      options={[
+                        { value: '', label: 'Select Shift Timing' },
+                        { value: 'MORNING', label: 'Morning Shift (9:00 AM – 1:00 PM)' },
+                        { value: 'EVENING', label: 'Evening Shift (1:00 PM – 9:00 PM)' },
+                      ]}
+                      error={errorsAdd.shift?.message}
+                      {...registerAdd('shift')}
+                    />
+                    <div className="sm:col-span-2">
+                      <Select
+                        id="add-reporting-manager"
+                        label="Reporting Manager"
+                        required
+                        options={[
+                          { value: '', label: 'Select Reporting Manager' },
+                          ...managers.map((m) => ({ value: m.id, label: m.name })),
+                        ]}
+                        error={errorsAdd.managerId?.message}
+                        {...registerAdd('managerId')}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-5">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-3">
+                    Compensation & Joining Schedule
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input
+                      label="Joining Date"
+                      type="date"
+                      required
+                      error={errorsAdd.joiningDate?.message}
+                      {...registerAdd('joiningDate')}
+                    />
+                    <Input
+                      label="Monthly Salary (₹)"
+                      type="number"
+                      required
+                      error={errorsAdd.monthlySalary?.message}
+                      {...registerAdd('monthlySalary')}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Bank Account Details */}
+            {currentStep === 3 && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 mb-3">
+                    Banking Credentials & Statutory Registration
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="sm:col-span-2">
+                      <Input
+                        label="Bank Name"
+                        required
+                        error={errorsAdd.bankName?.message}
+                        {...registerAdd('bankName')}
+                      />
+                    </div>
+                    <Input
+                      label="Bank Account Number"
+                      required
+                      error={errorsAdd.accountNumber?.message}
+                      {...registerAdd('accountNumber')}
+                    />
+                    <Input
+                      label="Bank IFSC Code"
+                      required
+                      error={errorsAdd.ifscCode?.message}
+                      {...registerAdd('ifscCode')}
+                    />
+                    <Input
+                      label="Income Tax PAN"
+                      required
+                      error={errorsAdd.panNumber?.message}
+                      {...registerAdd('panNumber')}
+                    />
+                    <Input
+                      label="EPFO UAN Number"
+                      required
+                      error={errorsAdd.uanNumber?.message}
+                      {...registerAdd('uanNumber')}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Form Footer Action Controls */}
+            <div className="border-t border-slate-100 pt-5 flex items-center justify-between gap-3">
+              {currentStep > 1 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setCurrentStep((prev) => (prev - 1) as 1 | 2 | 3);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                >
+                  ← Previous Step
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (window.confirm('Discard onboarding progress and return to directory?')) {
+                      setIsAddingEmployee(false);
+                      setCurrentStep(1);
+                      resetAdd();
+                    }
+                  }}
+                >
+                  Cancel & Exit
+                </Button>
+              )}
+
+              <div className="flex items-center gap-2.5">
+                {currentStep === 1 && (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={handleNextStep1}
+                  >
+                    Next: Work & Role →
+                  </Button>
+                )}
+
+                {currentStep === 2 && (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={handleNextStep2}
+                  >
+                    Next: Banking Details →
+                  </Button>
+                )}
+
+                {currentStep === 3 && (
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    isLoading={isSubmittingAdd}
+                  >
+                    Confirm & Onboard Employee
+                  </Button>
+                )}
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header matching Zoho Inspiration */}
@@ -378,7 +910,11 @@ export const EmployeeManagement: React.FC = () => {
         <Button
           variant="primary"
           size="sm"
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={() => {
+            setCurrentStep(1);
+            resetAdd();
+            setIsAddingEmployee(true);
+          }}
           leftIcon={<UserPlus className="w-4 h-4" />}
         >
           Add Employee
@@ -397,153 +933,6 @@ export const EmployeeManagement: React.FC = () => {
         emptyTitle="No staff records found"
         emptyDescription="No active employees matched your search or location filter criteria."
       />
-
-      {/* Add Employee Modal */}
-      <Modal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        title="Add New Employee"
-        //subtitle="Onboard a new team member to Maaya World"
-        size="lg"
-      >
-        <form onSubmit={handleSubmitAdd(onAddSubmit)} className="space-y-4 text-xs">
-          {/* Basic Info */}
-          <div>
-            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
-              1. Basic Information
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <Input
-                label="First Name"
-                placeholder="e.g. Rahul"
-                error={errorsAdd.firstName?.message}
-                {...registerAdd('firstName')}
-              />
-              <Input
-                label="Last Name"
-                placeholder="e.g. Sharma"
-                error={errorsAdd.lastName?.message}
-                {...registerAdd('lastName')}
-              />
-              <Input
-                label="Email"
-                type="email"
-                placeholder="r.sharma@maayaworld.com"
-                error={errorsAdd.email?.message}
-                {...registerAdd('email')}
-              />
-              <Input
-                label="Phone Number"
-                placeholder="+91 98765 43210"
-                error={errorsAdd.phone?.message}
-                {...registerAdd('phone')}
-              />
-              <div className="sm:col-span-2">
-                <Input
-                  label="Residential Address"
-                  placeholder="e.g. Flat 301, Sri Sai Enclave, Madhapur, Hyderabad - 500081"
-                  error={errorsAdd.address?.message}
-                  {...registerAdd('address')}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Job Details */}
-          <div className="border-t border-slate-100 pt-4">
-            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
-              2. Placement & Compensation
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-              <Select
-                label="Center Location"
-                options={[
-                  { value: 'Hyderabad', label: 'Hyderabad (Prism Mall)' },
-                  { value: 'Vizag', label: 'Vizag (Beach Road)' },
-                  { value: 'Bhubaneswar', label: 'Bhubaneswar (KIIT Chowk)' },
-                ]}
-                error={errorsAdd.location?.message}
-                {...registerAdd('location')}
-              />
-              <Select
-                label="Shift Timing"
-                options={[
-                  { value: 'MORNING', label: 'Morning (9:00 AM – 1:00 PM)' },
-                  { value: 'EVENING', label: 'Evening (1:00 PM – 9:00 PM)' },
-                ]}
-                error={errorsAdd.shift?.message}
-                {...registerAdd('shift')}
-              />
-              <Select id="add-reporting-manager" label="Reports to" options={[{ value: '', label: 'Not assigned' }, ...managers.map(manager => ({ value: manager.id, label: manager.name }))]} error={errorsAdd.managerId?.message} helperText="This Manager reviews leave requests." {...registerAdd('managerId')} />
-              <Input
-                label="Joining Date"
-                type="date"
-                error={errorsAdd.joiningDate?.message}
-                {...registerAdd('joiningDate')}
-              />
-              <Input
-                label="Monthly Salary (₹)"
-                type="number"
-                placeholder="32000"
-                error={errorsAdd.monthlySalary?.message}
-                helperText="Standard monthly salary in INR"
-                {...registerAdd('monthlySalary')}
-              />
-            </div>
-          </div>
-
-          {/* Banking Details */}
-          <div className="border-t border-slate-100 pt-4">
-            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
-              3. Banking & Statutory Credentials
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <Input
-                label="Bank Account Number"
-                placeholder="501002938475"
-                error={errorsAdd.accountNumber?.message}
-                {...registerAdd('accountNumber')}
-              />
-              <Input
-                label="Bank IFSC Code"
-                placeholder="HDFC0001234"
-                error={errorsAdd.ifscCode?.message}
-                {...registerAdd('ifscCode')}
-              />
-              <Input
-                label="Income Tax PAN"
-                placeholder="ABCDE1234F"
-                error={errorsAdd.panNumber?.message}
-                {...registerAdd('panNumber')}
-              />
-              <Input
-                label="EPFO UAN Number"
-                placeholder="100928374651"
-                error={errorsAdd.uanNumber?.message}
-                {...registerAdd('uanNumber')}
-              />
-            </div>
-          </div>
-
-          {/* Form Actions */}
-          <div className="border-t border-slate-100 pt-4 flex items-center justify-end gap-2.5">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsAddModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              isLoading={isSubmittingAdd}
-            >
-              Confirm & Onboard
-            </Button>
-          </div>
-        </form>
-      </Modal>
 
       {/* Edit Employee Modal */}
       {editingEmployee && (

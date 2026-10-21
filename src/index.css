@@ -234,6 +234,110 @@ button { cursor: pointer; border: none; background: none; padding: 0; font: inhe
 .design-badge-info    { background: var(--brand-50);    color: var(--brand-700); }
 .design-badge-neutral { background: var(--gray-100);    color: var(--gray-700); }
 
+/* --- Common Button Component Styles --- */
+.app-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  transition: all var(--dur-fast) var(--ease);
+  cursor: pointer;
+  user-select: none;
+  text-decoration: none;
+  line-height: 1;
+}
+
+.app-btn-sm {
+  height: 34px;
+  padding: 0 14px;
+  font-size: 13px;
+  gap: 6px;
+}
+
+.app-btn-md {
+  height: 40px;
+  padding: 0 16px;
+  font-size: 14px;
+  gap: 8px;
+}
+
+.app-btn-lg {
+  height: 46px;
+  padding: 0 20px;
+  font-size: 15px;
+  gap: 10px;
+}
+
+.app-btn-primary {
+  background-color: var(--brand-500) !important;
+  color: #ffffff !important;
+  border: 1px solid var(--brand-600) !important;
+  box-shadow: 0 1px 3px rgba(49, 130, 200, 0.3);
+}
+
+.app-btn-primary:hover:not(:disabled) {
+  background-color: var(--brand-600) !important;
+  border-color: var(--brand-700) !important;
+}
+
+.app-btn-primary:active:not(:disabled) {
+  background-color: var(--brand-700) !important;
+  transform: scale(0.98);
+}
+
+.app-btn-secondary {
+  background-color: #ffffff !important;
+  color: var(--gray-800) !important;
+  border: 1px solid var(--border-default) !important;
+}
+
+.app-btn-secondary:hover:not(:disabled) {
+  background-color: var(--gray-50) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--gray-900) !important;
+}
+
+.app-btn-outline {
+  background-color: transparent !important;
+  color: var(--gray-700) !important;
+  border: 1px solid var(--border-default) !important;
+}
+
+.app-btn-outline:hover:not(:disabled) {
+  background-color: var(--gray-50) !important;
+  color: var(--gray-900) !important;
+}
+
+.app-btn-danger {
+  background-color: var(--danger-600) !important;
+  color: #ffffff !important;
+  border: 1px solid var(--danger-700) !important;
+}
+
+.app-btn-ghost {
+  background-color: transparent !important;
+  color: var(--gray-600) !important;
+  border: 1px solid transparent !important;
+}
+
+.app-btn-ghost:hover:not(:disabled) {
+  background-color: var(--gray-100) !important;
+  color: var(--gray-900) !important;
+}
+
+.app-btn-success {
+  background-color: var(--success-600) !important;
+  color: #ffffff !important;
+  border: 1px solid var(--success-700) !important;
+}
+
+.app-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 /* --- Reduced motion --- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
