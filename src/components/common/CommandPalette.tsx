@@ -54,7 +54,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
       },
       {
         id: 'nav-employees',
-        title: 'Employee Directory & Roster',
+        title: 'Employee Management',
         category: 'Navigation',
         icon: Users,
         action: () => navigate('/admin/employees'),
@@ -70,7 +70,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
       },
       {
         id: 'nav-leaves-mgmt',
-        title: 'Company Leave Records',
+        title: 'Leave Management',
         category: 'Navigation',
         icon: CalendarDays,
         action: () => navigate('/admin/leaves'),
@@ -263,12 +263,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs transition-colors ${
                     isSelected
-                      ? 'bg-indigo-50/80 text-indigo-950 font-medium'
+                      ? 'bg-[var(--brand-50)] text-slate-900 font-medium'
                       : 'text-slate-700 hover:bg-slate-50'
                   }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-indigo-600' : 'text-slate-400'}`} />
+                    <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-[var(--brand-600)]' : 'text-slate-400'}`} />
                     <span className="truncate">{item.title}</span>
                   </div>
                   <span className="text-[10px] text-slate-400 font-mono shrink-0 ml-2">
@@ -290,7 +290,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
             <kbd className="px-1.5 py-0.2 rounded border bg-white border-slate-200 font-mono text-[9px]">↵</kbd>
             <span>to select</span>
           </div>
-          <span>PulseHRMS Quick Actions</span>
+          <span>Maaya World Operations</span>
         </div>
       </div>
     </div>

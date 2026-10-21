@@ -4,16 +4,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { api } from '@/services/api';
 import { LeaveRequest, LeaveBalance } from '@/types';
-import { Badge } from '@/components/common/Badge';
-import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { Input } from '@/components/common/Input';
 import { formatDate } from '@/utils/formatters';
-import {
-  Plus,
-  Search,
-  Calendar,
-} from 'lucide-react';
+import { Plus, Search, Calendar, CalendarDays } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 
@@ -28,7 +22,7 @@ const applyLeaveSchema = z.object({
   ]),
   startDate: z.string().min(1, 'Start date required'),
   endDate: z.string().min(1, 'End date required'),
-  reason: z.string().min(5, 'Please provide a reason for your leave'),
+  reason: z.string().min(5, 'Reason required'),
 });
 
 type ApplyLeaveFormValues = z.infer<typeof applyLeaveSchema>;
@@ -63,7 +57,6 @@ export const MyLeaves: React.FC = () => {
   const startDateWatch = watch('startDate');
   const endDateWatch = watch('endDate');
 
-  // Compute days
   const computedDays = useMemo(() => {
     if (!startDateWatch || !endDateWatch) return 1;
     const start = new Date(startDateWatch).getTime();
@@ -77,10 +70,10 @@ export const MyLeaves: React.FC = () => {
     setIsLoading(true);
     try {
       const [list, bal] = await Promise.all([
-        api.leaves.getByEmployee(employeeId),
-        api.leaves.getBalances(employeeId),
+        api.leaves.getByEmployee(employeeId).catch(() => []),
+        api.leaves.getBalances(employeeId).catch(() => null),
       ]);
-      setLeaves(list);
+      setLeaves(Array.isArray(list) ? list : []);
       setBalances(bal);
     } finally {
       setIsLoading(false);
@@ -88,15 +81,15 @@ export const MyLeaves: React.FC = () => {
   };
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, []);
 
   const onApplySubmit = async (values: ApplyLeaveFormValues) => {
     try {
       await api.leaves.apply({
         employeeId,
-        employeeName: 'Priya Sharma',
-        departmentName: 'Operations',
+        employeeName: user?.name || 'Shyam Sundar',
+        departmentName: user?.department || 'Operations',
         leaveType: values.leaveType,
         startDate: values.startDate,
         endDate: values.endDate,
@@ -107,36 +100,34 @@ export const MyLeaves: React.FC = () => {
       dispatch(
         addToast({
           type: 'success',
-          title: 'Leave Application Submitted',
-          message: `Requested ${computedDays} day(s) of leave. Your manager has been notified.`,
+          title: 'Leave request submitted',
+          message: `${computedDays} day(s) requested for manager review.`,
         })
       );
       setIsApplyModalOpen(false);
       reset();
-      loadData();
+      void loadData();
     } catch {
-      dispatch(addToast({ type: 'error', title: 'Application failed' }));
+      dispatch(addToast({ type: 'error', title: 'Submission failed' }));
     }
   };
 
-  // Calculate total number of leaves (no breakdown by types)
   const totalRemaining = balances
     ? (balances.casualLeave?.remaining ?? 0) +
       (balances.sickLeave?.remaining ?? 0) +
       (balances.earnedLeave?.remaining ?? 0) +
       (balances.compOff?.remaining ?? 0)
-    : 33;
-
-  const totalAllocated = balances
-    ? (balances.casualLeave?.total ?? 0) +
-      (balances.sickLeave?.total ?? 0) +
-      (balances.earnedLeave?.total ?? 0) +
-      (balances.compOff?.total ?? 0)
     : 42;
 
-  const totalUsed = Math.max(0, totalAllocated - totalRemaining);
+  const counts = useMemo(() => {
+    return {
+      ALL: leaves.length,
+      APPROVED: leaves.filter((r) => r.status === 'APPROVED').length,
+      PENDING: leaves.filter((r) => r.status === 'PENDING').length,
+      REJECTED: leaves.filter((r) => r.status === 'REJECTED').length,
+    };
+  }, [leaves]);
 
-  // Filtered leaves
   const filteredLeaves = useMemo(() => {
     return leaves.filter((req) => {
       if (statusFilter !== 'ALL' && req.status !== statusFilter) {
@@ -156,76 +147,52 @@ export const MyLeaves: React.FC = () => {
   }, [leaves, statusFilter, searchQuery]);
 
   return (
-    <div className="space-y-4">
-      {/* Top Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[24px] font-bold tracking-tight text-slate-900">
-            My leave
-          </h1>
-          <p className="text-[13px] text-slate-500">
-            Priya Sharma • Staff Code: MW-1003
-          </p>
-        </div>
-      </div>
-
-      {/* Single Total Leave Number Hero Card (No types of leaves) */}
-      <div className="p-4 rounded-xl bg-white border border-slate-200/90 shadow-xs">
-        <div className="flex items-center justify-between">
+    <div className="space-y-3 pb-4">
+      {/* Leave Balance Header Card (Direct Quota Rule) */}
+      <section className="employee-card flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[var(--brand-50)] text-[var(--brand-600)] flex items-center justify-center shrink-0 border border-[var(--brand-200)]">
+            <CalendarDays className="w-5 h-5" />
+          </div>
           <div>
-            <span className="text-[13px] font-bold uppercase tracking-wider text-slate-400">
-              Available Leaves
-            </span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-[24px] font-extrabold text-slate-900 tabular-nums">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-xl font-bold text-slate-900 tabular-nums">
                 {totalRemaining}
               </span>
-              <span className="text-[13px] font-medium text-slate-400">
-                / {totalAllocated} Total Days
-              </span>
+              <span className="text-xs font-semibold text-slate-600">days available</span>
             </div>
-            <p className="text-[13px] text-slate-500 mt-1">
-              {totalUsed} days used this year
-            </p>
-          </div>
-
-          <div className="text-right">
-            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[13px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              Annual balance
-            </span>
+            <span className="text-[11px] text-slate-500 block">Annual leave entitlement 2026</span>
           </div>
         </div>
 
-        <div className="mt-4 pt-3 border-t border-slate-100">
-          <Button
-            variant="primary"
-            onClick={() => setIsApplyModalOpen(true)}
-            leftIcon={<Plus className="w-4 h-4" />}
-            className="w-full !py-2.5 !text-[13px] font-semibold"
-          >
-            Apply for Leave
-          </Button>
-        </div>
-      </div>
+        <button
+          onClick={() => setIsApplyModalOpen(true)}
+          className="employee-primary-btn"
+          style={{ width: 'auto', minHeight: '38px', padding: '0 14px' }}
+        >
+          <Plus className="w-4 h-4" />
+          <span>Apply</span>
+        </button>
+      </section>
 
       {/* Filter and Search Bar */}
       <div className="space-y-2">
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <div className="employee-search-box">
+          <Search size={15} />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            aria-label="Search leave requests" placeholder="Search by reason or date..."
-            className="w-full pl-9 pr-3 py-2 text-[13px] rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-600"
+            aria-label="Search leaves"
+            placeholder="Search dates or reasons…"
           />
         </div>
 
-        {/* Status Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[13px] no-scrollbar">
+        {/* Filter Pills with real counts */}
+        <div className="employee-filter-bar">
           {(
             [
-              { key: 'ALL', label: 'All Requests' },
+              { key: 'ALL', label: 'All' },
               { key: 'APPROVED', label: 'Approved' },
               { key: 'PENDING', label: 'Pending' },
               { key: 'REJECTED', label: 'Rejected' },
@@ -236,108 +203,99 @@ export const MyLeaves: React.FC = () => {
               <button
                 key={tab.key}
                 onClick={() => setStatusFilter(tab.key)}
-                className={`px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition-colors ${
-                  isActive
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
+                className={`employee-filter-pill ${isActive ? 'is-active' : ''}`}
               >
-                {tab.label}
+                <span>{tab.label}</span>
+                <span className="pill-count">{counts[tab.key]}</span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* My leave Mobile Cards (No wide table) */}
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between text-[13px] text-slate-500 px-1">
-          <span className="font-semibold text-slate-700">Leave History</span>
-          <span>{filteredLeaves.length} record(s)</span>
-        </div>
-
+      {/* Leave List */}
+      <div>
         {isLoading ? (
-          <div className="p-8 text-center text-[13px] text-slate-400 bg-white rounded-xl border border-slate-200">
-            Loading leave records...
+          <div className="employee-skeleton-group">
+            <div className="employee-skeleton" />
+            <div className="employee-skeleton" />
           </div>
         ) : filteredLeaves.length === 0 ? (
-          <div className="p-8 text-center bg-white rounded-xl border border-slate-200">
-            <Calendar className="w-8 h-8 mx-auto text-slate-300 stroke-[1.5]" />
-            <p className="text-[13px] font-semibold text-slate-700 mt-2">No leave requests found</p>
-            <p className="text-[13px] text-slate-400 mt-0.5">
-              {searchQuery || statusFilter !== 'ALL'
-                ? 'Try adjusting your search or filters'
-                : 'Click Apply for Leave above to submit a request'}
-            </p>
+          <div className="employee-empty">
+            <Calendar size={32} />
+            <h3>No leave requests found</h3>
+            <p>Your submitted requests will appear here with live manager review status.</p>
           </div>
         ) : (
           filteredLeaves.map((req) => (
-            <div
-              key={req.id}
-              className="p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-xs space-y-2.5"
-            >
-              {/* Header: Date Range & Status Badge */}
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <span className="text-[13px] font-bold text-slate-900 block">
-                    {formatDate(req.startDate)} to {formatDate(req.endDate)}
-                  </span>
-                  <span className="text-[13px] text-slate-500 font-medium">
-                    Duration: <strong className="text-slate-800">{req.days} day{req.days > 1 ? 's' : ''}</strong>
-                  </span>
-                </div>
-
-                <Badge
-                  variant={
+            <div key={req.id} className="employee-record-card space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  {req.leaveType.replace('_', ' ')}
+                </span>
+                <span
+                  className={`employee-badge ${
                     req.status === 'APPROVED'
-                      ? 'success'
+                      ? 'badge-success'
                       : req.status === 'PENDING'
-                      ? 'warning'
-                      : 'error'
-                  }
-                  size="sm"
-                  dot
+                      ? 'badge-warning'
+                      : 'badge-danger'
+                  }`}
                 >
                   {req.status}
-                </Badge>
-              </div>
-
-              {/* Reason */}
-              <div className="py-2 text-[13px] text-slate-700">
-                <span className="text-[13px] uppercase font-bold text-slate-400 block mb-0.5">
-                  Reason
                 </span>
-                <p className="line-clamp-2">{req.reason}</p>
               </div>
 
-              {/* Reviewer Feedback (if any) */}
+              <div className="flex items-center justify-between text-xs py-1 border-y border-slate-100">
+                <span className="font-semibold text-slate-800">
+                  {formatDate(req.startDate)} – {formatDate(req.endDate)}
+                </span>
+                <span className="font-mono font-bold text-slate-900 tabular-nums">
+                  {req.days} day{req.days > 1 ? 's' : ''}
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-600 line-clamp-2 italic">
+                "{req.reason}"
+              </p>
+
               {req.reviewerComments && (
-                <div className="text-[13px] text-slate-500 italic bg-amber-50/60 p-2 rounded-lg border border-amber-100/80">
-                  <span className="font-semibold text-amber-900 not-italic">Reviewer Note: </span>
+                <div className="text-[11px] text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                  <span className="font-semibold block">Manager note:</span>
                   {req.reviewerComments}
                 </div>
               )}
-
-              {/* Footer: Applied Date */}
-              <div className="flex items-center justify-between text-[13px] text-slate-400 pt-1 border-t border-slate-100">
-                <span>Applied: {formatDate(req.appliedOn)}</span>
-                <span className="font-mono text-[13px] text-slate-400">Ref: {req.id}</span>
-              </div>
             </div>
           ))
         )}
       </div>
 
-      {/* Apply Leave Modal / Bottom Sheet */}
+      {/* Apply Leave Modal */}
       <Modal
         isOpen={isApplyModalOpen}
         onClose={() => setIsApplyModalOpen(false)}
         title="Apply for Leave"
-        subtitle="Submit a formal request for management approval"
         size="md"
       >
-        <form onSubmit={handleSubmit(onApplySubmit)} className="space-y-4 text-[13px]">
-          <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-3">
+        <form onSubmit={handleSubmit(onApplySubmit)} className="space-y-3.5 text-xs">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              Leave Category *
+            </label>
+            <select
+              {...register('leaveType')}
+              className="w-full rounded-lg border border-slate-300 p-2 text-xs text-slate-900 bg-white outline-none focus:border-[var(--brand-400)]"
+            >
+              <option value="CASUAL_LEAVE">Casual Leave (CL)</option>
+              <option value="SICK_LEAVE">Sick Leave (SL)</option>
+              <option value="EARNED_LEAVE">Earned Leave (EL)</option>
+              <option value="MATERNITY_LEAVE">Maternity Leave</option>
+              <option value="PATERNITY_LEAVE">Paternity Leave</option>
+              <option value="LOSS_OF_PAY">Loss of Pay (LOP)</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5">
             <Input
               label="Start Date"
               type="date"
@@ -352,45 +310,42 @@ export const MyLeaves: React.FC = () => {
             />
           </div>
 
-          <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-between text-indigo-950">
-            <span className="font-medium">Total Days:</span>
-            <span className="font-bold font-mono text-[13px]">{computedDays} day{computedDays > 1 ? 's' : ''}</span>
+          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+            <span className="text-slate-600 font-medium">Computed Duration</span>
+            <span className="font-bold text-slate-900 font-mono text-sm">{computedDays} day{computedDays > 1 ? 's' : ''}</span>
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">
-              Reason for Leave *
+            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              Reason for Absence *
             </label>
             <textarea
               {...register('reason')}
-              rows={3}
-              placeholder="State the reason for your time off..."
-              className="w-full rounded-xl border border-slate-300 p-2.5 text-[13px] text-slate-900 focus:outline-none focus:border-indigo-600"
+              rows={2}
+              placeholder="Please provide details for leave application"
+              className="w-full rounded-lg border border-slate-300 p-2 text-xs text-slate-900 outline-none focus:border-[var(--brand-400)]"
             />
             {errors.reason && (
-              <p className="text-rose-600 text-[13px] mt-1">{errors.reason.message}</p>
+              <p className="text-[var(--accent-600)] text-[10px] mt-0.5">{errors.reason.message}</p>
             )}
           </div>
 
           <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-            <Button
+            <button
               type="button"
-              variant="outline"
-              size="md"
               onClick={() => setIsApplyModalOpen(false)}
-              className="w-1/2 !py-2.5 !text-[13px] font-semibold"
+              className="w-1/2 employee-secondary-btn"
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               type="submit"
-              variant="primary"
-              size="md"
-              isLoading={isSubmitting}
-              className="w-1/2 !py-2.5 !text-[13px] font-semibold"
+              disabled={isSubmitting}
+              className="w-1/2 employee-primary-btn"
+              style={{ minHeight: '38px' }}
             >
-              Submit Request
-            </Button>
+              {isSubmitting ? 'Submitting…' : 'Submit Request'}
+            </button>
           </div>
         </form>
       </Modal>

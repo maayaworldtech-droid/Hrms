@@ -65,6 +65,28 @@ public class AttendanceController {
             });
         }
 
+        if (payload.get("latitude") != null) {
+            try { record.setLatitude(Double.valueOf(payload.get("latitude").toString())); } catch (Exception ignored) {}
+        }
+        if (payload.get("longitude") != null) {
+            try { record.setLongitude(Double.valueOf(payload.get("longitude").toString())); } catch (Exception ignored) {}
+        }
+        if (payload.get("distanceMeters") != null) {
+            try { record.setDistanceMeters(Integer.valueOf(payload.get("distanceMeters").toString())); } catch (Exception ignored) {}
+        }
+        if (payload.get("biometricScore") != null) {
+            try { record.setBiometricScore(Double.valueOf(payload.get("biometricScore").toString())); } catch (Exception ignored) {}
+        }
+        if (payload.get("isLocationVerified") != null) {
+            try { record.setIsLocationVerified(Boolean.valueOf(payload.get("isLocationVerified").toString())); } catch (Exception ignored) {}
+        }
+        if (payload.get("isBiometricVerified") != null) {
+            try { record.setIsBiometricVerified(Boolean.valueOf(payload.get("isBiometricVerified").toString())); } catch (Exception ignored) {}
+        }
+        if (payload.get("notes") != null) {
+            record.setNotes(payload.get("notes").toString());
+        }
+
         record.setStatus("PRESENT");
         record.setRegularizationStatus("NONE");
         return ResponseEntity.ok(attendanceRepository.save(record));
@@ -95,6 +117,29 @@ public class AttendanceController {
 
         record.setCheckOut(time);
         record.setWorkHours(8.5);
+
+        if (payload.get("latitude") != null) {
+            try { record.setLatitude(Double.valueOf(payload.get("latitude").toString())); } catch (Exception ignored) {}
+        }
+        if (payload.get("longitude") != null) {
+            try { record.setLongitude(Double.valueOf(payload.get("longitude").toString())); } catch (Exception ignored) {}
+        }
+        if (payload.get("distanceMeters") != null) {
+            try { record.setDistanceMeters(Integer.valueOf(payload.get("distanceMeters").toString())); } catch (Exception ignored) {}
+        }
+        if (payload.get("biometricScore") != null) {
+            try { record.setBiometricScore(Double.valueOf(payload.get("biometricScore").toString())); } catch (Exception ignored) {}
+        }
+        if (payload.get("isLocationVerified") != null) {
+            try { record.setIsLocationVerified(Boolean.valueOf(payload.get("isLocationVerified").toString())); } catch (Exception ignored) {}
+        }
+        if (payload.get("isBiometricVerified") != null) {
+            try { record.setIsBiometricVerified(Boolean.valueOf(payload.get("isBiometricVerified").toString())); } catch (Exception ignored) {}
+        }
+        if (payload.get("notes") != null) {
+            record.setNotes(payload.get("notes").toString());
+        }
+
         record.setStatus("PRESENT");
         return ResponseEntity.ok(attendanceRepository.save(record));
     }

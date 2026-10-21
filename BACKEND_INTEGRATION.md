@@ -1,6 +1,6 @@
 # Backend Integration Guide for PulseHRMS
 
-PulseHRMS is architected with a strict separation between UI components, business logic, and the API service layer. All API calls are decoupled through `src/services/api.ts` and domain types in `src/types/index.ts`.
+Maaya World Hrms is architected with a strict separation between UI components, business logic, and the API service layer. All API calls are decoupled through `src/services/api.ts` and domain types in `src/types/index.ts`.
 
 ---
 

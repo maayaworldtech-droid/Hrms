@@ -139,7 +139,6 @@ export const AttendanceManagement: React.FC = () => {
               : 'error'
           }
           size="sm"
-          dot
         >
           {row.status.replace('_', ' ')}
         </Badge>
@@ -255,7 +254,7 @@ export const AttendanceManagement: React.FC = () => {
           <span>
             Morning Shift (9:00 AM – 1:00 PM): <strong className="text-slate-900">{contextRecords.filter(a => (a.shift || 'MORNING') === 'MORNING').length} Staff</strong>
           </span>
-          <span className="text-slate-300">•</span>
+          <span className="text-slate-300">|</span>
           <span>
             Evening Shift (1:00 PM – 9:00 PM): <strong className="text-slate-900">{contextRecords.filter(a => a.shift === 'EVENING').length} Staff</strong>
           </span>

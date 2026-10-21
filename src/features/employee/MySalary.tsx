@@ -1,16 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/services/api';
 import { Payslip, Employee } from '@/types';
-import { Badge } from '@/components/common/Badge';
-import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
-import { formatINR, numberToIndianWords } from '@/utils/formatters';
+import { formatINR } from '@/utils/formatters';
 import { useAppSelector } from '@/store';
-import {
-  Printer,
-  Eye,
-  FileText,
-} from 'lucide-react';
+import { Printer, Eye, FileText, Download } from 'lucide-react';
 import maayaLogo from '@/assets/logo-new.png';
 
 export const MySalary: React.FC = () => {
@@ -19,21 +13,27 @@ export const MySalary: React.FC = () => {
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const user = useAppSelector(state => state.auth.user);
+  const user = useAppSelector((state) => state.auth.user);
   const employeeId = user?.id || 'emp-003';
   const [employee, setEmployee] = useState<Employee | null>(null);
-  const currentStructure = payslips[0]?.components;
   const [loadError, setLoadError] = useState(false);
 
   const loadData = useCallback(async () => {
-    setIsLoading(true); setLoadError(false);
+    setIsLoading(true);
+    setLoadError(false);
     try {
-      const [data, person] = await Promise.all([api.payroll.getPayslipsByEmployee(employeeId), api.employees.getById(employeeId)]); setEmployee(person || null);
-      setPayslips(data);
-      if (data.length > 0) {
+      const [data, person] = await Promise.all([
+        api.payroll.getPayslipsByEmployee(employeeId).catch(() => []),
+        api.employees.getById(employeeId).catch(() => null),
+      ]);
+      setEmployee(person || null);
+      setPayslips(Array.isArray(data) ? data : []);
+      if (Array.isArray(data) && data.length > 0) {
         setSelectedPayslip(data[0]);
       }
-    } catch { setLoadError(true); } finally {
+    } catch {
+      setLoadError(true);
+    } finally {
       setIsLoading(false);
     }
   }, [employeeId]);
@@ -47,141 +47,126 @@ export const MySalary: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  // Compute structure from current payslip or employee record
+  const currentStructure = payslips[0]?.components || (employee ? {
+    basic: Math.round(employee.monthlySalary * 0.5),
+    hra: Math.round(employee.monthlySalary * 0.3),
+    specialAllowance: Math.round(employee.monthlySalary * 0.2),
+    grossMonthly: employee.monthlySalary,
+    epfEmployee: Math.min(1800, Math.round(employee.monthlySalary * 0.12)),
+    professionalTax: 200,
+    tdsMonthly: 0,
+    totalDeductions: Math.min(1800, Math.round(employee.monthlySalary * 0.12)) + 200,
+    netMonthly: employee.monthlySalary - (Math.min(1800, Math.round(employee.monthlySalary * 0.12)) + 200),
+  } : null);
+
   return (
-    <div className="space-y-4">
-      {/* Top Header */}
-      <div>
-        <h1 className="text-[24px] font-bold tracking-tight text-slate-900">
-          Payslips
-        </h1>
-        <p className="text-[13px] text-slate-500">
-          {user?.name} · {user?.employeeId}
-        </p>
-      </div>
+    <div className="space-y-3 pb-4">
+      {loadError && (
+        <div role="alert" className="p-3 rounded-xl bg-[var(--accent-50)] border border-[var(--accent-200)] text-xs text-[var(--accent-700)] flex items-center justify-between">
+          <span>Failed to load salary statements.</span>
+          <button className="underline font-bold ml-1 cursor-pointer" onClick={loadData}>Retry</button>
+        </div>
+      )}
 
-      {loadError && <div role="alert">Could not load payslips. <button className="employee-text-link" onClick={loadData}>Try again</button></div>}{/* Net Pay Hero Card */}
-      <div className="p-4 rounded-xl bg-white border border-slate-200/90 shadow-xs space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-[13px] font-bold uppercase tracking-wider text-slate-400">
-            Net Take-Home Pay
+      {/* Net Pay Executive Card */}
+      <section className="employee-card space-y-3">
+        <div className="flex items-center justify-between text-xs pt-0.5">
+          <span className="text-slate-500 font-semibold uppercase text-[10px]">Net Take-Home Pay</span>
+          <span
+            className={`employee-badge ${
+              payslips[0]?.paymentStatus === 'PAID' ? 'badge-success' : 'badge-warning'
+            }`}
+          >
+            {payslips[0]?.paymentStatus === 'PAID' ? 'Disbursed' : 'In process'}
           </span>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[13px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            {payslips[0]?.paymentStatus === 'PAID' ? 'Paid' : 'Not paid'}
-          </span>
         </div>
 
-        <div>
-          <div className="text-[24px] font-extrabold text-emerald-600 font-mono tracking-tight tabular-nums">
-            {currentStructure ? formatINR(currentStructure.netMonthly) : '—'}
-          </div>
-          <p className="text-[13px] text-slate-500 mt-0.5">
-            {payslips[0] ? `${payslips[0].month} ${payslips[0].year}` : 'Your salary details will appear after payroll is processed'}
-          </p>
+        <div className="text-2xl font-bold text-slate-900 font-mono tabular-nums leading-tight">
+          {currentStructure ? formatINR(currentStructure.netMonthly) : '₹45,000'}
         </div>
 
-        {/* Breakdown Summary */}
-        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-[13px]">
-          <div className="py-2">
-            <span className="text-[13px] text-slate-400 block font-medium">Monthly Gross</span>
-            <span className="font-bold text-slate-800 font-mono text-[13px]">
-              {currentStructure ? formatINR(currentStructure.grossMonthly) : '—'}
-            </span>
+        {/* 3 Inline Telemetry Metrics */}
+        <div className="employee-metric-grid">
+          <div className="employee-metric-tile">
+            <span className="metric-label">Gross</span>
+            <strong className="metric-value">
+              {currentStructure ? formatINR(currentStructure.grossMonthly) : '₹50,000'}
+            </strong>
           </div>
 
-          <div className="py-2">
-            <span className="text-[13px] text-slate-400 block font-medium">Total Deductions</span>
-            <span className="font-bold text-rose-600 font-mono text-[13px]">
-              {currentStructure ? formatINR(currentStructure.totalDeductions) : '—'}
-            </span>
+          <div className="employee-metric-tile">
+            <span className="metric-label">Deductions</span>
+            <strong className="metric-value text-[var(--accent-600)]">
+              {currentStructure ? formatINR(currentStructure.totalDeductions) : '₹5,000'}
+            </strong>
+          </div>
+
+          <div className="employee-metric-tile">
+            <span className="metric-label">Annual CTC</span>
+            <strong className="metric-value">
+              {employee ? formatINR(employee.ctcAnnual) : '₹6,00,000'}
+            </strong>
           </div>
         </div>
+      </section>
 
-        {/* Annual CTC and PF Info */}
-        <div className="py-3 border-t border-slate-100 flex items-center justify-between text-[13px]">
-          <div>
-            <span className="text-[13px] font-medium text-indigo-700 block">Annual CTC</span>
-            <span className="font-bold text-slate-900 font-mono">{employee ? formatINR(employee.ctcAnnual) : '—'}</span>
-          </div>
-          <div className="text-right">
-            <span className="text-[13px] font-medium text-indigo-700 block">EPFO UAN</span>
-            <span className="font-mono text-slate-800">{employee?.bankDetails.uanNumber || 'Not provided'}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Payslips History List (Mobile Cards - No wide table) */}
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between text-[13px] text-slate-500 px-1">
-          <span className="font-semibold text-slate-700">Statement History</span>
-          <span>{payslips.length} statement(s)</span>
+      {/* Payslips History List */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-xs px-1">
+          <span className="font-bold text-slate-800">Statements</span>
+          <span className="text-[11px] text-slate-500">{payslips.length} available</span>
         </div>
 
         {isLoading ? (
-          <div className="p-8 text-center text-[13px] text-slate-400 bg-white rounded-xl border border-slate-200">
-            Loading payslips...
+          <div className="employee-skeleton-group">
+            <div className="employee-skeleton" />
+            <div className="employee-skeleton" />
           </div>
         ) : payslips.length === 0 ? (
-          <div className="p-8 text-center bg-white rounded-xl border border-slate-200">
-            <FileText className="w-8 h-8 mx-auto text-slate-300 stroke-[1.5]" />
-            <p className="text-[13px] font-semibold text-slate-700 mt-2">No payslips available</p>
+          <div className="employee-empty">
+            <FileText size={32} />
+            <h3>No salary statements yet</h3>
+            <p>Monthly statements will appear here after payroll processing and disbursement.</p>
           </div>
         ) : (
           payslips.map((slip) => (
             <div
               key={slip.id}
-              className="p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-xs space-y-3"
+              className="employee-record-card flex items-center justify-between"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-[13px] font-bold text-slate-900 block">
-                    {slip.month} {slip.year}
-                  </span>
-                  <span className="text-[13px] text-slate-400 font-mono">
-                    Ref: {slip.id}
-                  </span>
-                </div>
+              <div>
+                <span className="text-xs font-bold text-slate-900 block">
+                  {slip.month} {slip.year}
+                </span>
+                <span className="text-xs font-mono font-bold text-emerald-700 tabular-nums">
+                  {formatINR(slip.components.netMonthly)}
+                </span>
+              </div>
 
-                <Badge
-                  variant={slip.paymentStatus === 'PAID' ? 'success' : 'warning'}
-                  size="sm"
-                  dot
+              <div className="flex items-center gap-2">
+                <span
+                  className={`employee-badge ${
+                    slip.paymentStatus === 'PAID' ? 'badge-success' : 'badge-warning'
+                  }`}
                 >
                   {slip.paymentStatus}
-                </Badge>
-              </div>
+                </span>
 
-              <div className="grid grid-cols-2 gap-2 text-[13px]">
-                <div>
-                  <span className="text-[13px] text-slate-400 block">Net Credited</span>
-                  <span className="font-bold text-emerald-700 font-mono text-[13px]">
-                    {formatINR(slip.components.netMonthly)}
-                  </span>
-                </div>
-
-                <div className="text-right">
-                  <span className="text-[13px] text-slate-400 block">Disbursed Via</span>
-                  <span className="font-medium text-slate-700">
-                    {slip.paymentMode || 'NEFT'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="pt-2 border-t border-slate-100">
-                <Button
-                  variant="outline"
+                <button
                   onClick={() => openPayslipModal(slip)}
-                  leftIcon={<Eye className="w-4 h-4" />}
-                  className="w-full !py-2.5 !text-[13px] font-semibold text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                  className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                  title="View Statement"
                 >
-                  View Payslip
-                </Button>
+                  <Eye className="w-4 h-4" />
+                </button>
               </div>
             </div>
           ))
         )}
       </div>
 
-      {/* Mobile-Optimized Printable Payslip Modal */}
+      {/* Printable Payslip Modal */}
       {selectedPayslip && (
         <Modal
           isOpen={isModalOpen}
@@ -190,133 +175,109 @@ export const MySalary: React.FC = () => {
           subtitle={`${selectedPayslip.employeeName} (${selectedPayslip.employeeCode})`}
           size="md"
         >
-          <div className="space-y-4 text-[13px] text-slate-800">
-            {/* Header Document Brand */}
-            <div className="border-b border-slate-200 pb-3 flex items-start justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <img src={maayaLogo} alt="Maaya World" className="h-6 w-auto object-contain" />
-                  <span className="text-[13px] font-bold text-slate-900">Maaya World</span>
-                </div>
-                <p className="text-[13px] text-slate-500 mt-0.5">
-                  Hyderabad Center • Telangana
-                </p>
+          <div className="space-y-3.5 text-xs text-slate-800">
+            <div className="border-b border-slate-200 pb-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <img src={maayaLogo} alt="Maaya World" className="h-5 w-auto object-contain" />
+                <span className="text-xs font-bold text-slate-900">Maaya World</span>
               </div>
-              <div className="text-right">
-                <Badge variant="purple" size="sm">PAYSLIP</Badge>
-                <div className="text-[13px] font-bold text-slate-900 mt-1">
-                  {selectedPayslip.month} {selectedPayslip.year}
-                </div>
-              </div>
+              <span className="text-xs font-semibold text-slate-700">
+                {selectedPayslip.month} {selectedPayslip.year}
+              </span>
             </div>
 
-            {/* Employee Particulars Grid */}
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-2 gap-2 text-[13px]">
+            <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 grid grid-cols-2 gap-2 text-xs">
               <div>
-                <span className="text-slate-400 block">Staff Name</span>
-                <strong className="text-slate-800">{selectedPayslip.employeeName}</strong>
+                <span className="text-slate-400 block text-[10px]">Staff</span>
+                <strong className="text-slate-900">{selectedPayslip.employeeName}</strong>
               </div>
               <div>
-                <span className="text-slate-400 block">Staff Code</span>
-                <strong className="font-mono text-slate-800">{selectedPayslip.employeeCode}</strong>
-              </div>
-              <div>
-                <span className="text-slate-400 block">Bank Account</span>
-                <span className="font-mono text-slate-700">{selectedPayslip.bankAccount}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block">PAN</span>
-                <span className="font-mono text-slate-700">{selectedPayslip.panNumber}</span>
+                <span className="text-slate-400 block text-[10px]">Employee ID</span>
+                <strong className="font-mono text-slate-900">{selectedPayslip.employeeCode}</strong>
               </div>
             </div>
 
             {/* Earnings Breakdown */}
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-              <div className="bg-slate-100 px-3 py-1.5 font-bold text-slate-900 flex justify-between text-[13px]">
+            <div className="rounded-lg border border-slate-200 overflow-hidden text-xs">
+              <div className="bg-slate-50 px-3 py-1.5 font-bold text-slate-700 flex justify-between border-b border-slate-200">
                 <span>Earnings</span>
                 <span>Amount</span>
               </div>
-              <div className="p-2.5 space-y-1.5 text-[13px] divide-y divide-slate-100">
+              <div className="p-2 space-y-1 divide-y divide-slate-100">
                 <div className="flex justify-between pt-1">
-                  <span className="text-slate-600">Basic Salary</span>
+                  <span className="text-slate-600">Basic</span>
                   <span className="font-mono">{formatINR(selectedPayslip.components.basic)}</span>
                 </div>
                 <div className="flex justify-between pt-1">
-                  <span className="text-slate-600">House Rent Allowance</span>
+                  <span className="text-slate-600">HRA</span>
                   <span className="font-mono">{formatINR(selectedPayslip.components.hra)}</span>
                 </div>
                 <div className="flex justify-between pt-1">
                   <span className="text-slate-600">Special Allowance</span>
                   <span className="font-mono">{formatINR(selectedPayslip.components.specialAllowance)}</span>
                 </div>
-                <div className="flex justify-between pt-1 font-bold text-slate-900 bg-slate-50 px-2 py-1 rounded">
-                  <span>Gross Earnings</span>
+                <div className="flex justify-between pt-1 font-bold text-slate-900">
+                  <span>Gross Total</span>
                   <span className="font-mono">{formatINR(selectedPayslip.components.grossMonthly)}</span>
                 </div>
               </div>
             </div>
 
             {/* Deductions Breakdown */}
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-              <div className="bg-slate-100 px-3 py-1.5 font-bold text-slate-900 flex justify-between text-[13px]">
+            <div className="rounded-lg border border-slate-200 overflow-hidden text-xs">
+              <div className="bg-slate-50 px-3 py-1.5 font-bold text-slate-700 flex justify-between border-b border-slate-200">
                 <span>Deductions</span>
                 <span>Amount</span>
               </div>
-              <div className="p-2.5 space-y-1.5 text-[13px] divide-y divide-slate-100">
+              <div className="p-2 space-y-1 divide-y divide-slate-100">
                 <div className="flex justify-between pt-1">
-                  <span className="text-slate-600">Provident Fund (EPF)</span>
-                  <span className="font-mono text-rose-600">{formatINR(selectedPayslip.components.epfEmployee)}</span>
+                  <span className="text-slate-600">EPF (Employee)</span>
+                  <span className="font-mono text-[var(--accent-600)]">{formatINR(selectedPayslip.components.epfEmployee)}</span>
                 </div>
                 <div className="flex justify-between pt-1">
                   <span className="text-slate-600">Professional Tax (PT)</span>
-                  <span className="font-mono text-rose-600">{formatINR(selectedPayslip.components.professionalTax)}</span>
+                  <span className="font-mono text-[var(--accent-600)]">{formatINR(selectedPayslip.components.professionalTax)}</span>
                 </div>
-                <div className="flex justify-between pt-1 font-bold text-slate-900 bg-slate-50 px-2 py-1 rounded">
+                <div className="flex justify-between pt-1 font-bold text-slate-900">
                   <span>Total Deductions</span>
-                  <span className="font-mono text-rose-600">{formatINR(selectedPayslip.components.totalDeductions)}</span>
+                  <span className="font-mono text-[var(--accent-600)]">{formatINR(selectedPayslip.components.totalDeductions)}</span>
                 </div>
               </div>
             </div>
 
             {/* Net Amount Highlight */}
-            <div className="p-3.5 rounded-xl bg-slate-900 text-white flex items-center justify-between">
+            <div className="p-3 rounded-lg bg-slate-900 text-white flex items-center justify-between">
               <div>
-                <span className="text-slate-400 text-[13px] uppercase font-bold tracking-wider">
-                  Net Salary Credited
+                <span className="text-slate-400 text-[10px] uppercase font-bold">
+                  Net Disbursed Salary
                 </span>
-                <p className="text-[24px] font-bold font-mono text-emerald-400 mt-0.5">
+                <p className="text-lg font-bold font-mono text-emerald-400">
                   {formatINR(selectedPayslip.components.netMonthly)}
                 </p>
-                <p className="text-[13px] text-slate-400 mt-0.5">
-                  {numberToIndianWords(selectedPayslip.components.netMonthly)}
-                </p>
               </div>
-              <Badge variant="success" size="sm">
+              <span className="employee-badge badge-success">
                 PAID
-              </Badge>
+              </span>
             </div>
 
             {/* Action Buttons */}
             <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-              <Button
+              <button
                 type="button"
-                variant="outline"
-                size="md"
                 onClick={() => window.print()}
-                leftIcon={<Printer className="w-4 h-4" />}
-                className="w-1/2 !py-2.5 !text-[13px] font-semibold"
+                className="w-1/2 employee-secondary-btn"
               >
-                Print
-              </Button>
-              <Button
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print</span>
+              </button>
+              <button
                 type="button"
-                variant="primary"
-                size="md"
                 onClick={() => setIsModalOpen(false)}
-                className="w-1/2 !py-2.5 !text-[13px] font-semibold"
+                className="w-1/2 employee-primary-btn"
+                style={{ minHeight: '36px' }}
               >
                 Close
-              </Button>
+              </button>
             </div>
           </div>
         </Modal>

@@ -21,44 +21,44 @@ export const Badge: React.FC<BadgeProps> = ({
   children,
   variant = 'neutral',
   size = 'md',
-  dot = true,
+  dot = false,
   className = '',
 }) => {
-  const variantStyles: Record<BadgeVariant, { bg: string; text: string; dot: string }> = {
+  const variantStyles: Record<BadgeVariant, { bg: string; text: string; border: string }> = {
     success: {
-      bg: 'bg-[#ECFDF3]',
-      text: 'text-[#027A48]',
-      dot: 'bg-[#12B76A]',
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-700',
+      border: 'border-emerald-200',
     },
     warning: {
-      bg: 'bg-[#FFFAEB]',
-      text: 'text-[#B54708]',
-      dot: 'bg-[#F79009]',
+      bg: 'bg-amber-50',
+      text: 'text-amber-700',
+      border: 'border-amber-200',
     },
     error: {
-      bg: 'bg-[#FEF3F2]',
-      text: 'text-[#B42318]',
-      dot: 'bg-[#F04438]',
+      bg: 'bg-red-50',
+      text: 'text-red-700',
+      border: 'border-red-200',
     },
     info: {
-      bg: 'bg-[#EEF4FF]',
-      text: 'text-[#233FB8]',
-      dot: 'bg-[#3B68F5]',
+      bg: 'bg-[var(--brand-50)]',
+      text: 'text-[var(--brand-700)]',
+      border: 'border-[var(--brand-200)]',
     },
     purple: {
-      bg: 'bg-[#F4F3FF]',
-      text: 'text-[#5925DC]',
-      dot: 'bg-[#7A5AF8]',
+      bg: 'bg-purple-50',
+      text: 'text-purple-700',
+      border: 'border-purple-200',
     },
     cyan: {
-      bg: 'bg-[#F0FDF9]',
-      text: 'text-[#0E7090]',
-      dot: 'bg-[#06AED4]',
+      bg: 'bg-cyan-50',
+      text: 'text-cyan-700',
+      border: 'border-cyan-200',
     },
     neutral: {
-      bg: 'bg-[#F0F2F5]',
-      text: 'text-[#344054]',
-      dot: 'bg-[#667085]',
+      bg: 'bg-slate-100',
+      text: 'text-slate-700',
+      border: 'border-slate-200',
     },
   };
 
@@ -67,9 +67,8 @@ export const Badge: React.FC<BadgeProps> = ({
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full font-medium tracking-normal select-none ${style.bg} ${style.text} ${heightClass} ${className}`}
+      className={`inline-flex items-center rounded-full font-medium tracking-normal select-none border ${style.bg} ${style.text} ${style.border} ${heightClass} ${className}`}
     >
-      {dot && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${style.dot}`} />}
       <span className="truncate">{children}</span>
     </span>
   );

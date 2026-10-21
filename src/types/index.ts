@@ -16,6 +16,8 @@ export interface User {
   managerName?: string;
   status: 'ACTIVE' | 'ON_LEAVE' | 'PROBATION' | 'TERMINATED';
   mustChangePassword?: boolean;
+  location?: EmployeeLocation | string;
+  shift?: ShiftType;
 }
 
 export type EmployeeLocation = 'Hyderabad' | 'Vizag' | 'Bhubaneswar';
@@ -84,6 +86,12 @@ export interface AttendanceRecord {
   regularizationStatus?: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
   regularizationReason?: string;
   notes?: string;
+  latitude?: number;
+  longitude?: number;
+  distanceMeters?: number;
+  biometricScore?: number;
+  isLocationVerified?: boolean;
+  isBiometricVerified?: boolean;
 }
 
 export type LeaveType = 

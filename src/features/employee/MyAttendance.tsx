@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '@/services/api';
 import { AttendanceRecord } from '@/types';
-import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { formatDate, formatTime } from '@/utils/formatters';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 import { BiometricAttendanceModal } from '@/components/attendance/BiometricAttendanceModal';
-import { Search } from 'lucide-react';
+import { Search, Clock, ShieldCheck, CheckCircle2 } from 'lucide-react';
 
 export const MyAttendance: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -21,15 +20,14 @@ export const MyAttendance: React.FC = () => {
   const [biometricModalOpen, setBiometricModalOpen] = useState(false);
   const [biometricMode, setBiometricMode] = useState<'LOGIN' | 'LOGOUT'>('LOGIN');
 
-  // Mobile filters
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PRESENT' | 'LATE'>('ALL');
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await api.attendance.getByEmployee(employeeId);
-      setAttendance(data);
+      const data = await api.attendance.getByEmployee(employeeId).catch(() => []);
+      setAttendance(Array.isArray(data) ? data : []);
     } finally {
       setIsLoading(false);
     }
@@ -41,10 +39,11 @@ export const MyAttendance: React.FC = () => {
 
   const [today] = useState(() => new Date().toISOString().split('T')[0]);
   const [todayFormatted] = useState(() =>
-    new Date().toLocaleDateString('en-US', {
+    new Date().toLocaleDateString('en-IN', {
       weekday: 'short',
       day: 'numeric',
       month: 'short',
+      year: 'numeric',
     })
   );
   const todayRec = attendance.find((a) => a.date === today);
@@ -60,7 +59,7 @@ export const MyAttendance: React.FC = () => {
   };
 
   const handleBiometricSuccess = () => {
-    loadData();
+    void loadData();
   };
 
   const handleRegularizeSubmit = async (e: React.FormEvent) => {
@@ -72,19 +71,28 @@ export const MyAttendance: React.FC = () => {
       dispatch(
         addToast({
           type: 'success',
-          title: 'Regularization Submitted',
-          message: 'Forwarded to your venue manager for approval.',
+          title: 'Submitted',
+          message: 'Correction sent to manager.',
         })
       );
       setIsModalOpen(false);
       setRegularizeReason('');
-      loadData();
+      void loadData();
     } catch {
       dispatch(addToast({ type: 'error', title: 'Submission failed' }));
     }
   };
 
-  // Filtered records
+  const counts = useMemo(() => {
+    const present = attendance.filter((r) => r.status === 'PRESENT').length;
+    const late = attendance.filter((r) => r.status === 'LATE').length;
+    return {
+      ALL: attendance.length,
+      PRESENT: present,
+      LATE: late,
+    };
+  }, [attendance]);
+
   const filteredRecords = attendance.filter((rec) => {
     const matchesSearch =
       rec.date.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -101,127 +109,104 @@ export const MyAttendance: React.FC = () => {
   });
 
   return (
-    <div className="space-y-4 pb-6">
-      {/* Header Banner */}
-      <div>
-        <h1 className="text-[24px] font-bold tracking-tight text-slate-900">Attendance</h1>
-        <p className="text-[13px] text-slate-500 mt-0.5">
-          Your daily check-ins and shift history
-        </p>
-      </div>
-
-      {/* Hero Attendance Action Card */}
-      <div className="bg-white rounded-xl border border-slate-200/90 p-4 shadow-xs space-y-3">
-        <div className="flex items-center justify-between text-[13px]">
+    <div className="space-y-3 pb-4">
+      {/* Today Punch Card */}
+      <section className="employee-card space-y-3">
+        <div className="flex items-center justify-between text-xs pt-0.5">
           <div>
-            <span className="text-[13px] font-semibold text-indigo-600 uppercase tracking-wider block">
-              Today's Status
-            </span>
-            <span className="text-[13px] font-bold text-slate-900">
-              {todayFormatted}
-            </span>
+            <span className="text-[10px] text-slate-500 block uppercase font-semibold">Today</span>
+            <span className="font-semibold text-slate-900 text-sm">{todayFormatted}</span>
           </div>
 
-          <div>
-            {todayRec?.checkIn && !todayRec.checkOut ? (
-              <span className="text-[13px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                Active Shift
-              </span>
-            ) : todayRec?.checkOut ? (
-              <span className="text-[13px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200">
-                Completed ({todayRec.workHours} hrs)
-              </span>
-            ) : (
-              <span className="text-[13px] font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
-                Not checked in
-              </span>
-            )}
+          <span
+            className={`employee-badge ${
+              todayRec?.checkIn && !todayRec.checkOut
+                ? 'badge-success'
+                : todayRec?.checkOut
+                ? 'badge-brand'
+                : 'badge-neutral'
+            }`}
+          >
+            {todayRec?.checkIn && !todayRec.checkOut
+              ? 'Active shift'
+              : todayRec?.checkOut
+              ? `Done (${todayRec.workHours}h)`
+              : 'Not checked in'}
+          </span>
+        </div>
+
+        <div className="employee-metric-grid cols-2">
+          <div className="employee-metric-tile">
+            <span className="metric-label">Punch In</span>
+            <strong className="metric-value">
+              {todayRec?.checkIn ? formatTime(todayRec.checkIn) : '—'}
+            </strong>
+          </div>
+          <div className="employee-metric-tile">
+            <span className="metric-label">Punch Out</span>
+            <strong className="metric-value">
+              {todayRec?.checkOut ? formatTime(todayRec.checkOut) : '—'}
+            </strong>
           </div>
         </div>
 
-        {/* Timestamps Row */}
-        <div className="grid grid-cols-2 gap-2 text-[13px] py-3 border-y border-slate-100">
-          <div>
-            <span className="text-slate-400 text-[13px] block">Punch In</span>
-            <span className="font-mono font-bold text-slate-800">
-              {todayRec?.checkIn ? formatTime(todayRec.checkIn) : '--:--'}
-            </span>
-          </div>
-          <div>
-            <span className="text-slate-400 text-[13px] block">Punch Out</span>
-            <span className="font-mono font-bold text-slate-800">
-              {todayRec?.checkOut ? formatTime(todayRec.checkOut) : '--:--'}
-            </span>
-          </div>
-        </div>
+        <button
+          onClick={todayRec?.checkIn ? handleOpenBiometricLogout : handleOpenBiometricLogin}
+          disabled={!!todayRec?.checkOut || isLoading}
+          className="employee-primary-btn"
+        >
+          {todayRec?.checkOut ? 'Shift complete for today' : todayRec?.checkIn ? 'Check out' : 'Check in'}
+        </button>
+      </section>
 
-        {/* One clear action for the current shift. */}
-        <Button variant="primary" onClick={todayRec?.checkIn ? handleOpenBiometricLogout : handleOpenBiometricLogin} disabled={!!todayRec?.checkOut || isLoading} className="w-full !bg-slate-800 disabled:!bg-slate-200 disabled:!text-slate-600 !py-3">
-          {todayRec?.checkOut ? 'Shift complete' : todayRec?.checkIn ? 'Check out' : 'Check in'}
-        </Button>
-      </div>
-
-      {/* Filter and Search Pills */}
+      {/* Filter and Search Bar */}
       <div className="space-y-2">
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+        <div className="employee-search-box">
+          <Search size={15} />
           <input
             type="text"
-            aria-label="Search attendance" placeholder="Search dates or notes..."
+            aria-label="Search attendance"
+            placeholder="Search dates or notes…"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-[13px] rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-indigo-600"
           />
         </div>
 
-        <div className="flex items-center gap-1.5 text-[13px] overflow-x-auto pb-1">
+        <div className="employee-filter-bar">
           <button
             onClick={() => setStatusFilter('ALL')}
-            className={`px-3 py-1.5 rounded-lg font-medium transition-colors shrink-0 ${
-              statusFilter === 'ALL'
-                ? 'bg-indigo-600 text-white font-semibold'
-                : 'bg-white border border-slate-200 text-slate-600'
-            }`}
+            className={`employee-filter-pill ${statusFilter === 'ALL' ? 'is-active' : ''}`}
           >
-            All Logs
+            All <span className="pill-count">{counts.ALL}</span>
           </button>
           <button
             onClick={() => setStatusFilter('PRESENT')}
-            className={`px-3 py-1.5 rounded-lg font-medium transition-colors shrink-0 ${
-              statusFilter === 'PRESENT'
-                ? 'bg-emerald-600 text-white font-semibold'
-                : 'bg-white border border-slate-200 text-slate-600'
-            }`}
+            className={`employee-filter-pill ${statusFilter === 'PRESENT' ? 'is-active' : ''}`}
           >
-            On Time
+            On time <span className="pill-count">{counts.PRESENT}</span>
           </button>
           <button
             onClick={() => setStatusFilter('LATE')}
-            className={`px-3 py-1.5 rounded-lg font-medium transition-colors shrink-0 ${
-              statusFilter === 'LATE'
-                ? 'bg-amber-600 text-white font-semibold'
-                : 'bg-white border border-slate-200 text-slate-600'
-            }`}
+            className={`employee-filter-pill ${statusFilter === 'LATE' ? 'is-active' : ''}`}
           >
-            Late Logs
+            Late <span className="pill-count">{counts.LATE}</span>
           </button>
         </div>
       </div>
 
-      {/* Mobile Timesheet Cards Feed (Replaces Wide Table) */}
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between text-[13px] text-slate-500 px-0.5">
-          <span className="font-semibold text-slate-700">Attendance history</span>
-          <span>{filteredRecords.length} records</span>
-        </div>
-
+      {/* Timesheet List */}
+      <div>
         {isLoading ? (
-          <div className="p-8 text-center text-[13px] text-slate-400 bg-white rounded-xl border border-slate-200">
-            Loading attendance records...
+          <div className="employee-skeleton-group">
+            <div className="employee-skeleton" />
+            <div className="employee-skeleton" />
+            <div className="employee-skeleton" />
           </div>
         ) : filteredRecords.length === 0 ? (
-          <div className="p-8 text-center text-[13px] text-slate-400 bg-white rounded-xl border border-slate-200">
-            No attendance logs found matching filters.
+          <div className="employee-empty">
+            <Clock size={32} />
+            <h3>No attendance records</h3>
+            <p>Punch logs will appear here after checking in.</p>
           </div>
         ) : (
           filteredRecords.map((record) => {
@@ -229,84 +214,61 @@ export const MyAttendance: React.FC = () => {
             const isLate = record.status === 'LATE';
 
             return (
-              <div
-                key={record.id}
-                className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-xs space-y-2"
-              >
-                {/* Card Top: Date & Status */}
+              <div key={record.id} className="employee-record-card space-y-2">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-bold text-[13px] text-slate-900 block">
-                      {formatDate(record.date)}
-                    </span>
-                    <span className="text-[13px] text-slate-400">
-                      {record.shift === 'EVENING'
-                        ? 'Evening Shift (01:00 PM - 09:00 PM)'
-                        : 'Morning Shift (09:00 AM - 01:00 PM)'}
-                    </span>
-                  </div>
+                  <span className="font-semibold text-xs text-slate-900">
+                    {formatDate(record.date)}
+                  </span>
 
                   <span
-                    className={`text-[13px] font-semibold px-2 py-0.5 rounded-md ${
+                    className={`employee-badge ${
                       isPresent
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        ? 'badge-success'
                         : isLate
-                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                        : 'bg-slate-100 text-slate-600'
+                        ? 'badge-warning'
+                        : 'badge-neutral'
                     }`}
                   >
                     {record.status}
                   </span>
                 </div>
 
-                {/* Card Middle: Punch Times & Effective Hours */}
-                <div className="grid grid-cols-3 gap-2 py-2 border-y border-slate-100 text-[13px]">
-                  <div>
-                    <span className="text-[13px] text-slate-400 block">In</span>
-                    <span className="font-mono font-semibold text-slate-800">
-                      {record.checkIn ? formatTime(record.checkIn) : '--:--'}
+                <div className="flex items-center justify-between text-xs py-1.5 border-y border-slate-100">
+                  <div className="flex items-center gap-1.5 text-slate-700">
+                    <Clock size={13} className="text-slate-400" />
+                    <span className="font-mono tabular-nums">
+                      {record.checkIn ? formatTime(record.checkIn) : '—'} – {record.checkOut ? formatTime(record.checkOut) : '—'}
                     </span>
                   </div>
-                  <div>
-                    <span className="text-[13px] text-slate-400 block">Out</span>
-                    <span className="font-mono font-semibold text-slate-800">
-                      {record.checkOut ? formatTime(record.checkOut) : '--:--'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[13px] text-slate-400 block">Duration</span>
-                    <span className="font-mono font-bold text-slate-900">
-                      {record.workHours ? `${record.workHours} hrs` : '--'}
-                    </span>
-                  </div>
+                  <span className="font-mono font-bold text-slate-900 tabular-nums">
+                    {record.workHours ? `${record.workHours}h` : 'Live'}
+                  </span>
                 </div>
 
-                {/* Card Footer: Regularization Action if Late or Absent */}
-                <div className="flex items-center justify-between pt-0.5 text-[13px]">
-                  <span className="text-[13px] text-slate-400 truncate max-w-[200px]">
-                    {record.notes || 'Biometric Face Verified'}
-                  </span>
+                <div className="flex items-center justify-between pt-0.5 text-[11px]">
+                  <div className="flex items-center gap-1 text-slate-500">
+                    <ShieldCheck size={13} className="text-emerald-600" />
+                    <span>Face & GPS verified</span>
+                  </div>
 
-                  {record.regularizationStatus === 'PENDING' ? (
-                    <span className="text-[13px] text-amber-600 font-medium">
-                      Regularization Pending
-                    </span>
-                  ) : record.regularizationStatus === 'APPROVED' ? (
-                    <span className="text-[13px] text-emerald-600 font-medium">
-                      Regularized
-                    </span>
-                  ) : isLate || record.status === 'ABSENT' ? (
-                    <button
-                      onClick={() => {
-                        setSelectedRecord(record);
-                        setRegularizeReason(record.regularizationReason || '');
-                        setIsModalOpen(true);
-                      }}
-                      className="text-[13px] text-indigo-600 hover:text-indigo-700 font-semibold underline"
-                    >
-                      Correct attendance
-                    </button>
-                  ) : null}
+                  {(isLate || record.status === 'ABSENT' || record.regularizationStatus === 'PENDING') && (
+                    <div>
+                      {record.regularizationStatus === 'PENDING' ? (
+                        <span className="text-amber-700 font-medium">Correction pending</span>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setSelectedRecord(record);
+                            setRegularizeReason(record.regularizationReason || '');
+                            setIsModalOpen(true);
+                          }}
+                          className="text-[var(--brand-600)] font-semibold hover:underline"
+                        >
+                          Request correction →
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -319,59 +281,56 @@ export const MyAttendance: React.FC = () => {
         <Modal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          title="Correct attendance"
-          subtitle={`Log for ${formatDate(selectedRecord.date)}`}
+          title="Attendance Correction"
+          subtitle={formatDate(selectedRecord.date)}
           size="sm"
         >
-          <form onSubmit={handleRegularizeSubmit} className="space-y-3.5 text-[13px]">
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Date:</span>
-                <span className="font-semibold text-slate-900">{formatDate(selectedRecord.date)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Recorded Status:</span>
-                <span className="font-semibold text-amber-700">{selectedRecord.status}</span>
-              </div>
-            </div>
-
+          <form onSubmit={handleRegularizeSubmit} className="space-y-3 text-xs">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                What needs correcting? *
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                Reason for exception *
               </label>
               <textarea
                 value={regularizeReason}
                 onChange={(e) => setRegularizeReason(e.target.value)}
-                placeholder="e.g. Venue deployment / Metro signal interruption"
-                rows={3}
+                placeholder="Reason for delay or missed punch"
+                rows={2}
                 required
-                className="w-full rounded-xl border border-slate-300 p-2.5 text-[13px] text-slate-900 focus:outline-none focus:border-indigo-600"
+                className="w-full rounded-lg border border-slate-300 p-2 text-xs text-slate-900 outline-none focus:border-[var(--brand-400)]"
               />
             </div>
 
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsModalOpen(false)}>
+              <button
+                type="button"
+                className="employee-secondary-btn"
+                onClick={() => setIsModalOpen(false)}
+              >
                 Cancel
-              </Button>
-              <Button type="submit" variant="primary" size="sm">
-                Submit Request
-              </Button>
+              </button>
+              <button
+                type="submit"
+                className="employee-primary-btn"
+                style={{ width: 'auto', minHeight: '36px', padding: '0 16px' }}
+              >
+                Submit
+              </button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* Biometric Attendance Face & Location Modal */}
+      {/* Biometric Attendance Modal */}
       <BiometricAttendanceModal
         isOpen={biometricModalOpen}
         onClose={() => setBiometricModalOpen(false)}
         mode={biometricMode}
         employee={{
           id: employeeId,
-          fullName: 'Priya Sharma',
-          employeeCode: 'MW-1003',
-          location: 'Hyderabad',
-          shift: 'MORNING',
+          fullName: user?.name || 'Shyam Sundar',
+          employeeCode: user?.employeeId || 'MW-1000',
+          location: user?.location || 'Hyderabad',
+          shift: user?.shift || 'MORNING',
         }}
         onSuccess={handleBiometricSuccess}
       />

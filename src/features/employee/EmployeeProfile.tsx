@@ -5,19 +5,17 @@ import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/services/api';
 import { Employee } from '@/types';
-import { Button } from '@/components/common/Button';
-import { formatDate } from '@/utils/formatters';
 import { getShiftDefinition } from '@/utils/shiftUtils';
-import { Save, LogOut } from 'lucide-react';
+import { Edit3, Check, X, LogOut, Phone, Mail, MapPin, ShieldAlert, CreditCard } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { logout } from '@/store/slices/authSlice';
 import { addToast } from '@/store/slices/uiSlice';
 
 const profileUpdateSchema = z.object({
-  phone: z.string().min(10, 'Valid 10-digit phone number is required'),
-  address: z.string().min(5, 'Residential address is required'),
-  emergencyName: z.string().min(2, 'Emergency contact name required'),
-  emergencyPhone: z.string().min(10, 'Emergency phone required'),
+  phone: z.string().min(10, '10-digit number required'),
+  address: z.string().min(5, 'Address required'),
+  emergencyName: z.string().min(2, 'Name required'),
+  emergencyPhone: z.string().min(10, 'Phone required'),
   emergencyRelationship: z.string().min(2, 'Relationship required'),
 });
 
@@ -29,6 +27,7 @@ export const EmployeeProfile: React.FC = () => {
   const user = useAppSelector((state) => state.auth.user);
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
 
   const employeeId = user?.id || 'emp-003';
 
@@ -46,7 +45,7 @@ export const EmployeeProfile: React.FC = () => {
       if (data) {
         setEmployee(data);
         reset({
-          phone: data.phone,
+          phone: data.phone || '',
           address: data.address || '',
           emergencyName: data.emergencyContact?.name || '',
           emergencyPhone: data.emergencyContact?.phone || '',
@@ -70,11 +69,12 @@ export const EmployeeProfile: React.FC = () => {
         },
       });
       setEmployee(updated);
+      setIsEditing(false);
       dispatch(
         addToast({
           type: 'success',
-          title: 'Profile Updated',
-          message: 'Contact and emergency details saved successfully.',
+          title: 'Profile updated',
+          message: 'Contact details saved successfully.',
         })
       );
     } catch {
@@ -89,8 +89,8 @@ export const EmployeeProfile: React.FC = () => {
 
   if (isLoading || !employee) {
     return (
-      <div className="p-8 text-center text-[13px] text-slate-400 bg-white rounded-xl border border-slate-200">
-        Loading employee profile...
+      <div className="p-8 text-center text-xs text-slate-400 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-default)]">
+        Loading profile…
       </div>
     );
   }
@@ -98,210 +98,231 @@ export const EmployeeProfile: React.FC = () => {
   const shiftInfo = getShiftDefinition(employee.shift || 'MORNING');
 
   return (
-    <div className="space-y-4">
-      {/* Top Header */}
-      <div>
-        <h1 className="text-[24px] font-bold tracking-tight text-slate-900">
-          My Profile
-        </h1>
-        <p className="text-[13px] text-slate-500">
-          Your details, work schedule and emergency contacts
-        </p>
-      </div>
-
+    <div className="space-y-3 pb-6">
       {/* Identity Card */}
-      <div className="p-4 rounded-xl bg-white border border-slate-200/90 shadow-xs flex items-center gap-3.5">
-        <div className="w-14 h-14 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-[16px] shrink-0 shadow-md shadow-indigo-600/20">
-          {employee.firstName[0]}
-          {employee.lastName[0]}
+      <div className="employee-card flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center font-semibold text-sm shrink-0">
+            {employee.firstName?.[0] || 'E'}
+            {employee.lastName?.[0] || 'M'}
+          </div>
+
+          <div className="min-w-0">
+            <h1 className="text-sm font-semibold text-slate-900 truncate">
+              {employee.fullName}
+            </h1>
+            <p className="text-xs text-slate-500 truncate">
+              {employee.designation || 'Staff'} — {employee.location || 'Headquarters'}
+            </p>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="font-mono text-[11px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                {employee.employeeCode}
+              </span>
+              <span className="text-[10px] text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+                {shiftInfo.name}
+              </span>
+            </div>
+          </div>
         </div>
 
-        <div className="flex-1 min-w-0">
-          <h2 className="text-[16px] font-bold text-slate-900 truncate">
-            {employee.fullName}
-          </h2>
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-[13px] font-mono text-slate-500 font-semibold">
-              {employee.employeeCode}
-            </span>
-            <span className="text-[13px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
-              {employee.location} Center
-            </span>
-          </div>
-          <p className="text-[13px] text-slate-400 mt-0.5">
-            Joined {formatDate(employee.joiningDate)}
-          </p>
-        </div>
+        {!isEditing && (
+          <button
+            onClick={() => setIsEditing(true)}
+            className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--border-default)] bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors cursor-pointer"
+          >
+            <Edit3 className="w-3.5 h-3.5 text-slate-500" />
+            <span>Edit profile</span>
+          </button>
+        )}
       </div>
 
-      {/* Venue & Shift Schedule Card */}
-      <div className="p-4 rounded-xl bg-white border border-slate-200/90 shadow-xs space-y-2.5">
-        <span className="text-[13px] font-bold uppercase tracking-wider text-slate-400 block">
-          Work Schedule & Venue
-        </span>
-
-        <div className="grid grid-cols-2 gap-2 text-[13px]">
-          <div className="py-2">
-            <span className="text-[13px] text-slate-400 block font-medium">Assigned Shift</span>
-            <span className="font-bold text-slate-900 block mt-0.5">{shiftInfo.name}</span>
-            <span className="text-[13px] text-slate-500 font-mono">{shiftInfo.timing}</span>
+      {/* Edit Form View */}
+      {isEditing ? (
+        <form
+          onSubmit={handleSubmit(onUpdateSubmit)}
+          className="p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--brand-200)] space-y-3 text-xs"
+        >
+          <div className="flex items-center justify-between pb-1 border-b border-[var(--border-default)]">
+            <span className="font-semibold text-slate-900">Edit contact details</span>
+            <button
+              type="button"
+              onClick={() => {
+                reset();
+                setIsEditing(false);
+              }}
+              className="text-slate-400 hover:text-slate-600 p-1"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
-          <div className="py-2">
-            <span className="text-[13px] text-slate-400 block font-medium">Employment Type</span>
-            <span className="font-bold text-slate-900 block mt-0.5">
-              {(employee.employmentType || 'FULL_TIME').replace('_', ' ')}
-            </span>
-            <span className="text-[13px] text-slate-500">Confirmed Regular</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Editable Contact & Emergency Directory */}
-      <div className="p-4 rounded-xl bg-white border border-slate-200/90 shadow-xs space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-[13px] font-bold uppercase tracking-wider text-slate-400">
-            Contact & Emergency Details
-          </span>
-          <span className="text-[13px] text-indigo-600 font-medium">Editable</span>
-        </div>
-
-        <form onSubmit={handleSubmit(onUpdateSubmit)} className="space-y-3 text-[13px]">
           <div>
-            <label className="block text-[13px] font-semibold text-slate-500 mb-1">
-              Work email (contact HR to change)
-            </label>
+            <label className="block text-[11px] text-slate-500 mb-1">Email (System)</label>
             <input
               type="text"
               value={employee.email}
               disabled
-              className="w-full px-3 py-2 text-[13px] rounded-xl bg-slate-100 border border-slate-200 text-slate-500 cursor-not-allowed"
+              className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-slate-50 border border-slate-200 text-slate-500 cursor-not-allowed"
             />
           </div>
 
           <div>
-            <label className="block text-[13px] font-semibold text-slate-700 mb-1">
-              Mobile Phone Number
-            </label>
+            <label className="block text-[11px] text-slate-700 mb-1">Phone</label>
             <input
               type="text"
-              {...register('phone')} aria-label="Mobile phone number" aria-invalid={!!errors.phone}
+              {...register('phone')}
               placeholder="+91 99887 76655"
-              className="w-full px-3 py-2 text-[13px] rounded-xl bg-white border border-slate-200 text-slate-900 focus:outline-none focus:border-indigo-600"
+              className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white border border-[var(--border-default)] text-slate-900 outline-none focus:border-[var(--brand-400)]"
             />
-          </div>
-
-          <div>
-            <label className="block text-[13px] font-semibold text-slate-700 mb-1">
-              Residential Address
-            </label>
-            <input
-              type="text"
-              {...register('address')} aria-label="Residential address" aria-invalid={!!errors.address}
-              placeholder="e.g. Flat 301, Sri Sai Enclave, Madhapur, Hyderabad - 500081"
-              className="w-full px-3 py-2 text-[13px] rounded-xl bg-white border border-slate-200 text-slate-900 focus:outline-none focus:border-indigo-600"
-            />
-            {errors.address && (
-              <p className="text-rose-500 text-xs mt-1">{errors.address.message}</p>
+            {errors.phone && (
+              <p className="text-[var(--accent-600)] text-[10px] mt-0.5">{errors.phone.message}</p>
             )}
           </div>
 
-          <div className="pt-2 border-t border-slate-100 space-y-2">
-            <span className="block text-[13px] font-bold uppercase tracking-wider text-slate-400">
-              Primary Emergency Contact
-            </span>
+          <div>
+            <label className="block text-[11px] text-slate-700 mb-1">Residential Address</label>
+            <input
+              type="text"
+              {...register('address')}
+              placeholder="Address"
+              className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white border border-[var(--border-default)] text-slate-900 outline-none focus:border-[var(--brand-400)]"
+            />
+          </div>
 
-            <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[13px] font-semibold text-slate-600 mb-1">
-                  Contact Person
-                </label>
-                <input
-                  type="text"
-                  {...register('emergencyName')} aria-label="Emergency contact name" aria-invalid={!!errors.emergencyName}
-                  placeholder="e.g. Ramesh Sharma"
-                  className="w-full px-3 py-2 text-[13px] rounded-xl bg-white border border-slate-200 text-slate-900 focus:outline-none focus:border-indigo-600"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[13px] font-semibold text-slate-600 mb-1">
-                  Relationship
-                </label>
-                <input
-                  type="text"
-                  {...register('emergencyRelationship')} aria-label="Relationship" aria-invalid={!!errors.emergencyRelationship}
-                  placeholder="e.g. Spouse / Parent"
-                  className="w-full px-3 py-2 text-[13px] rounded-xl bg-white border border-slate-200 text-slate-900 focus:outline-none focus:border-indigo-600"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[13px] font-semibold text-slate-600 mb-1">
-                Emergency Telephone
-              </label>
+          <div className="pt-2 border-t border-[var(--border-default)] space-y-2">
+            <span className="block text-[11px] font-semibold text-slate-700">Emergency Contact</span>
+            <div className="grid grid-cols-2 gap-2">
               <input
                 type="text"
-                {...register('emergencyPhone')} aria-label="Emergency phone number" aria-invalid={!!errors.emergencyPhone}
-                placeholder="+91 98765 43210"
-                className="w-full px-3 py-2 text-[13px] rounded-xl bg-white border border-slate-200 text-slate-900 focus:outline-none focus:border-indigo-600"
+                {...register('emergencyName')}
+                placeholder="Name"
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white border border-[var(--border-default)] text-slate-900 outline-none focus:border-[var(--brand-400)]"
+              />
+              <input
+                type="text"
+                {...register('emergencyRelationship')}
+                placeholder="Relationship"
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white border border-[var(--border-default)] text-slate-900 outline-none focus:border-[var(--brand-400)]"
               />
             </div>
+            <input
+              type="text"
+              {...register('emergencyPhone')}
+              placeholder="Emergency Phone"
+              className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white border border-[var(--border-default)] text-slate-900 outline-none focus:border-[var(--brand-400)]"
+            />
           </div>
 
-          <div className="pt-2">{Object.values(errors).map((error, index) => <p key={index} role="alert" className="text-rose-700 mb-2">{error.message}</p>)}
-            <Button
-              type="submit"
-              variant="primary"
-              size="md"
-              isLoading={isSubmitting}
-              leftIcon={<Save className="w-4 h-4" />}
-              className="w-full !py-2.5 !text-[13px] font-semibold"
+          <div className="pt-2 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                reset();
+                setIsEditing(false);
+              }}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-medium cursor-pointer"
             >
-              Save Contact Details
-            </Button>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-3.5 py-1.5 rounded-lg bg-[var(--brand-500)] hover:bg-[var(--brand-600)] text-white text-xs font-medium flex items-center gap-1 cursor-pointer transition-colors"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>{isSubmitting ? 'Saving…' : 'Save changes'}</span>
+            </button>
           </div>
         </form>
-      </div>
-
-      {/* Statutory Records Card (Read-only verified) */}
-      <div className="p-4 rounded-xl bg-white border border-slate-200/90 shadow-xs space-y-2.5 text-[13px]">
-        <span className="text-[13px] font-bold uppercase tracking-wider text-slate-400 block">
-          Bank & tax details
-        </span>
-
-        <div className="py-3 space-y-1">
-          <span className="text-[13px] text-slate-400 block font-medium">Bank Account</span>
-          <p className="font-semibold text-slate-900">{employee.bankDetails.bankName}</p>
-          <p className="font-mono text-slate-600 text-[13px]">A/C: {employee.bankDetails.accountNumber}</p>
-          <p className="font-mono text-slate-400 text-[13px]">IFSC: {employee.bankDetails.ifscCode}</p>
-        </div>
-
-        <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-3">
-          <div className="py-3">
-            <span className="text-[13px] text-slate-400 block font-medium">Income Tax PAN</span>
-            <p className="font-mono font-bold text-slate-900 text-[13px] mt-0.5">{employee.bankDetails.panNumber}</p>
-            <span className="text-[13px] text-emerald-600 font-semibold block mt-0.5">Verified</span>
+      ) : (
+        /* Read-Only Clean Information Layout */
+        <div className="employee-card space-y-3">
+          <div className="flex items-center justify-between pb-1 border-b border-[var(--border-default)]">
+            <span className="text-xs font-semibold text-slate-900">Contact & Address</span>
           </div>
 
-          <div className="py-3">
-            <span className="text-[13px] text-slate-400 block font-medium">EPFO UAN</span>
-            <p className="font-mono font-bold text-slate-900 text-[13px] mt-0.5">{employee.bankDetails.uanNumber}</p>
-            <span className="text-[13px] text-emerald-600 font-semibold block mt-0.5">Linked</span>
+          <div className="divide-y divide-slate-100 text-xs">
+            <div className="py-2 flex items-start justify-between gap-3">
+              <span className="text-slate-500 shrink-0 flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-slate-400" />
+                Email
+              </span>
+              <span className="font-medium text-slate-900 text-right break-all">
+                {employee.email}
+              </span>
+            </div>
+
+            <div className="py-2 flex items-center justify-between gap-3">
+              <span className="text-slate-500 shrink-0 flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5 text-slate-400" />
+                Phone
+              </span>
+              <span className="font-medium text-slate-900 text-right">
+                {employee.phone || 'Not registered'}
+              </span>
+            </div>
+
+            <div className="py-2 flex items-start justify-between gap-3">
+              <span className="text-slate-500 shrink-0 flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                Address
+              </span>
+              <span className="font-medium text-slate-900 text-right max-w-[240px] leading-relaxed">
+                {employee.address || 'Not specified'}
+              </span>
+            </div>
+
+            <div className="py-2 flex items-start justify-between gap-3">
+              <span className="text-slate-500 shrink-0 flex items-center gap-1.5">
+                <ShieldAlert className="w-3.5 h-3.5 text-slate-400" />
+                Emergency
+              </span>
+              <div className="text-right">
+                <div className="font-medium text-slate-900">
+                  {employee.emergencyContact?.name || 'Contact'} ({employee.emergencyContact?.relationship || 'Family'})
+                </div>
+                <div className="text-slate-500 text-[11px] mt-0.5">
+                  {employee.emergencyContact?.phone || '—'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Statutory & Bank Information */}
+      <div className="employee-card space-y-2 text-xs">
+        <div className="flex items-center gap-1.5 pb-1 border-b border-[var(--border-default)]">
+          <CreditCard className="w-3.5 h-3.5 text-slate-400" />
+          <span className="font-semibold text-slate-900">Bank & Statutory</span>
+        </div>
+
+        <div className="divide-y divide-slate-100 text-xs">
+          <div className="py-2 flex items-center justify-between">
+            <span className="text-slate-500">Bank Account</span>
+            <span className="font-medium text-slate-900 font-mono">
+              {employee.bankDetails.bankName} (ending {employee.bankDetails.accountNumber.slice(-4)})
+            </span>
+          </div>
+
+          <div className="py-2 flex items-center justify-between">
+            <span className="text-slate-500">PAN</span>
+            <span className="font-medium text-slate-900 font-mono">
+              {employee.bankDetails.panNumber}
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Prominent One-Tap Sign Out Button */}
-      <div className="pt-2 pb-6">
+      {/* Clean Sign Out */}
+      <div className="pt-1">
         <button
           type="button"
           onClick={handleSignOut}
-          className="w-full py-3 px-4 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100/70 text-rose-700 font-semibold text-[13px] flex items-center justify-center gap-2 transition-colors cursor-pointer"
+          className="w-full py-2.5 px-3 rounded-xl border border-red-200 bg-white hover:bg-red-50 text-red-600 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
         >
-          <LogOut className="w-4 h-4 text-rose-600" />
-          Sign Out of Staff Portal
+          <LogOut className="w-3.5 h-3.5 text-red-500" />
+          <span>Sign Out</span>
         </button>
       </div>
     </div>

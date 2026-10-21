@@ -37,6 +37,13 @@ public class AttendanceRecord {
     private String regularizationReason;
     private String notes;
 
+    private Double latitude;
+    private Double longitude;
+    private Integer distanceMeters;
+    private Double biometricScore;
+    private Boolean isLocationVerified;
+    private Boolean isBiometricVerified;
+
     @CreationTimestamp
     @Temporal(TemporalType.TIMESTAMP)
     private Date createdAt;

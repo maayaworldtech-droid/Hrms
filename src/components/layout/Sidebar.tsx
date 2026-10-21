@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store';
 import { setMobileMenuOpen, toggleSidebar } from '@/store/slices/uiSlice';
+import { logout } from '@/store/slices/authSlice';
 import maayaLogo from '@/assets/logo-new.png';
 import {
   LayoutDashboard,
@@ -17,6 +18,7 @@ import {
   ChevronRight,
   X,
   CreditCard,
+  LogOut,
 } from 'lucide-react';
 
 interface NavSection {
@@ -33,8 +35,26 @@ interface NavSection {
 export const Sidebar: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const { activeRole } = useAppSelector((state) => state.auth);
+  const { user, activeRole } = useAppSelector((state) => state.auth);
   const { sidebarCollapsed, mobileMenuOpen } = useAppSelector((state) => state.ui);
+
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleLogout = () => {
+    dispatch(logout());
+    navigate('/admin/dashboard');
+  };
 
   const adminSections: NavSection[] = [
     {
@@ -47,9 +67,9 @@ export const Sidebar: React.FC = () => {
       hasAddAction: true,
       onAddClick: () => navigate('/admin/employees'),
       items: [
-        { label: 'Employee Directory', path: '/admin/employees', icon: Users },
+        { label: 'Employee Management', path: '/admin/employees', icon: Users },
         { label: 'Attendance Records', path: '/admin/attendance', icon: Clock },
-        { label: 'Leave Records', path: '/admin/leaves', icon: CalendarDays },
+        { label: 'Leave Management', path: '/admin/leaves', icon: CalendarDays },
       ],
     },
     {
@@ -124,39 +144,55 @@ export const Sidebar: React.FC = () => {
       {/* Mobile Backdrop */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 z-40 bg-[#101828]/50 backdrop-blur-xs lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs lg:hidden"
           onClick={closeMobile}
         />
       )}
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 flex flex-col bg-white text-[#475467] border-r border-[#E4E7EC] transition-all duration-200 ease-in-out lg:static ${
+        className={`fixed top-0 bottom-0 left-0 z-40 flex flex-col bg-[var(--bg-surface)] text-slate-600 border-r border-[var(--border-default)] transition-all duration-200 ease-in-out lg:static ${
           sidebarCollapsed ? 'w-16' : 'w-60'
         } ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
-        {/* Brand Header with Maaya World Logo */}
-        <div className="flex h-14 items-center justify-between px-4 border-b border-[#E4E7EC] bg-white">
-          <div className={`flex items-center ${sidebarCollapsed ? 'justify-center w-full' : 'justify-start'} overflow-hidden`}>
+        {/* Brand Header with Maaya World Logo & Collapse Toggle */}
+        <div className="flex h-14 items-center justify-between px-3.5 border-b border-[var(--border-default)] bg-[var(--bg-surface)]">
+          <div className="flex items-center overflow-hidden">
             {sidebarCollapsed ? (
-              <img
-                src="/favicon.png"
-                alt="Maaya World Logo"
-                className="h-7 w-7 object-contain"
-              />
+              <button
+                onClick={() => dispatch(toggleSidebar())}
+                className="w-full flex items-center justify-center p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                title="Expand sidebar"
+              >
+                <img
+                  src="/favicon.png"
+                  alt="Maaya World Logo"
+                  className="h-7 w-7 object-contain"
+                />
+              </button>
             ) : (
               <img
                 src={maayaLogo}
                 alt="Maaya World Logo"
-                className="h-8 w-auto max-w-[170px] object-contain"
+                className="h-8 w-auto max-w-[145px] object-contain"
               />
             )}
           </div>
 
+          {!sidebarCollapsed && (
+            <button
+              onClick={() => dispatch(toggleSidebar())}
+              className="hidden lg:flex p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer"
+              title="Collapse sidebar"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          )}
+
           {/* Mobile Close Button */}
           <button
             onClick={closeMobile}
-            className="rounded-lg p-1.5 text-[#667085] hover:bg-[#F0F2F5] hover:text-[#101828] lg:hidden"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 lg:hidden cursor-pointer"
             aria-label="Close navigation"
           >
             <X className="w-4 h-4" />
@@ -168,14 +204,14 @@ export const Sidebar: React.FC = () => {
           {sections.map((section, sIdx) => (
             <div key={sIdx} className="space-y-1">
               {!sidebarCollapsed && section.title && (
-                <div className="flex items-center justify-between px-3 pt-3 pb-1">
-                  <span className="text-[11px] font-semibold text-[#475467] tracking-tight">
+                <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                     {section.title}
                   </span>
                   {section.hasAddAction && (
                     <button
                       onClick={section.onAddClick}
-                      className="text-[#475467] hover:text-[#101828] p-0.5 rounded hover:bg-[#F0F2F5] transition-colors"
+                      className="text-slate-400 hover:text-slate-700 p-0.5 rounded hover:bg-slate-100 transition-colors"
                       title="Quick Action"
                     >
                       <Plus className="w-3.5 h-3.5" />
@@ -191,16 +227,26 @@ export const Sidebar: React.FC = () => {
                     to={item.path}
                     onClick={closeMobile}
                     className={({ isActive }) =>
-                      `group flex items-center gap-2.5 px-3 py-2 text-sm transition-all relative ${
+                      `group flex items-center gap-2.5 px-3 py-2 text-[13px] transition-all relative ${
                         isActive
-                          ? 'bg-[#EEF4FF] text-[#2A4FE0] font-semibold border-l-3 border-[#2A4FE0] rounded-r-lg'
-                          : 'text-[#344054] hover:bg-[#F0F2F5] hover:text-[#101828] font-medium rounded-lg'
+                          ? 'bg-[var(--brand-50)] text-[var(--brand-700)] font-semibold rounded-lg'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium rounded-lg'
                       } ${sidebarCollapsed ? 'justify-center px-0' : ''}`
                     }
                     title={sidebarCollapsed ? item.label : undefined}
                   >
-                    <Icon className="w-4 h-4 shrink-0 transition-colors" />
-                    {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
+                    {({ isActive }) => (
+                      <>
+                        <Icon
+                          className={`w-4 h-4 shrink-0 transition-colors ${
+                            isActive
+                              ? 'text-[var(--brand-500)]'
+                              : 'text-slate-400 group-hover:text-slate-600'
+                          }`}
+                        />
+                        {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
+                      </>
+                    )}
                   </NavLink>
                 );
               })}
@@ -208,33 +254,90 @@ export const Sidebar: React.FC = () => {
           ))}
         </div>
 
-
-
-        {/* Bottom Workspace Status & Collapse Toggle */}
-        <div className="p-2.5 border-t border-[#E4E7EC] bg-[#F7F8FA] flex items-center justify-between">
-          {!sidebarCollapsed ? (
-            <div className="flex items-center justify-between w-full px-1 text-xs text-[#667085]">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="w-2 h-2 rounded-full bg-[#12B76A] shrink-0" />
-                <span className="truncate font-medium text-[#344054]">Maaya World HRMS</span>
-              </div>
-              <button
-                onClick={() => dispatch(toggleSidebar())}
-                className="hidden lg:flex p-1 rounded-md hover:bg-[#E4E7EC] text-[#667085] hover:text-[#101828] transition-colors"
-                title="Collapse sidebar"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => dispatch(toggleSidebar())}
-              className="hidden lg:flex mx-auto p-1 rounded-md hover:bg-[#E4E7EC] text-[#667085] hover:text-[#101828] transition-colors"
-              title="Expand sidebar"
+        {/* Bottom Profile Section */}
+        <div className="border-t border-[var(--border-default)] p-2.5 bg-[var(--bg-surface)] relative" ref={profileMenuRef}>
+          {profileMenuOpen && (
+            <div
+              className={`absolute bottom-full mb-2 ${
+                sidebarCollapsed ? 'left-2 w-52' : 'left-2.5 right-2.5'
+              } rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-1.5 shadow-lg ring-1 ring-black/5 z-50`}
             >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+              <div className="px-3 py-2 border-b border-[var(--border-default)] mb-1">
+                <p className="text-xs font-semibold text-slate-900 truncate">{user?.name || 'System Admin'}</p>
+                <p className="text-[11px] text-slate-500 truncate">{user?.email || 'admin@themaayaworld.com'}</p>
+              </div>
+
+              <button
+                onClick={() => {
+                  setProfileMenuOpen(false);
+                  closeMobile();
+                  navigate('/employee/profile');
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors text-left cursor-pointer"
+              >
+                <User className="w-3.5 h-3.5 text-slate-400" />
+                <span>My Profile</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setProfileMenuOpen(false);
+                  closeMobile();
+                  navigate('/employee/attendance');
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors text-left cursor-pointer"
+              >
+                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                <span>My Attendance</span>
+              </button>
+
+              <div className="border-t border-[var(--border-default)] pt-1 mt-1">
+                <button
+                  onClick={() => {
+                    setProfileMenuOpen(false);
+                    closeMobile();
+                    handleLogout();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-[var(--accent-600)] hover:bg-[var(--accent-50)] rounded-lg transition-colors text-left cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-[var(--accent-500)]" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            </div>
           )}
+
+          <button
+            onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+            className={`w-full flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-slate-100 transition-colors text-left focus:outline-none cursor-pointer ${
+              sidebarCollapsed ? 'justify-center' : 'justify-between'
+            }`}
+            title={sidebarCollapsed ? `${user?.name || 'System Admin'} (${user?.employeeId || 'ADM-001'})` : undefined}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-semibold text-xs shrink-0 ring-1 ring-slate-200">
+                {user?.name
+                  ?.split(' ')
+                  .map((n) => n[0])
+                  .join('')
+                  .slice(0, 2)
+                  .toUpperCase() || 'SA'}
+              </div>
+              {!sidebarCollapsed && (
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-slate-900 truncate leading-tight">
+                    {user?.name || 'System Admin'}
+                  </p>
+                  <p className="text-[11px] text-slate-500 truncate leading-tight mt-0.5">
+                    {user?.employeeId || 'ADM-001'}
+                  </p>
+                </div>
+              )}
+            </div>
+            {!sidebarCollapsed && (
+              <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+            )}
+          </button>
         </div>
       </aside>
     </>

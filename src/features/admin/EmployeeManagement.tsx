@@ -232,7 +232,7 @@ export const EmployeeManagement: React.FC = () => {
     }
   };
 
-  const managers = [...new Map([{ id: MOCK_USERS.manager.id, name: MOCK_USERS.manager.name }, ...employees.filter(employee => employee.role === 'MANAGER').map(employee => ({ id: employee.id, name: employee.fullName }))].map(manager => [manager.id,manager])).values()];
+  const managers = [...new Map([{ id: MOCK_USERS.manager.id, name: MOCK_USERS.manager.name }, ...employees.filter(employee => employee.role === 'MANAGER').map(employee => ({ id: employee.id, name: employee.fullName }))].map(manager => [manager.id, manager])).values()];
   const unassigned = employees.filter(employee => employee.id !== MOCK_USERS.admin.id && employee.id !== MOCK_USERS.manager.id && employee.role !== 'ADMIN' && !getReportingManager(employee).id).length;
 
   // Filtered dataset by Location and Shift
@@ -258,7 +258,7 @@ export const EmployeeManagement: React.FC = () => {
           <div className="min-w-0">
             <div className="font-semibold text-slate-900 truncate">{row.fullName}</div>
             <div className="text-[11px] text-slate-400 font-mono mt-0.5 truncate">
-              {row.employeeCode} • {row.email}
+              {row.employeeCode} — {row.email}
             </div>
           </div>
         </div>
@@ -387,7 +387,7 @@ export const EmployeeManagement: React.FC = () => {
 
       {/* Main Employee Directory Data Table */}
       <DataTable
-        key={[selectedLocationFilter,selectedShiftFilter].join(':')}
+        key={[selectedLocationFilter, selectedShiftFilter].join(':')}
         columns={columns}
         data={filteredEmployees}
         isLoading={isLoading}
@@ -403,7 +403,7 @@ export const EmployeeManagement: React.FC = () => {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         title="Add New Employee"
-        subtitle="Onboard a new team member to Maaya World"
+        //subtitle="Onboard a new team member to Maaya World"
         size="lg"
       >
         <form onSubmit={handleSubmitAdd(onAddSubmit)} className="space-y-4 text-xs">
@@ -474,7 +474,7 @@ export const EmployeeManagement: React.FC = () => {
                 error={errorsAdd.shift?.message}
                 {...registerAdd('shift')}
               />
-              <Select id="add-reporting-manager" label="Reports to" options={[{value: '',label: 'Not assigned'}, ...managers.map(manager => ({value: manager.id,label: manager.name}))]} error={errorsAdd.managerId?.message} helperText="This Manager reviews leave requests." {...registerAdd('managerId')} />
+              <Select id="add-reporting-manager" label="Reports to" options={[{ value: '', label: 'Not assigned' }, ...managers.map(manager => ({ value: manager.id, label: manager.name }))]} error={errorsAdd.managerId?.message} helperText="This Manager reviews leave requests." {...registerAdd('managerId')} />
               <Input
                 label="Joining Date"
                 type="date"
@@ -621,7 +621,7 @@ export const EmployeeManagement: React.FC = () => {
                   error={errorsEdit.shift?.message}
                   {...registerEdit('shift')}
                 />
-                <Select id="edit-reporting-manager" label="Reports to" options={[{value: '',label: 'Not assigned'}, ...managers.filter(manager => manager.id !== editingEmployee.id).map(manager => ({value: manager.id,label: manager.name}))]} error={errorsEdit.managerId?.message} helperText="This Manager reviews leave requests." {...registerEdit('managerId')} />
+                <Select id="edit-reporting-manager" label="Reports to" options={[{ value: '', label: 'Not assigned' }, ...managers.filter(manager => manager.id !== editingEmployee.id).map(manager => ({ value: manager.id, label: manager.name }))]} error={errorsEdit.managerId?.message} helperText="This Manager reviews leave requests." {...registerEdit('managerId')} />
                 <Input
                   label="Joining Date"
                   type="date"
