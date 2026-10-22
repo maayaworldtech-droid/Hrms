@@ -8,7 +8,7 @@ import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { formatDate, formatTime } from '@/utils/formatters';
-import  { Clock, Check } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 
@@ -63,9 +63,9 @@ export const AttendanceManagement: React.FC = () => {
   });
 
   const presentCount = contextRecords.filter((a) => a.status === 'PRESENT').length;
-  const wfhCount = contextRecords.filter((a) => a.status === 'WORK_FROM_HOME').length;
+  const onDutyCount = contextRecords.filter((a) => a.status === 'ON_DUTY').length;
   const lateCount = contextRecords.filter((a) => a.status === 'LATE').length;
-  const pendingRegCount = contextRecords.filter((a) => a.regularizationStatus === 'PENDING').length;
+  const onLeaveCount = contextRecords.filter((a) => a.status === 'ON_LEAVE').length;
 
   const columns: Column<AttendanceRecord>[] = [
     {
@@ -132,7 +132,7 @@ export const AttendanceManagement: React.FC = () => {
           variant={
             row.status === 'PRESENT'
               ? 'success'
-              : row.status === 'WORK_FROM_HOME'
+              : row.status === 'ON_DUTY'
               ? 'info'
               : row.status === 'LATE'
               ? 'warning'
@@ -140,7 +140,7 @@ export const AttendanceManagement: React.FC = () => {
           }
           size="sm"
         >
-          {row.status.replace('_', ' ')}
+          {row.status === 'ON_DUTY' ? 'On Duty' : row.status.replace('_', ' ')}
         </Badge>
       ),
     },
@@ -182,21 +182,9 @@ export const AttendanceManagement: React.FC = () => {
 
       <OperationsFilters attendance />
       {/* Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <button
-          onClick={() => setStatusFilter('ALL')}
-          className={`p-3.5 rounded-xl border text-left transition-all ${
-            statusFilter === 'ALL'
-              ? 'border-indigo-500 bg-indigo-50/40 shadow-xs'
-              : 'border-slate-200 bg-white hover:bg-slate-50'
-          }`}
-        >
-          <span className="text-[11px] font-semibold text-slate-500 uppercase">Total Logged</span>
-          <p className="text-xl font-bold text-slate-900 mt-1">{contextRecords.length}</p>
-        </button>
-
-        <button
-          onClick={() => setStatusFilter('PRESENT')}
+          onClick={() => setStatusFilter(statusFilter === 'PRESENT' ? 'ALL' : 'PRESENT')}
           className={`p-3.5 rounded-xl border text-left transition-all ${
             statusFilter === 'PRESENT'
               ? 'border-emerald-500 bg-emerald-50/40 shadow-xs'
@@ -208,19 +196,19 @@ export const AttendanceManagement: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setStatusFilter('WORK_FROM_HOME')}
+          onClick={() => setStatusFilter(statusFilter === 'ON_DUTY' ? 'ALL' : 'ON_DUTY')}
           className={`p-3.5 rounded-xl border text-left transition-all ${
-            statusFilter === 'WORK_FROM_HOME'
+            statusFilter === 'ON_DUTY'
               ? 'border-sky-500 bg-sky-50/40 shadow-xs'
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
-          <span className="text-[11px] font-semibold text-sky-600 uppercase">Work From Home</span>
-          <p className="text-xl font-bold text-slate-900 mt-1">{wfhCount}</p>
+          <span className="text-[11px] font-semibold text-sky-600 uppercase">On Duty</span>
+          <p className="text-xl font-bold text-slate-900 mt-1">{onDutyCount}</p>
         </button>
 
         <button
-          onClick={() => setStatusFilter('LATE')}
+          onClick={() => setStatusFilter(statusFilter === 'LATE' ? 'ALL' : 'LATE')}
           className={`p-3.5 rounded-xl border text-left transition-all ${
             statusFilter === 'LATE'
               ? 'border-amber-500 bg-amber-50/40 shadow-xs'
@@ -232,33 +220,16 @@ export const AttendanceManagement: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setStatusFilter('REGULARIZATION_PENDING')}
+          onClick={() => setStatusFilter(statusFilter === 'ON_LEAVE' ? 'ALL' : 'ON_LEAVE')}
           className={`p-3.5 rounded-xl border text-left transition-all ${
-            statusFilter === 'REGULARIZATION_PENDING'
-              ? 'border-indigo-600 bg-indigo-50 shadow-xs'
+            statusFilter === 'ON_LEAVE'
+              ? 'border-indigo-500 bg-indigo-50/40 shadow-xs'
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
-          <span className="text-[11px] font-semibold text-indigo-700 uppercase">Pending Review</span>
-          <p className="text-xl font-bold text-indigo-700 mt-1">{pendingRegCount}</p>
+          <span className="text-[11px] font-semibold text-indigo-600 uppercase">On Leave</span>
+          <p className="text-xl font-bold text-slate-900 mt-1">{onLeaveCount}</p>
         </button>
-      </div>
-
-      {/* Shift Timings Deployment Summary */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-slate-200 bg-white">
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-800">
-          <Clock className="w-4 h-4 text-indigo-600" />
-          <span>Recorded shifts</span>
-        </div>
-        <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
-          <span>
-            Morning Shift (9:00 AM – 1:00 PM): <strong className="text-slate-900">{contextRecords.filter(a => (a.shift || 'MORNING') === 'MORNING').length} Staff</strong>
-          </span>
-          <span className="text-slate-300">|</span>
-          <span>
-            Evening Shift (1:00 PM – 9:00 PM): <strong className="text-slate-900">{contextRecords.filter(a => a.shift === 'EVENING').length} Staff</strong>
-          </span>
-        </div>
       </div>
 
       {/* Main Table */}

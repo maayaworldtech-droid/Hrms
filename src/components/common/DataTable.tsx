@@ -77,13 +77,16 @@ export function DataTable<T extends Record<string, any>>({
   }, []);
 
   // Filter
+  const safeData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+
+  // Filter
   const filteredData = useMemo(() => {
-    if (!searchQuery.trim()) return data;
+    if (!searchQuery.trim()) return safeData;
     const query = searchQuery.toLowerCase().trim();
     if (searchFilter) {
-      return data.filter((item) => searchFilter(item, query));
+      return safeData.filter((item) => searchFilter(item, query));
     }
-    return data.filter((item) =>
+    return safeData.filter((item) =>
       Object.values(item).some(
         (val) =>
           val !== null &&
@@ -91,7 +94,7 @@ export function DataTable<T extends Record<string, any>>({
           String(val).toLowerCase().includes(query)
       )
     );
-  }, [data, searchQuery, searchFilter]);
+  }, [safeData, searchQuery, searchFilter]);
 
   // Sort
   const sortedData = useMemo(() => {

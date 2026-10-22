@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { X, Pencil } from 'lucide-react';
-import { Employee, Payslip } from '@/types';
-import { api } from '@/services/api';
+import { Employee } from '@/types';
 import { getReportingManager } from '@/services/mockData';
 import { formatDate, formatINR } from '@/utils/formatters';
 import { getShiftDefinition } from '@/utils/shiftUtils';
@@ -21,9 +20,6 @@ export const EmployeeDetailsPanel = ({
 }) => {
   const dialog = useRef<HTMLDialogElement>(null);
   const [section, setSection] = useState<typeof sections[number]>('Personal');
-  const [payslips, setPayslips] = useState<Payslip[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -31,35 +27,12 @@ export const EmployeeDetailsPanel = ({
     element?.showModal();
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    let active = true;
-
-    api.payroll
-      .getPayslipsByEmployee(employee.id)
-      .then((slips) => {
-        if (active) {
-          setPayslips(
-            slips.sort(
-              (a, b) =>
-                b.year - a.year ||
-                new Date(`${b.month} 1, ${b.year}`).getTime() -
-                  new Date(`${a.month} 1, ${a.year}`).getTime()
-            )
-          );
-        }
-      })
-      .catch(() => {
-        if (active) setError(true);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
 
     return () => {
-      active = false;
       element?.close();
       document.body.style.overflow = previousOverflow;
     };
-  }, [isOpen, employee.id]);
+  }, [isOpen]);
 
   const details = (items: [string, string | number | undefined][]) => (
     <dl className="ops-definition">
@@ -126,9 +99,7 @@ export const EmployeeDetailsPanel = ({
 
       {section === 'Employment' &&
         details([
-          ['Venue', employee.location],
-          ['Designation', employee.designation],
-          ['Department', employee.departmentName],
+          ['Location', employee.location],
           ['Employee shift', getShiftDefinition(employee.shift).name],
           ['Date of joining', formatDate(employee.joiningDate)],
           ['Employment type', employee.employmentType?.replaceAll('_', ' ')],
@@ -136,18 +107,6 @@ export const EmployeeDetailsPanel = ({
           ['Reports to', getReportingManager(employee).name],
           ['Portal role', employee.role],
         ])}
-
-      {section === 'Payroll' && loading && (
-        <p className="ops-empty" role="status">
-          Loading employee records…
-        </p>
-      )}
-
-      {section === 'Payroll' && error && (
-        <p className="ops-empty" role="alert">
-          Unable to load records. Close and reopen this panel to try again.
-        </p>
-      )}
 
       {section === 'Payroll' && (
         <>
@@ -161,23 +120,6 @@ export const EmployeeDetailsPanel = ({
             ['PAN', employee.bankDetails?.panNumber],
             ['UAN', employee.bankDetails?.uanNumber],
           ])}
-          <h3 className="mt-6 mb-2">Payroll history</h3>
-          {!loading && !error && (
-            <ul className="ops-list">
-              {payslips.map((slip) => (
-                <li className="ops-row" key={slip.id}>
-                  <div>
-                    <strong>
-                      {slip.month} {slip.year}
-                    </strong>
-                    <p className="ops-muted">{slip.paymentStatus.toLowerCase()}</p>
-                  </div>
-                  <span>{formatINR(slip.components.netMonthly)}</span>
-                </li>
-              ))}
-              {!payslips.length && <li className="ops-empty">No payslips recorded.</li>}
-            </ul>
-          )}
         </>
       )}
 

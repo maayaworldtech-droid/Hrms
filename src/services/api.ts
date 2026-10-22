@@ -43,6 +43,38 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
   return response.json();
 }
 
+const normalizePayslip = (slip: any): Payslip => {
+  const comp = slip?.components || {};
+  return {
+    ...slip,
+    id: String(slip?.id || ''),
+    payrollRunId: String(slip?.payrollRunId || ''),
+    employeeId: String(slip?.employeeId || ''),
+    employeeCode: slip?.employeeCode || '',
+    employeeName: slip?.employeeName || '',
+    payableDays: slip?.payableDays ?? 30,
+    lossOfPayDays: slip?.lossOfPayDays ?? 0,
+    components: {
+      basic: Number(comp.basic ?? slip?.basic ?? 0),
+      hra: Number(comp.hra ?? slip?.hra ?? 0),
+      specialAllowance: Number(comp.specialAllowance ?? slip?.specialAllowance ?? 0),
+      conveyanceAllowance: Number(comp.conveyanceAllowance ?? slip?.conveyanceAllowance ?? 0),
+      medicalAllowance: Number(comp.medicalAllowance ?? slip?.medicalAllowance ?? 0),
+      grossMonthly: Number(comp.grossMonthly ?? slip?.grossMonthly ?? 0),
+      epfEmployee: Number(comp.epfEmployee ?? slip?.epfEmployee ?? 0),
+      epfEmployer: Number(comp.epfEmployer ?? slip?.epfEmployer ?? 0),
+      professionalTax: Number(comp.professionalTax ?? slip?.professionalTax ?? 0),
+      tds: Number(comp.tds ?? slip?.tds ?? 0),
+      healthInsurance: Number(comp.healthInsurance ?? slip?.healthInsurance ?? 0),
+      totalDeductions: Number(comp.totalDeductions ?? slip?.totalDeductions ?? 0),
+      netMonthly: Number(comp.netMonthly ?? slip?.netMonthly ?? 0),
+      ctcAnnual: Number(comp.ctcAnnual ?? slip?.ctcAnnual ?? 0),
+    },
+    paymentStatus: slip?.paymentStatus || 'PAID',
+    paymentMode: slip?.paymentMode || 'NEFT',
+  };
+};
+
 export const api = {
   // Authentication Endpoints
   auth: {
@@ -410,23 +442,35 @@ export const api = {
   // Payroll Management Endpoints
   payroll: {
     getRuns: async (): Promise<PayrollRun[]> => {
-      return fetchJSON<PayrollRun[]>(`${API_BASE}/payroll/runs`);
+      const runs = await fetchJSON<any[]>(`${API_BASE}/payroll/runs`);
+      return (runs || []).map((r) => ({
+        ...r,
+        id: String(r.id),
+        payslips: Array.isArray(r.payslips) ? r.payslips.map(normalizePayslip) : [],
+      }));
     },
 
     getPayslipsByEmployee: async (employeeId: string | number): Promise<Payslip[]> => {
       const cleanId = String(employeeId).replace('emp-', '');
-      return fetchJSON<Payslip[]>(`${API_BASE}/payroll/payslips/${cleanId}`);
+      const list = await fetchJSON<any[]>(`${API_BASE}/payroll/payslips/${cleanId}`);
+      return (list || []).map(normalizePayslip);
     },
 
     getPayslipsByRun: async (runId: string | number): Promise<Payslip[]> => {
-      return fetchJSON<Payslip[]>(`${API_BASE}/payroll/payslips/run/${runId}`);
+      const list = await fetchJSON<any[]>(`${API_BASE}/payroll/payslips/run/${runId}`);
+      return (list || []).map(normalizePayslip);
     },
 
     process: async (month?: string, year?: number): Promise<PayrollRun> => {
-      return fetchJSON<PayrollRun>(`${API_BASE}/payroll/process`, {
+      const res = await fetchJSON<any>(`${API_BASE}/payroll/process`, {
         method: 'POST',
         body: JSON.stringify({ month: month || 'October', year: year || 2026 }),
       });
+      return {
+        ...res,
+        id: String(res.id),
+        payslips: Array.isArray(res.payslips) ? res.payslips.map(normalizePayslip) : [],
+      };
     },
 
     createRun: async (month?: string, year?: number): Promise<PayrollRun> => {
@@ -434,10 +478,15 @@ export const api = {
     },
 
     disburseRun: async (runId: string | number, disbursedBy?: string): Promise<PayrollRun> => {
-      return fetchJSON<PayrollRun>(`${API_BASE}/payroll/disburse/${runId}`, {
+      const res = await fetchJSON<any>(`${API_BASE}/payroll/disburse/${runId}`, {
         method: 'POST',
         body: JSON.stringify({ disbursedBy: disbursedBy || 'Administrator' }),
       });
+      return {
+        ...res,
+        id: String(res.id),
+        payslips: Array.isArray(res.payslips) ? res.payslips.map(normalizePayslip) : [],
+      };
     },
   },
 

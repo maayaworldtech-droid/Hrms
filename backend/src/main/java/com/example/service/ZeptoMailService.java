@@ -33,7 +33,8 @@ public class ZeptoMailService {
     private String logoUrl;
 
     private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
+            .version(HttpClient.Version.HTTP_1_1)
+            .connectTimeout(Duration.ofSeconds(30))
             .build();
 
     public boolean sendOnboardingEmail(String recipientEmail, String recipientName, String employeeCode, String defaultPassword) {
@@ -77,37 +78,45 @@ public class ZeptoMailService {
     }
 
     private boolean dispatchZeptoEmail(String recipientEmail, String recipientName, String subject, String htmlBody) {
-        try {
-            StringBuilder sb = new StringBuilder("{");
-            sb.append("\"from\":{\"address\":\"").append(escapeJson(fromEmail))
-              .append("\",\"name\":\"").append(escapeJson(fromName)).append("\"},");
-            sb.append("\"to\":[{\"email_address\":{\"address\":\"").append(escapeJson(recipientEmail))
-              .append("\",\"name\":\"").append(escapeJson(recipientName)).append("\"}}],");
-            sb.append("\"subject\":\"").append(escapeJson(subject)).append("\",");
-            sb.append("\"htmlbody\":\"").append(escapeJson(htmlBody)).append("\"}");
+        int maxRetries = 2;
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                StringBuilder sb = new StringBuilder("{");
+                sb.append("\"from\":{\"address\":\"").append(escapeJson(fromEmail))
+                  .append("\",\"name\":\"").append(escapeJson(fromName)).append("\"},");
+                sb.append("\"to\":[{\"email_address\":{\"address\":\"").append(escapeJson(recipientEmail))
+                  .append("\",\"name\":\"").append(escapeJson(recipientName)).append("\"}}],");
+                sb.append("\"subject\":\"").append(escapeJson(subject)).append("\",");
+                sb.append("\"htmlbody\":\"").append(escapeJson(htmlBody)).append("\"}");
 
-            String jsonPayload = sb.toString();
+                String jsonPayload = sb.toString();
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(zeptoUrl))
-                    .header("Accept", "application/json")
-                    .header("Content-Type", "application/json")
-                    .header("Authorization", zeptoToken)
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
-                    .build();
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(zeptoUrl))
+                        .version(HttpClient.Version.HTTP_1_1)
+                        .timeout(Duration.ofSeconds(30))
+                        .header("Accept", "application/json")
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", zeptoToken)
+                        .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+                        .build();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                System.out.println("ZeptoMail SUCCESS [HTTP " + response.statusCode() + "] to " + recipientEmail);
-                return true;
-            } else {
-                System.err.println("ZeptoMail FAILED [HTTP " + response.statusCode() + "]: " + response.body());
-                return false;
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                    System.out.println("ZeptoMail SUCCESS [HTTP " + response.statusCode() + "] to " + recipientEmail);
+                    return true;
+                } else {
+                    System.err.println("ZeptoMail FAILED [HTTP " + response.statusCode() + "]: " + response.body());
+                    return false;
+                }
+            } catch (Exception e) {
+                System.err.println("Error dispatching ZeptoMail (attempt " + attempt + "/" + maxRetries + "): " + e.getMessage());
+                if (attempt < maxRetries) {
+                    try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
+                }
             }
-        } catch (Exception e) {
-            System.err.println("Error dispatching ZeptoMail: " + e.getMessage());
-            return false;
         }
+        return false;
     }
 
     private String buildPasswordResetHtml(String recipientName, String recipientEmail, String resetCode, String resetUrl) {

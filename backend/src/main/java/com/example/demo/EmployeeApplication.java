@@ -17,6 +17,10 @@ public class EmployeeApplication {
 		System.setProperty("user.timezone", "UTC");
 		TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
 
+		// Prefer IPv4 stack to prevent NAT64/dual-stack TLS handshake timeouts on Windows
+		System.setProperty("java.net.preferIPv4Stack", "true");
+		System.setProperty("java.net.preferIPv4Addresses", "true");
+
 		SpringApplication.run(EmployeeApplication.class, args);
 		System.out.println("Maaya World HRMS Enterprise Backend running successfully on port 8083.");
 	}

@@ -69,7 +69,8 @@ export type AttendanceStatus =
   | 'HALF_DAY' 
   | 'ON_LEAVE' 
   | 'WORK_FROM_HOME' 
-  | 'LATE';
+  | 'LATE'
+  | 'ON_DUTY';
 
 export interface AttendanceRecord {
   id: string;

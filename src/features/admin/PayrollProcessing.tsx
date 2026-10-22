@@ -306,14 +306,14 @@ export const PayrollProcessing: React.FC = () => {
                   <span>Amount (INR)</span>
                 </div>
                 <div className="p-3 space-y-2 divide-y divide-slate-100">
-                  <div className="flex justify-between pt-1"><span>Basic Salary</span><span className="font-mono">{formatINR(selectedPayslip.components.basic)}</span></div>
-                  <div className="flex justify-between pt-1"><span>House Rent Allowance</span><span className="font-mono">{formatINR(selectedPayslip.components.hra)}</span></div>
-                  <div className="flex justify-between pt-1"><span>Special Allowance</span><span className="font-mono">{formatINR(selectedPayslip.components.specialAllowance)}</span></div>
-                  <div className="flex justify-between pt-1"><span>Conveyance Allowance</span><span className="font-mono">{formatINR(selectedPayslip.components.conveyanceAllowance)}</span></div>
-                  <div className="flex justify-between pt-1"><span>Medical Allowance</span><span className="font-mono">{formatINR(selectedPayslip.components.medicalAllowance)}</span></div>
+                  <div className="flex justify-between pt-1"><span>Basic Salary</span><span className="font-mono">{formatINR(selectedPayslip.components?.basic || 0)}</span></div>
+                  <div className="flex justify-between pt-1"><span>House Rent Allowance</span><span className="font-mono">{formatINR(selectedPayslip.components?.hra || 0)}</span></div>
+                  <div className="flex justify-between pt-1"><span>Special Allowance</span><span className="font-mono">{formatINR(selectedPayslip.components?.specialAllowance || 0)}</span></div>
+                  <div className="flex justify-between pt-1"><span>Conveyance Allowance</span><span className="font-mono">{formatINR(selectedPayslip.components?.conveyanceAllowance || 0)}</span></div>
+                  <div className="flex justify-between pt-1"><span>Medical Allowance</span><span className="font-mono">{formatINR(selectedPayslip.components?.medicalAllowance || 0)}</span></div>
                   <div className="flex justify-between pt-2 font-bold text-slate-900 bg-slate-50 px-2 py-1 rounded">
                     <span>Gross Earnings (A)</span>
-                    <span className="font-mono">{formatINR(selectedPayslip.components.grossMonthly)}</span>
+                    <span className="font-mono">{formatINR(selectedPayslip.components?.grossMonthly || 0)}</span>
                   </div>
                 </div>
               </div>
@@ -325,13 +325,13 @@ export const PayrollProcessing: React.FC = () => {
                   <span>Amount (INR)</span>
                 </div>
                 <div className="p-3 space-y-2 divide-y divide-slate-100">
-                  <div className="flex justify-between pt-1"><span>Provident Fund (EPF)</span><span className="font-mono text-rose-600">{formatINR(selectedPayslip.components.epfEmployee)}</span></div>
-                  <div className="flex justify-between pt-1"><span>Professional Tax (PT)</span><span className="font-mono text-rose-600">{formatINR(selectedPayslip.components.professionalTax)}</span></div>
-                  <div className="flex justify-between pt-1"><span>Health Insurance</span><span className="font-mono text-rose-600">{formatINR(selectedPayslip.components.healthInsurance)}</span></div>
-                  <div className="flex justify-between pt-1"><span>TDS / Income Tax</span><span className="font-mono text-rose-600">{formatINR(selectedPayslip.components.tds)}</span></div>
+                  <div className="flex justify-between pt-1"><span>Provident Fund (EPF)</span><span className="font-mono text-rose-600">{formatINR(selectedPayslip.components?.epfEmployee || 0)}</span></div>
+                  <div className="flex justify-between pt-1"><span>Professional Tax (PT)</span><span className="font-mono text-rose-600">{formatINR(selectedPayslip.components?.professionalTax || 0)}</span></div>
+                  <div className="flex justify-between pt-1"><span>Health Insurance</span><span className="font-mono text-rose-600">{formatINR(selectedPayslip.components?.healthInsurance || 0)}</span></div>
+                  <div className="flex justify-between pt-1"><span>TDS / Income Tax</span><span className="font-mono text-rose-600">{formatINR(selectedPayslip.components?.tds || 0)}</span></div>
                   <div className="flex justify-between pt-2 font-bold text-slate-900 bg-slate-50 px-2 py-1 rounded">
                     <span>Total Deductions (B)</span>
-                    <span className="font-mono text-rose-600">{formatINR(selectedPayslip.components.totalDeductions)}</span>
+                    <span className="font-mono text-rose-600">{formatINR(selectedPayslip.components?.totalDeductions || 0)}</span>
                   </div>
                 </div>
               </div>
@@ -342,10 +342,10 @@ export const PayrollProcessing: React.FC = () => {
               <div>
                 <span className="text-slate-400 text-xs uppercase tracking-wider">Net Amount Credited</span>
                 <p className="text-xl font-bold font-mono text-emerald-400 mt-0.5">
-                  {formatINR(selectedPayslip.components.netMonthly)}
+                  {formatINR(selectedPayslip.components?.netMonthly || 0)}
                 </p>
                 <p className="text-[11px] text-slate-300 italic mt-1">
-                  {numberToIndianWords(selectedPayslip.components.netMonthly)}
+                  {numberToIndianWords(selectedPayslip.components?.netMonthly || 0)}
                 </p>
               </div>
               <Badge variant="success" size="md">

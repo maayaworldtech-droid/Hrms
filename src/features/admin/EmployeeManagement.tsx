@@ -13,7 +13,7 @@ import { Input } from '@/components/common/Input';
 import { Select } from '@/components/common/Select';
 import { formatINR, formatDate } from '@/utils/formatters';
 
-import { UserPlus, Eye, Trash2, MapPin, Clock, Copy, CheckCircle2, ShieldAlert, Check, ArrowLeft, ChevronDown, Search } from 'lucide-react';
+import { UserPlus, Eye, Trash2, MapPin, Clock, Check, ArrowLeft } from 'lucide-react';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 
@@ -641,9 +641,9 @@ export const EmployeeManagement: React.FC = () => {
           <form onSubmit={handleSubmitAdd(onAddSubmit)} className="space-y-6 text-xs">
             {/* Step 1: Basic Information & Split Address */}
             {currentStep === 1 && (
-              <div className="space-y-6">
+              <div className="space-y-5">
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-900 mb-3">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-1.5">
                     Personal & Contact Details
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -675,8 +675,8 @@ export const EmployeeManagement: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="border-t border-slate-100 pt-5">
-                  <h3 className="text-sm font-semibold text-slate-900 mb-3">
+                <div className="border-t border-slate-100 pt-4">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-1.5">
                     Residential Address
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -717,9 +717,9 @@ export const EmployeeManagement: React.FC = () => {
 
             {/* Step 2: Work Location & Compensation */}
             {currentStep === 2 && (
-              <div className="space-y-6">
+              <div className="space-y-5">
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-900 mb-3">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-1.5">
                     Work Location & Operational Shift
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -762,8 +762,8 @@ export const EmployeeManagement: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="border-t border-slate-100 pt-5">
-                  <h3 className="text-sm font-semibold text-slate-900 mb-3">
+                <div className="border-t border-slate-100 pt-4">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-1.5">
                     Compensation & Joining Schedule
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -788,9 +788,9 @@ export const EmployeeManagement: React.FC = () => {
 
             {/* Step 3: Bank Account Details */}
             {currentStep === 3 && (
-              <div className="space-y-6">
+              <div className="space-y-5">
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-900 mb-3">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-1.5">
                     Banking Credentials & Statutory Registration
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -842,7 +842,7 @@ export const EmployeeManagement: React.FC = () => {
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                 >
-                  ← Previous Step
+                  Previous
                 </Button>
               ) : (
                 <Button
@@ -867,7 +867,7 @@ export const EmployeeManagement: React.FC = () => {
                     variant="primary"
                     onClick={handleNextStep1}
                   >
-                    Next: Work & Role →
+                    Next: Work & Role
                   </Button>
                 )}
 
@@ -877,7 +877,7 @@ export const EmployeeManagement: React.FC = () => {
                     variant="primary"
                     onClick={handleNextStep2}
                   >
-                    Next: Banking Details →
+                    Next: Banking Details
                   </Button>
                 )}
 
@@ -887,7 +887,7 @@ export const EmployeeManagement: React.FC = () => {
                     variant="primary"
                     isLoading={isSubmittingAdd}
                   >
-                    Confirm & Onboard Employee
+                    Confirm & Onboard
                   </Button>
                 )}
               </div>
@@ -1087,81 +1087,61 @@ export const EmployeeManagement: React.FC = () => {
         <Modal
           isOpen={!!onboardSuccessData}
           onClose={() => setOnboardSuccessData(null)}
-          title="Employee Onboarded & Credentials Dispatched"
-          subtitle={`Account created for ${onboardSuccessData.employee.fullName}`}
+          title="Employee Onboarded"
+          subtitle={`${onboardSuccessData.employee.fullName} (${onboardSuccessData.employee.employeeCode})`}
           size="md"
         >
-          <div className="space-y-4">
-            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3.5 flex items-start gap-3">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-              <div className="text-xs">
-                <div className="font-semibold text-emerald-900">
-                  Welcome Email Dispatched via Zoho ZeptoMail
-                </div>
-                <div className="text-emerald-700 mt-0.5">
-                  An automated email containing login instructions and initial credentials was sent to{' '}
-                  <span className="font-semibold">{onboardSuccessData.email}</span>.
+          <div className="space-y-4 text-xs">
+            <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 bg-white">
+              <div className="flex items-center justify-between px-3.5 py-2.5">
+                <span className="text-slate-500 font-medium">Employee ID</span>
+                <span className="font-mono font-medium text-slate-900">{onboardSuccessData.employee.employeeCode}</span>
+              </div>
+              <div className="flex items-center justify-between px-3.5 py-2.5">
+                <span className="text-slate-500 font-medium">Full Name</span>
+                <span className="font-medium text-slate-900">{onboardSuccessData.employee.fullName}</span>
+              </div>
+              <div className="flex items-center justify-between px-3.5 py-2.5">
+                <span className="text-slate-500 font-medium">Corporate Email</span>
+                <span className="font-medium text-slate-900">{onboardSuccessData.email}</span>
+              </div>
+              <div className="flex items-center justify-between px-3.5 py-2.5">
+                <span className="text-slate-500 font-medium">Center Location</span>
+                <span className="font-medium text-slate-900">{onboardSuccessData.employee.location}</span>
+              </div>
+              <div className="flex items-center justify-between px-3.5 py-2.5">
+                <span className="text-slate-500 font-medium">Temporary Password</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-medium text-slate-900 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
+                    {onboardSuccessData.tempPassword}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(
+                        `Maaya World HRMS Login Credentials\nEmail: ${onboardSuccessData.email}\nEmployee ID: ${onboardSuccessData.employee.employeeCode}\nTemporary Password: ${onboardSuccessData.tempPassword}\nPortal: ${window.location.origin}/login`
+                      );
+                      setCopiedCredentials(true);
+                      setTimeout(() => setCopiedCredentials(false), 2000);
+                    }}
+                    className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    {copiedCredentials ? 'Copied' : 'Copy'}
+                  </button>
                 </div>
               </div>
             </div>
 
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Generated Login Credentials
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <div className="text-slate-400 text-[11px]">Employee Code / ID</div>
-                  <div className="font-mono font-bold text-slate-900 text-sm mt-0.5">
-                    {onboardSuccessData.employee.employeeCode}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-slate-400 text-[11px]">Corporate Email</div>
-                  <div className="font-medium text-slate-900 truncate mt-0.5" title={onboardSuccessData.email}>
-                    {onboardSuccessData.email}
-                  </div>
-                </div>
-                <div className="col-span-2 pt-2 border-t border-slate-200">
-                  <div className="text-slate-400 text-[11px]">Default Temporary Password</div>
-                  <div className="flex items-center justify-between gap-2 mt-1">
-                    <span className="font-mono text-sm font-bold bg-white px-3 py-1.5 rounded border border-slate-300 text-slate-900 tracking-wider">
-                      {onboardSuccessData.tempPassword}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        void navigator.clipboard.writeText(
-                          `Maaya World HRMS Login Credentials:\nEmail: ${onboardSuccessData.email}\nEmployee ID: ${onboardSuccessData.employee.employeeCode}\nTemporary Password: ${onboardSuccessData.tempPassword}\nPortal: ${window.location.origin}/login`
-                        );
-                        setCopiedCredentials(true);
-                        setTimeout(() => setCopiedCredentials(false), 2500);
-                      }}
-                      leftIcon={copiedCredentials ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    >
-                      {copiedCredentials ? 'Copied' : 'Copy Credentials'}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <p className="text-slate-500 text-xs leading-relaxed">
+              Login instructions have been sent to {onboardSuccessData.email}. The employee will be prompted to reset their password on first login.
+            </p>
 
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2.5 text-xs text-amber-800">
-              <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold">Security Policy:</span> The employee is marked with{' '}
-                <span className="font-semibold">mandatory password reset</span> and will be prompted to create a new password on their very first login.
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end pt-1">
               <Button
                 variant="primary"
                 onClick={() => setOnboardSuccessData(null)}
               >
-                Close
+                Done
               </Button>
             </div>
           </div>
