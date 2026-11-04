@@ -53,7 +53,7 @@ export const Sidebar: React.FC = () => {
 
   const handleLogout = () => {
     dispatch(logout());
-    navigate('/admin/dashboard');
+    navigate('/login');
   };
 
   const adminSections: NavSection[] = [

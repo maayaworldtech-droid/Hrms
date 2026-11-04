@@ -74,7 +74,21 @@ export const TeamAttendance: React.FC = () => {
       header: 'Teammate',
       sortable: true,
       render: (row) => (
-        <span className="font-semibold text-slate-900">{row.employeeName}</span>
+        <div className="flex items-center gap-2">
+          {row.facePhoto ? (
+            <img
+              src={row.facePhoto}
+              alt={row.employeeName}
+              title="Verified Face Snapshot"
+              className="w-7 h-7 rounded-full object-cover border border-emerald-400 shrink-0"
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center font-bold text-[11px] shrink-0">
+              {row.employeeName?.charAt(0) || 'E'}
+            </div>
+          )}
+          <span className="font-semibold text-slate-900">{row.employeeName}</span>
+        </div>
       ),
     },
     {

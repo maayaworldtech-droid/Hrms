@@ -123,8 +123,12 @@ export const Login: React.FC = () => {
           joiningDate: userData.dateOfJoining || userData.joiningDate || '2024-01-15',
           phone: userData.phone || '+91 98765 43210',
           address: userData.address || '',
+          location: userData.location || userData.locationName || 'Hyderabad',
+          shift: userData.shift || 'MORNING',
           status: userData.status || 'ACTIVE',
           mustChangePassword: false,
+          enrolledFacePhoto: userData.enrolledFacePhoto,
+          enrolledFaceBiometrics: userData.enrolledFaceBiometrics,
         })
       );
 
@@ -175,8 +179,12 @@ export const Login: React.FC = () => {
           joiningDate: pendingUser.dateOfJoining || '2024-01-15',
           phone: pendingUser.phone || '',
           address: pendingUser.address || '',
+          location: pendingUser.location || pendingUser.locationName || 'Hyderabad',
+          shift: pendingUser.shift || 'MORNING',
           status: 'ACTIVE',
           mustChangePassword: false,
+          enrolledFacePhoto: pendingUser.enrolledFacePhoto,
+          enrolledFaceBiometrics: pendingUser.enrolledFaceBiometrics,
         })
       );
 
@@ -291,7 +299,7 @@ export const Login: React.FC = () => {
               </form>
             </div>
           ) : (
-            /* Clean Corporate Login Form (No Role Mentions) */
+            /* Corporate Login Form - Automatic Role Redirect based on Email Account */
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">

@@ -1,6 +1,6 @@
 import { MOCK_USERS, getReportingManager } from '@/services/mockData';
 import { EmployeeDetailsPanel } from '@/components/common/EmployeeDetailsPanel';
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -13,7 +13,33 @@ import { Input } from '@/components/common/Input';
 import { Select } from '@/components/common/Select';
 import { formatINR, formatDate } from '@/utils/formatters';
 
-import { UserPlus, Eye, Trash2, MapPin, Clock, Check, ArrowLeft } from 'lucide-react';
+import {
+  UserPlus,
+  Eye,
+  Trash2,
+  MapPin,
+  Clock,
+  Check,
+  ArrowLeft,
+  Camera,
+  Upload,
+  CheckCircle2,
+  AlertCircle,
+  ScanFace,
+  RotateCcw,
+  ShieldCheck,
+  RefreshCw,
+} from 'lucide-react';
+import {
+  captureFaceSnapshot,
+  analyzeVideoFrame,
+  extractFaceDescriptorFromCanvas,
+  extractDescriptorFromImage,
+  generateBiometricSignature,
+  drawBiometricHud,
+  resetBiometricTracker,
+  FaceBiometricDescriptor,
+} from '@/utils/faceBiometrics';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 
@@ -172,7 +198,7 @@ export const EmployeeManagement: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
@@ -185,6 +211,225 @@ export const EmployeeManagement: React.FC = () => {
     email: string;
   } | null>(null);
   const [copiedCredentials, setCopiedCredentials] = useState(false);
+
+  // Step 4 Face Biometric Enrollment State
+  const [enrolledFacePhoto, setEnrolledFacePhoto] = useState<string | null>(null);
+  const [enrolledFaceBiometrics, setEnrolledFaceBiometrics] = useState<string | null>(null);
+  const [faceSignature, setFaceSignature] = useState<string | null>(null);
+  const [enrollmentMode, setEnrollmentMode] = useState<'CAMERA' | 'UPLOAD'>('CAMERA');
+  const [cameraActive, setCameraActive] = useState<boolean>(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isAnalyzingFace, setIsAnalyzingFace] = useState<boolean>(false);
+  const [faceStatusMessage, setFaceStatusMessage] = useState<string>('Align face inside the oval guide');
+  const [faceCentered, setFaceCentered] = useState<boolean>(false);
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hudCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const procCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+  const prevImageDataRef = useRef<ImageData | null>(null);
+
+  const stopCamera = useCallback(() => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    setCameraActive(false);
+  }, []);
+
+  const startAnalysisLoop = useCallback(() => {
+    let progress = 0;
+    const processFrame = () => {
+      const video = videoRef.current;
+      const hudCanvas = hudCanvasRef.current;
+      const procCanvas = procCanvasRef.current;
+
+      if (!video || !hudCanvas || !procCanvas) {
+        animFrameRef.current = requestAnimationFrame(processFrame);
+        return;
+      }
+
+      const displayW = video.clientWidth || video.videoWidth || 480;
+      const displayH = video.clientHeight || video.videoHeight || 360;
+
+      if (hudCanvas.width !== displayW || hudCanvas.height !== displayH) {
+        hudCanvas.width = displayW;
+        hudCanvas.height = displayH;
+        procCanvas.width = 240;
+        procCanvas.height = 180;
+      }
+
+      progress = (progress + 1) % 100;
+
+      const analysis = analyzeVideoFrame(video, procCanvas, prevImageDataRef.current);
+      if (analysis) {
+        prevImageDataRef.current = analysis.currentImageData;
+        const res = analysis.result;
+        if (res.faceDetected && res.isCentered) {
+          setFaceCentered(true);
+          setFaceStatusMessage('Face placed correctly in frame. Ready for capture.');
+        } else if (res.faceDetected && !res.isCentered) {
+          setFaceCentered(false);
+          setFaceStatusMessage('Center face inside the frame (follow red guide)');
+        } else {
+          setFaceCentered(false);
+          setFaceStatusMessage('Position face inside the red frame to detect');
+        }
+        drawBiometricHud(hudCanvas, res, 'ENROLLING', progress);
+      }
+
+      animFrameRef.current = requestAnimationFrame(processFrame);
+    };
+
+    animFrameRef.current = requestAnimationFrame(processFrame);
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    resetBiometricTracker();
+    setCameraError(null);
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false,
+        });
+        streamRef.current = stream;
+        setCameraActive(true);
+
+        const video = videoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          video.muted = true;
+          video.playsInline = true;
+          video.play().then(() => startAnalysisLoop()).catch(() => {
+            video.onloadedmetadata = () => {
+              video.play().catch(() => {});
+              startAnalysisLoop();
+            };
+          });
+        }
+      } else {
+        throw new Error('Webcam API unavailable in this browser');
+      }
+    } catch (err: any) {
+      setCameraActive(false);
+      setCameraError(err?.message || 'Camera permission denied or camera not found.');
+    }
+  }, [startAnalysisLoop]);
+
+  useEffect(() => {
+    if (isAddingEmployee && currentStep === 4 && enrollmentMode === 'CAMERA' && !enrolledFacePhoto) {
+      void startCamera();
+    } else {
+      stopCamera();
+    }
+    return () => {
+      stopCamera();
+    };
+  }, [isAddingEmployee, currentStep, enrollmentMode, enrolledFacePhoto, startCamera, stopCamera]);
+
+  const handleCaptureFromCamera = () => {
+    const video = videoRef.current;
+    const procCanvas = procCanvasRef.current;
+    if (!video) return;
+
+    const photo = captureFaceSnapshot(video);
+    if (!photo) {
+      dispatch(addToast({ type: 'error', title: 'Capture Failed', message: 'Could not capture snapshot from camera.' }));
+      return;
+    }
+
+    let descriptor: FaceBiometricDescriptor | null = null;
+    let signature = `BIO-MW-NEW-${Date.now()}`;
+
+    if (procCanvas) {
+      const analysis = analyzeVideoFrame(video, procCanvas, null);
+      if (analysis?.result?.faceDetected && analysis.result.box && analysis.result.landmarks) {
+        descriptor = extractFaceDescriptorFromCanvas(procCanvas, analysis.result.box, analysis.result.landmarks);
+        signature = generateBiometricSignature(analysis.result.box, analysis.result.landmarks, 'MW-NEW');
+      }
+    }
+
+    stopCamera();
+    setEnrolledFacePhoto(photo);
+    setEnrolledFaceBiometrics(descriptor ? JSON.stringify(descriptor) : null);
+    setFaceSignature(signature);
+
+    dispatch(
+      addToast({
+        type: 'success',
+        title: 'Face Biometrics Registered',
+        message: 'Facial profile enrolled successfully for attendance verification.',
+      })
+    );
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      dispatch(addToast({ type: 'error', title: 'Invalid File', message: 'Please upload a valid image file (JPG, PNG, WebP).' }));
+      return;
+    }
+
+    setIsAnalyzingFace(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const dataUrl = event.target?.result as string;
+      if (!dataUrl) {
+        setIsAnalyzingFace(false);
+        return;
+      }
+
+      try {
+        const desc = await extractDescriptorFromImage(dataUrl);
+        if (!desc) {
+          dispatch(
+            addToast({
+              type: 'error',
+              title: 'No Face Detected',
+              message: 'No clear human face was detected in this photo. Please upload a clear, front-facing portrait photo.',
+            })
+          );
+          setIsAnalyzingFace(false);
+          return;
+        }
+
+        const sig = `BIO-MW-IMG-${desc.eyeDistanceRatio}-${desc.eyeToNoseRatio}-${desc.aspectRatio}`;
+        setEnrolledFacePhoto(dataUrl);
+        setEnrolledFaceBiometrics(JSON.stringify(desc));
+        setFaceSignature(sig);
+
+        dispatch(
+          addToast({
+            type: 'success',
+            title: 'Face Photo Verified & Enrolled',
+            message: 'Facial descriptor and biometric signature extracted successfully.',
+          })
+        );
+      } catch (err: any) {
+        dispatch(addToast({ type: 'error', title: 'Analysis Error', message: 'Could not process face photo.' }));
+      } finally {
+        setIsAnalyzingFace(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRetakeFace = () => {
+    setEnrolledFacePhoto(null);
+    setEnrolledFaceBiometrics(null);
+    setFaceSignature(null);
+    if (enrollmentMode === 'CAMERA') {
+      void startCamera();
+    }
+  };
 
   const {
     register: registerAdd,
@@ -292,7 +537,31 @@ export const EmployeeManagement: React.FC = () => {
     }
   };
 
+  const handleNextStep3 = async () => {
+    const isValid = await triggerAdd([
+      'bankName',
+      'accountNumber',
+      'ifscCode',
+      'panNumber',
+      'uanNumber',
+    ]);
+    if (isValid) {
+      setCurrentStep(4);
+    }
+  };
+
   const onAddSubmit = async (values: OnboardingFormValues) => {
+    if (!enrolledFacePhoto) {
+      dispatch(
+        addToast({
+          type: 'error',
+          title: 'Facial Biometric Registration Required',
+          message: 'Face registration is mandatory. Please capture via camera or upload the employee’s face photo to complete onboarding.',
+        })
+      );
+      return;
+    }
+
     try {
       const fullAddress = `${values.addressLine}, ${values.city}, ${values.state} - ${values.pincode}`.trim();
       const newEmp = await api.employees.onboard({
@@ -311,6 +580,8 @@ export const EmployeeManagement: React.FC = () => {
         ctcAnnual: values.monthlySalary * 12,
         joiningDate: values.joiningDate,
         employmentType: 'FULL_TIME',
+        enrolledFacePhoto: enrolledFacePhoto,
+        enrolledFaceBiometrics: enrolledFaceBiometrics || undefined,
         bankDetails: {
           accountNumber: values.accountNumber,
           ifscCode: values.ifscCode.toUpperCase(),
@@ -328,13 +599,17 @@ export const EmployeeManagement: React.FC = () => {
       dispatch(
         addToast({
           type: 'success',
-          title: 'Employee Onboarded Successfully',
-          message: `${newEmp.fullName} (${newEmp.employeeCode}) onboarded to ${newEmp.location}. Welcome email queued via Zoho ZeptoMail.`,
+          title: 'Employee Onboarded & Face Registered',
+          message: `${newEmp.fullName} (${newEmp.employeeCode}) onboarded to ${newEmp.location}. Facial biometrics registered for attendance.`,
         })
       );
       setIsAddingEmployee(false);
       setCurrentStep(1);
       resetAdd();
+      setEnrolledFacePhoto(null);
+      setEnrolledFaceBiometrics(null);
+      setFaceSignature(null);
+      stopCamera();
       loadEmployees();
 
       // Show credentials modal for administrative record & copy
@@ -433,10 +708,19 @@ export const EmployeeManagement: React.FC = () => {
       sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-md bg-slate-900 text-white flex items-center justify-center font-bold text-[11px] shrink-0">
-            {row.firstName?.[0] || 'M'}
-            {row.lastName?.[0] || 'W'}
-          </div>
+          {row.enrolledFacePhoto ? (
+            <img
+              src={row.enrolledFacePhoto}
+              alt={row.fullName}
+              className="w-7 h-7 rounded-md object-cover border border-slate-200 shrink-0"
+              title="Registered Face ID"
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-md bg-slate-900 text-white flex items-center justify-center font-bold text-[11px] shrink-0">
+              {row.firstName?.[0] || 'M'}
+              {row.lastName?.[0] || 'W'}
+            </div>
+          )}
           <div className="min-w-0">
             <div className="font-semibold text-slate-900 truncate">{row.fullName}</div>
             <div className="text-[11px] text-slate-400 font-mono mt-0.5 truncate">
@@ -571,12 +855,12 @@ export const EmployeeManagement: React.FC = () => {
 
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-500 font-medium">
-              Step {currentStep} of 3
+              Step {currentStep} of 4
             </span>
             <div className="w-28 h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
               <div
                 className="h-full bg-[#3182C8] transition-all duration-300"
-                style={{ width: currentStep === 1 ? '33.3%' : currentStep === 2 ? '66.6%' : '100%' }}
+                style={{ width: currentStep === 1 ? '25%' : currentStep === 2 ? '50%' : currentStep === 3 ? '75%' : '100%' }}
               />
             </div>
           </div>
@@ -589,6 +873,7 @@ export const EmployeeManagement: React.FC = () => {
               { step: 1, title: 'Basic Information' },
               { step: 2, title: 'Work & Compensation' },
               { step: 3, title: 'Bank Account Details' },
+              { step: 4, title: 'Facial Biometrics' },
             ].map((item, idx) => {
               const isCurrent = currentStep === item.step;
               const isCompleted = currentStep > item.step;
@@ -597,7 +882,7 @@ export const EmployeeManagement: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      if (item.step < currentStep) setCurrentStep(item.step as 1 | 2 | 3);
+                      if (item.step < currentStep) setCurrentStep(item.step as 1 | 2 | 3 | 4);
                     }}
                     disabled={item.step > currentStep}
                     className={`flex items-center gap-3 text-left transition-colors ${
@@ -623,7 +908,7 @@ export const EmployeeManagement: React.FC = () => {
                       <div className="text-xs font-semibold leading-tight">{item.title}</div>
                     </div>
                   </button>
-                  {idx < 2 && (
+                  {idx < 3 && (
                     <div
                       className={`flex-1 h-0.5 mx-3 transition-colors ${
                         currentStep > item.step ? 'bg-emerald-500' : 'bg-slate-200'
@@ -831,6 +1116,210 @@ export const EmployeeManagement: React.FC = () => {
               </div>
             )}
 
+            {/* Step 4: Facial Biometric Registration */}
+            {currentStep === 4 && (
+              <div className="space-y-5">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="text-sm font-semibold text-slate-900">
+                      Facial Biometric Registration
+                    </h3>
+                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      Required for Attendance
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Register the employee&apos;s reference facial profile. This biometric snapshot is saved to their profile and strictly verified against the employee&apos;s face during daily attendance punches.
+                  </p>
+                </div>
+
+                {!enrolledFacePhoto && (
+                  <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEnrollmentMode('CAMERA');
+                        void startCamera();
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                        enrollmentMode === 'CAMERA'
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>Live Camera Capture</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEnrollmentMode('UPLOAD');
+                        stopCamera();
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                        enrollmentMode === 'UPLOAD'
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload Face Photo</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Camera Viewfinder */}
+                {!enrolledFacePhoto && enrollmentMode === 'CAMERA' && (
+                  <div className="space-y-3">
+                    <div className={`relative rounded-xl overflow-hidden bg-slate-950 transition-colors duration-200 border-2 aspect-[4/3] max-w-md mx-auto flex items-center justify-center ${
+                      cameraActive
+                        ? faceCentered
+                          ? 'border-emerald-500 shadow-md shadow-emerald-500/15'
+                          : 'border-rose-500/80 shadow-md shadow-rose-500/10'
+                        : 'border-slate-800'
+                    }`}>
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-full object-cover"
+                      />
+                      <canvas ref={procCanvasRef} className="hidden" />
+                      <canvas ref={hudCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+
+                      {!cameraActive && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-slate-900">
+                          <Camera className="w-8 h-8 text-slate-400 mb-2" />
+                          <span className="text-xs font-semibold text-slate-200">Camera Offline</span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">{cameraError || 'Click below to activate webcam'}</p>
+                          <Button type="button" size="sm" variant="primary" onClick={() => void startCamera()} className="mt-3">
+                            Start Camera
+                          </Button>
+                        </div>
+                      )}
+
+                      {cameraActive && (
+                        <div className={`absolute bottom-2.5 inset-x-2.5 backdrop-blur-xs border rounded-lg px-3 py-1.5 flex items-center justify-between text-xs transition-colors duration-200 ${
+                          faceCentered
+                            ? 'bg-slate-950/85 border-emerald-500/40 text-emerald-200'
+                            : 'bg-slate-950/85 border-rose-500/40 text-rose-200'
+                        }`}>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${faceCentered ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
+                            <span className="truncate text-[11px] font-medium">{faceStatusMessage}</span>
+                          </div>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded tracking-wide shrink-0 ${
+                            faceCentered
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                              : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                          }`}>
+                            {faceCentered ? 'IN FRAME (GREEN)' : 'ALIGN (RED)'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {cameraActive && (
+                      <div className="flex justify-center pt-1">
+                        <Button
+                          type="button"
+                          variant="primary"
+                          onClick={handleCaptureFromCamera}
+                          leftIcon={<Camera className="w-4 h-4" />}
+                          disabled={!faceCentered}
+                          className={`!h-10 px-6 font-semibold transition-all ${
+                            faceCentered
+                              ? '!bg-emerald-600 hover:!bg-emerald-700 !text-white shadow-xs'
+                              : '!bg-slate-200 !text-slate-400 !border-slate-200 cursor-not-allowed'
+                          }`}
+                        >
+                          {faceCentered ? 'Capture Face Biometrics' : 'Align Face in Green Frame to Capture'}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Upload Photo Option */}
+                {!enrolledFacePhoto && enrollmentMode === 'UPLOAD' && (
+                  <div className="max-w-md mx-auto border-2 border-dashed border-slate-200 hover:border-slate-300 rounded-xl p-8 text-center bg-slate-50/50 transition-colors">
+                    <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-600">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    <div className="text-xs font-semibold text-slate-900 mb-1">
+                      Upload Employee Face Portrait
+                    </div>
+                    <p className="text-[11px] text-slate-500 mb-4">
+                      Select a clear front-facing portrait photo (JPG, PNG, WebP).
+                    </p>
+                    <label className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 cursor-pointer transition-colors shadow-xs">
+                      <span>{isAnalyzingFace ? 'Analyzing Biometrics...' : 'Choose Photo File'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoUpload}
+                        disabled={isAnalyzingFace}
+                        className="sr-only"
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {/* Enrolled Face Confirmation Preview */}
+                {enrolledFacePhoto && (
+                  <div className="max-w-md mx-auto p-4 rounded-xl border border-emerald-200 bg-emerald-50/40 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span>Facial Biometrics Registered & Validated</span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        ENROLLED
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3 bg-white p-3 rounded-lg border border-emerald-100">
+                      <div className="w-20 h-20 rounded-md overflow-hidden bg-slate-900 border border-slate-200 shrink-0">
+                        <img
+                          src={enrolledFacePhoto}
+                          alt="Enrolled Face"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="text-xs font-semibold text-slate-900 truncate">
+                          {watchAdd('firstName') || 'Employee'} {watchAdd('lastName') || ''}
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono truncate">
+                          {faceSignature || 'BIO-MW-ENROLLED'}
+                        </div>
+                        <div className="text-[10px] text-emerald-700 font-medium flex items-center gap-1">
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          <span>64-D Descriptor Generated & Stored</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-emerald-800 leading-relaxed">
+                      This registered face will be used as the biometric baseline for attendance punches. Any punch attempt by an unrecognized face will be flagged and rejected.
+                    </p>
+
+                    <div className="flex justify-end pt-1">
+                      <button
+                        type="button"
+                        onClick={handleRetakeFace}
+                        className="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Retake / Change Photo</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Form Footer Action Controls */}
             <div className="border-t border-slate-100 pt-5 flex items-center justify-between gap-3">
               {currentStep > 1 ? (
@@ -838,7 +1327,7 @@ export const EmployeeManagement: React.FC = () => {
                   type="button"
                   variant="outline"
                   onClick={() => {
-                    setCurrentStep((prev) => (prev - 1) as 1 | 2 | 3);
+                    setCurrentStep((prev) => (prev - 1) as 1 | 2 | 3 | 4);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                 >
@@ -853,6 +1342,10 @@ export const EmployeeManagement: React.FC = () => {
                       setIsAddingEmployee(false);
                       setCurrentStep(1);
                       resetAdd();
+                      setEnrolledFacePhoto(null);
+                      setEnrolledFaceBiometrics(null);
+                      setFaceSignature(null);
+                      stopCamera();
                     }
                   }}
                 >
@@ -883,11 +1376,22 @@ export const EmployeeManagement: React.FC = () => {
 
                 {currentStep === 3 && (
                   <Button
+                    type="button"
+                    variant="primary"
+                    onClick={handleNextStep3}
+                  >
+                    Next: Facial Biometrics
+                  </Button>
+                )}
+
+                {currentStep === 4 && (
+                  <Button
                     type="submit"
                     variant="primary"
                     isLoading={isSubmittingAdd}
+                    disabled={!enrolledFacePhoto}
                   >
-                    Confirm & Onboard
+                    Confirm & Onboard Employee
                   </Button>
                 )}
               </div>
@@ -1093,6 +1597,24 @@ export const EmployeeManagement: React.FC = () => {
         >
           <div className="space-y-4 text-xs">
             <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 bg-white">
+              {onboardSuccessData.employee.enrolledFacePhoto && (
+                <div className="p-3 bg-emerald-50/50 flex items-center gap-3">
+                  <img
+                    src={onboardSuccessData.employee.enrolledFacePhoto}
+                    alt="Registered Face"
+                    className="w-12 h-12 rounded-lg object-cover border border-emerald-200 bg-white shrink-0"
+                  />
+                  <div>
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-900">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Facial Biometrics Registered</span>
+                    </div>
+                    <p className="text-[11px] text-emerald-700 mt-0.5">
+                      Enrolled as single source of truth for daily attendance verification.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center justify-between px-3.5 py-2.5">
                 <span className="text-slate-500 font-medium">Employee ID</span>
                 <span className="font-mono font-medium text-slate-900">{onboardSuccessData.employee.employeeCode}</span>

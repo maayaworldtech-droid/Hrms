@@ -8,12 +8,12 @@ import { EmployeeMobileLayout } from '@/components/layout/EmployeeMobileLayout';
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
 
-// Auth Feature Screens (Screens 1, 2, 3)
+// Auth Feature Screens
 import { Login } from '@/features/auth/Login';
 import { ForgotPassword } from '@/features/auth/ForgotPassword';
 import { ResetPassword } from '@/features/auth/ResetPassword';
 
-// Admin Feature Screens (Screens 4 - 10)
+// Admin Feature Screens
 import { AdminDashboard } from '@/features/admin/AdminDashboard';
 import { EmployeeManagement } from '@/features/admin/EmployeeManagement';
 import { AttendanceManagement } from '@/features/admin/AttendanceManagement';
@@ -22,12 +22,12 @@ import { PayrollProcessing } from '@/features/admin/PayrollProcessing';
 import { ReportsAnalytics } from '@/features/admin/ReportsAnalytics';
 import { CompanySettings } from '@/features/admin/CompanySettings';
 
-// Manager Feature Screens (Screens 13, 14, 15)
+// Manager Feature Screens
 import { ManagerDashboard } from '@/features/manager/ManagerDashboard';
 import { TeamAttendance } from '@/features/manager/TeamAttendance';
 import { TeamLeaves } from '@/features/manager/TeamLeaves';
 
-// Employee Feature Screens (Screens 16, 17, 18, 19, 20)
+// Employee Feature Screens
 import { EmployeeDashboard } from '@/features/employee/EmployeeDashboard';
 import { MyAttendance } from '@/features/employee/MyAttendance';
 import { MyLeaves } from '@/features/employee/MyLeaves';
@@ -44,7 +44,19 @@ const queryClient = new QueryClient({
 });
 
 const RoleRootRedirect: React.FC = () => {
-  return <Navigate to="/admin/dashboard" replace />;
+  const { isAuthenticated, activeRole } = useAppSelector((state) => state.auth);
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (activeRole === 'ADMIN') {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
+  if (activeRole === 'MANAGER') {
+    return <Navigate to="/manager/dashboard" replace />;
+  }
+  return <Navigate to="/employee/dashboard" replace />;
 };
 
 export const AppContent: React.FC = () => {
@@ -52,16 +64,17 @@ export const AppContent: React.FC = () => {
     <BrowserRouter>
       <ErrorBoundary>
         <Routes>
-          {/* Public Authentication Screens redirected directly to admin */}
-          <Route path="/login" element={<Navigate to="/admin/dashboard" replace />} />
-          <Route path="/forgot-password" element={<Navigate to="/admin/dashboard" replace />} />
-          <Route path="/reset-password" element={<Navigate to="/admin/dashboard" replace />} />
+          {/* Public Authentication Screens */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
-          {/* Protected Application Workspace */}
+          {/* Root Redirect based on authentication & role */}
+          <Route path="/" element={<RoleRootRedirect />} />
+
+          {/* Protected Application Workspace for Admin & Manager */}
           <Route element={<AppLayout />}>
-            <Route path="/" element={<RoleRootRedirect />} />
-
-            {/* Admin Module (Role Protected) */}
+            {/* Admin Module (Role Protected: ADMIN only) */}
             <Route
               path="/admin/dashboard"
               element={
@@ -119,11 +132,11 @@ export const AppContent: React.FC = () => {
               }
             />
 
-            {/* Manager Module (Role Protected) */}
+            {/* Manager Module (Role Protected: MANAGER & ADMIN) */}
             <Route
               path="/manager/dashboard"
               element={
-                <ProtectedRoute allowedRoles={['MANAGER']}>
+                <ProtectedRoute allowedRoles={['MANAGER', 'ADMIN']}>
                   <ManagerDashboard />
                 </ProtectedRoute>
               }
@@ -131,7 +144,7 @@ export const AppContent: React.FC = () => {
             <Route
               path="/manager/attendance"
               element={
-                <ProtectedRoute allowedRoles={['MANAGER']}>
+                <ProtectedRoute allowedRoles={['MANAGER', 'ADMIN']}>
                   <TeamAttendance />
                 </ProtectedRoute>
               }
@@ -139,7 +152,7 @@ export const AppContent: React.FC = () => {
             <Route
               path="/manager/leaves"
               element={
-                <ProtectedRoute allowedRoles={['MANAGER']}>
+                <ProtectedRoute allowedRoles={['MANAGER', 'ADMIN']}>
                   <TeamLeaves />
                 </ProtectedRoute>
               }
@@ -149,7 +162,7 @@ export const AppContent: React.FC = () => {
           {/* Dedicated Mobile-First Employee Portal Shell */}
           <Route
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER', 'ADMIN']}>
                 <EmployeeMobileLayout />
               </ProtectedRoute>
             }

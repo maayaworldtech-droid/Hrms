@@ -22,6 +22,7 @@ export const MyAttendance: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PRESENT' | 'LATE'>('ALL');
+  const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -246,9 +247,27 @@ export const MyAttendance: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-between pt-0.5 text-[11px]">
-                  <div className="flex items-center gap-1 text-slate-500">
-                    <ShieldCheck size={13} className="text-emerald-600" />
-                    <span>Face & GPS verified</span>
+                  <div className="flex items-center gap-1.5 text-slate-500">
+                    {record.facePhoto ? (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewPhoto(record.facePhoto!)}
+                        className="flex items-center gap-1.5 text-emerald-700 hover:text-emerald-800 font-medium cursor-pointer"
+                        title="Click to view verified face photo"
+                      >
+                        <img
+                          src={record.facePhoto}
+                          alt="Face"
+                          className="w-4 h-4 rounded-full object-cover border border-emerald-400"
+                        />
+                        <span>Face verified (view photo)</span>
+                      </button>
+                    ) : (
+                      <>
+                        <ShieldCheck size={13} className="text-emerald-600" />
+                        <span>Face & GPS verified</span>
+                      </>
+                    )}
                   </div>
 
                   {(isLate || record.status === 'ABSENT' || record.regularizationStatus === 'PENDING') && (
@@ -326,14 +345,46 @@ export const MyAttendance: React.FC = () => {
         onClose={() => setBiometricModalOpen(false)}
         mode={biometricMode}
         employee={{
-          id: employeeId,
-          fullName: user?.name || 'Shyam Sundar',
+          id: String(user?.id || employeeId).replace('emp-', ''),
+          fullName: user?.name || 'Yadla Syam Sundar Mani Krishna',
           employeeCode: user?.employeeId || 'MW-1000',
           location: user?.location || 'Hyderabad',
           shift: user?.shift || 'MORNING',
+          enrolledFacePhoto: user?.enrolledFacePhoto,
+          enrolledFaceBiometrics: user?.enrolledFaceBiometrics,
         }}
         onSuccess={handleBiometricSuccess}
       />
+
+      {/* Face Photo Preview Modal */}
+      {previewPhoto && (
+        <Modal
+          isOpen={!!previewPhoto}
+          onClose={() => setPreviewPhoto(null)}
+          title="Face Attendance Photo"
+          subtitle="Real face biometrics snapshot captured during punch"
+          size="sm"
+        >
+          <div className="space-y-3">
+            <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-950 aspect-[4/3] flex items-center justify-center">
+              <img
+                src={previewPhoto}
+                alt="Captured Face Punch"
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="flex justify-end pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setPreviewPhoto(null)}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

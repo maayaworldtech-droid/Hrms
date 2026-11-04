@@ -160,7 +160,7 @@ export const EmployeeMobileLayout: React.FC = () => {
                 onClick={() => {
                   setOpen(null);
                   dispatch(logout());
-                  navigate('/admin/dashboard');
+                  navigate('/login');
                 }}
               >
                 <LogOut size={16} className="text-[var(--accent-500)]" />

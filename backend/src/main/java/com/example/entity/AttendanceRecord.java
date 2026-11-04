@@ -44,6 +44,12 @@ public class AttendanceRecord {
     private Boolean isLocationVerified;
     private Boolean isBiometricVerified;
 
+    @Column(columnDefinition = "TEXT")
+    private String facePhoto;
+
+    @Column(columnDefinition = "TEXT")
+    private String faceBiometrics;
+
     @CreationTimestamp
     @Temporal(TemporalType.TIMESTAMP)
     private Date createdAt;

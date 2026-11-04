@@ -87,12 +87,28 @@ export const EmployeeDetailsPanel = ({
 
       {section === 'Personal' && (
         <>
+          {employee.enrolledFacePhoto && (
+            <div className="mb-4 flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <img
+                src={employee.enrolledFacePhoto}
+                alt="Enrolled Face"
+                className="w-14 h-14 rounded-lg object-cover border border-slate-200 bg-white shrink-0"
+              />
+              <div>
+                <span className="text-xs font-semibold text-slate-900 block">Registered Face ID</span>
+                <span className="text-[11px] text-emerald-700 font-medium block mt-0.5">
+                  Biometrics Enrolled for Attendance Verification
+                </span>
+              </div>
+            </div>
+          )}
           {details([
             ['Employee ID', employee.employeeCode || employee.id],
             ['Joining date', formatDate(employee.joiningDate)],
             ['Email', employee.email],
             ['Phone', employee.phone],
             ['Residential address', employee.address],
+            ['Facial Attendance Profile', employee.enrolledFacePhoto ? 'Enrolled & Verified' : 'Not Registered'],
           ])}
         </>
       )}

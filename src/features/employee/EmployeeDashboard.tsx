@@ -254,6 +254,8 @@ export const EmployeeDashboard: React.FC = () => {
           employeeCode: employee.employeeCode,
           location: employee.location,
           shift: employee.shift,
+          enrolledFacePhoto: employee.enrolledFacePhoto,
+          enrolledFaceBiometrics: employee.enrolledFaceBiometrics,
         }}
         onSuccess={() => {
           setScanOpen(false);

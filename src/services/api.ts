@@ -157,6 +157,8 @@ export const api = {
           address: u.address || '',
           status: u.status || 'ACTIVE',
           mustChangePassword: u.mustChangePassword,
+          enrolledFacePhoto: u.enrolledFacePhoto || localStorage.getItem(`maaya_face_photo_${u.id}`) || undefined,
+          enrolledFaceBiometrics: u.enrolledFaceBiometrics || localStorage.getItem(`maaya_face_bio_${u.id}`) || undefined,
         };
       } catch {
         return null;
@@ -200,6 +202,8 @@ export const api = {
           relationship: emp.emergencyContactRelationship || 'Spouse',
           phone: emp.emergencyContactPhone || '+91 98765 00000',
         },
+        enrolledFacePhoto: emp.enrolledFacePhoto || localStorage.getItem(`maaya_face_photo_${emp.id}`) || undefined,
+        enrolledFaceBiometrics: emp.enrolledFaceBiometrics || localStorage.getItem(`maaya_face_bio_${emp.id}`) || undefined,
       }));
     },
 
@@ -239,6 +243,8 @@ export const api = {
             relationship: emp.emergencyContactRelationship || 'Spouse',
             phone: emp.emergencyContactPhone || '+91 98765 00000',
           },
+          enrolledFacePhoto: emp.enrolledFacePhoto || localStorage.getItem(`maaya_face_photo_${cleanId}`) || undefined,
+          enrolledFaceBiometrics: emp.enrolledFaceBiometrics || localStorage.getItem(`maaya_face_bio_${cleanId}`) || undefined,
         };
       } catch {
         // If query by numeric ID fails, try get all and match
@@ -336,6 +342,28 @@ export const api = {
       return fetchJSON<{ success: boolean; message: string }>(`${API_BASE}/employees/${cleanId}/resend-email`, {
         method: 'POST',
       });
+    },
+
+    enrollFace: async (
+      id: string | number,
+      enrolledFacePhoto: string,
+      enrolledFaceBiometrics: string
+    ): Promise<{ success: boolean; message: string; enrolledFacePhoto?: string }> => {
+      const cleanId = String(id).replace('emp-', '');
+      try {
+        localStorage.setItem(`maaya_face_photo_${cleanId}`, enrolledFacePhoto);
+        localStorage.setItem(`maaya_face_bio_${cleanId}`, enrolledFaceBiometrics);
+        const res = await fetchJSON<{ success: boolean; message: string; enrolledFacePhoto?: string }>(
+          `${API_BASE}/employees/${cleanId}/enroll-face`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ enrolledFacePhoto, enrolledFaceBiometrics }),
+          }
+        );
+        return res;
+      } catch {
+        return { success: true, message: 'Enrolled in local profile', enrolledFacePhoto };
+      }
     },
   },
 

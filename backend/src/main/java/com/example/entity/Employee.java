@@ -69,6 +69,12 @@ public class Employee {
     @JoinColumn(name = "location_id", nullable = true)
     private Location location;
 
+    @Column(columnDefinition = "TEXT")
+    private String enrolledFacePhoto;
+
+    @Column(columnDefinition = "TEXT")
+    private String enrolledFaceBiometrics;
+
     @CreationTimestamp
     @Temporal(TemporalType.TIMESTAMP)
     private Date createdDate;

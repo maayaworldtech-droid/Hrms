@@ -57,6 +57,30 @@ public class EmployeeController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    @PostMapping("/{id}/enroll-face")
+    public ResponseEntity<Map<String, Object>> enrollFaceBiometrics(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> payload
+    ) {
+        String facePhoto = payload.get("enrolledFacePhoto");
+        String faceBiometrics = payload.get("enrolledFaceBiometrics");
+        return employeeService.getEmployeeById(id).map(emp -> {
+            if (facePhoto != null && !facePhoto.trim().isEmpty()) {
+                emp.setEnrolledFacePhoto(facePhoto);
+            }
+            if (faceBiometrics != null && !faceBiometrics.trim().isEmpty()) {
+                emp.setEnrolledFaceBiometrics(faceBiometrics);
+            }
+            Employee updated = employeeService.createEmployee(emp);
+            return ResponseEntity.ok(Map.<String, Object>of(
+                    "success", true,
+                    "message", "Face biometrics enrolled successfully",
+                    "employeeId", updated.getId(),
+                    "enrolledFacePhoto", updated.getEnrolledFacePhoto() != null ? updated.getEnrolledFacePhoto() : ""
+            ));
+        }).orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteEmployee(@PathVariable Long id) {
         boolean deleted = employeeService.deleteEmployee(id);

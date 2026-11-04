@@ -18,6 +18,8 @@ export interface User {
   mustChangePassword?: boolean;
   location?: EmployeeLocation | string;
   shift?: ShiftType;
+  enrolledFacePhoto?: string;
+  enrolledFaceBiometrics?: string;
 }
 
 export type EmployeeLocation = 'Hyderabad' | 'Vizag' | 'Bhubaneswar';
@@ -61,6 +63,8 @@ export interface Employee {
     phone: string;
   };
   avatarUrl?: string;
+  enrolledFacePhoto?: string;
+  enrolledFaceBiometrics?: string;
 }
 
 export type AttendanceStatus = 
@@ -93,6 +97,8 @@ export interface AttendanceRecord {
   biometricScore?: number;
   isLocationVerified?: boolean;
   isBiometricVerified?: boolean;
+  facePhoto?: string;
+  faceBiometrics?: string;
 }
 
 export type LeaveType = 

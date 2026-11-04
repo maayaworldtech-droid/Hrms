@@ -86,6 +86,12 @@ public class AttendanceController {
         if (payload.get("notes") != null) {
             record.setNotes(payload.get("notes").toString());
         }
+        if (payload.get("facePhoto") != null) {
+            record.setFacePhoto(payload.get("facePhoto").toString());
+        }
+        if (payload.get("faceBiometrics") != null) {
+            record.setFaceBiometrics(payload.get("faceBiometrics").toString());
+        }
 
         record.setStatus("PRESENT");
         record.setRegularizationStatus("NONE");
@@ -138,6 +144,12 @@ public class AttendanceController {
         }
         if (payload.get("notes") != null) {
             record.setNotes(payload.get("notes").toString());
+        }
+        if (payload.get("facePhoto") != null) {
+            record.setFacePhoto(payload.get("facePhoto").toString());
+        }
+        if (payload.get("faceBiometrics") != null) {
+            record.setFaceBiometrics(payload.get("faceBiometrics").toString());
         }
 
         record.setStatus("PRESENT");

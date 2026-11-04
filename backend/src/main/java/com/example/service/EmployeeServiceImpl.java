@@ -82,6 +82,9 @@ public class EmployeeServiceImpl implements EmployeeService {
                 if (employee.getEmploymentType() != null) target.setEmploymentType(employee.getEmploymentType());
                 if (employee.getShift() != null) target.setShift(employee.getShift());
                 if (employee.getDateOfJoining() != null) target.setDateOfJoining(employee.getDateOfJoining());
+                if (employee.getLocation() != null) target.setLocation(employee.getLocation());
+                if (employee.getEnrolledFacePhoto() != null) target.setEnrolledFacePhoto(employee.getEnrolledFacePhoto());
+                if (employee.getEnrolledFaceBiometrics() != null) target.setEnrolledFaceBiometrics(employee.getEnrolledFaceBiometrics());
             }
         }
 
@@ -227,6 +230,14 @@ public class EmployeeServiceImpl implements EmployeeService {
             if (student.getLocation() != null) {
                 existing.setLocation(student.getLocation());
             }
+
+            if (student.getEnrolledFacePhoto() != null) {
+                existing.setEnrolledFacePhoto(student.getEnrolledFacePhoto());
+            }
+            if (student.getEnrolledFaceBiometrics() != null) {
+                existing.setEnrolledFaceBiometrics(student.getEnrolledFaceBiometrics());
+            }
+
             return employeeRepository.save(existing);
         });
     }
