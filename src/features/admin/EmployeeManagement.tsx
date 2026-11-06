@@ -84,6 +84,7 @@ const INDIAN_STATES = [
 
 
 
+
 const onboardingSchema = z.object({
   // Step 1: Basic Information & Split Address
   firstName: z
@@ -222,6 +223,7 @@ export const EmployeeManagement: React.FC = () => {
   const [isAnalyzingFace, setIsAnalyzingFace] = useState<boolean>(false);
   const [faceStatusMessage, setFaceStatusMessage] = useState<string>('Align face inside the oval guide');
   const [faceCentered, setFaceCentered] = useState<boolean>(false);
+  const [faceDetected, setFaceDetected] = useState<boolean>(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hudCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -270,6 +272,7 @@ export const EmployeeManagement: React.FC = () => {
       if (analysis) {
         prevImageDataRef.current = analysis.currentImageData;
         const res = analysis.result;
+        setFaceDetected(Boolean(res.faceDetected));
         if (res.faceDetected && res.isCentered) {
           setFaceCentered(true);
           setFaceStatusMessage('Face placed correctly in frame. Ready for capture.');
@@ -308,7 +311,7 @@ export const EmployeeManagement: React.FC = () => {
           video.playsInline = true;
           video.play().then(() => startAnalysisLoop()).catch(() => {
             video.onloadedmetadata = () => {
-              video.play().catch(() => {});
+              video.play().catch(() => { });
               startAnalysisLoop();
             };
           });
@@ -885,22 +888,20 @@ export const EmployeeManagement: React.FC = () => {
                       if (item.step < currentStep) setCurrentStep(item.step as 1 | 2 | 3 | 4);
                     }}
                     disabled={item.step > currentStep}
-                    className={`flex items-center gap-3 text-left transition-colors ${
-                      isCurrent
+                    className={`flex items-center gap-3 text-left transition-colors ${isCurrent
                         ? 'text-sky-700 font-semibold'
                         : isCompleted
-                        ? 'text-slate-700 hover:text-slate-900 cursor-pointer'
-                        : 'text-slate-400 cursor-not-allowed opacity-60'
-                    }`}
+                          ? 'text-slate-700 hover:text-slate-900 cursor-pointer'
+                          : 'text-slate-400 cursor-not-allowed opacity-60'
+                      }`}
                   >
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all shrink-0 ${
-                        isCompleted
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all shrink-0 ${isCompleted
                           ? 'bg-emerald-600 text-white'
                           : isCurrent
-                          ? 'bg-[#3182C8] text-white ring-4 ring-sky-100'
-                          : 'bg-slate-100 text-slate-500 border border-slate-300'
-                      }`}
+                            ? 'bg-[#3182C8] text-white ring-4 ring-sky-100'
+                            : 'bg-slate-100 text-slate-500 border border-slate-300'
+                        }`}
                     >
                       {isCompleted ? <Check className="w-4 h-4" /> : item.step}
                     </div>
@@ -910,9 +911,8 @@ export const EmployeeManagement: React.FC = () => {
                   </button>
                   {idx < 3 && (
                     <div
-                      className={`flex-1 h-0.5 mx-3 transition-colors ${
-                        currentStep > item.step ? 'bg-emerald-500' : 'bg-slate-200'
-                      }`}
+                      className={`flex-1 h-0.5 mx-3 transition-colors ${currentStep > item.step ? 'bg-emerald-500' : 'bg-slate-200'
+                        }`}
                     />
                   )}
                 </React.Fragment>
@@ -1141,11 +1141,10 @@ export const EmployeeManagement: React.FC = () => {
                         setEnrollmentMode('CAMERA');
                         void startCamera();
                       }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-                        enrollmentMode === 'CAMERA'
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${enrollmentMode === 'CAMERA'
                           ? 'bg-slate-900 text-white shadow-xs'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
+                        }`}
                     >
                       <Camera className="w-3.5 h-3.5" />
                       <span>Live Camera Capture</span>
@@ -1156,11 +1155,10 @@ export const EmployeeManagement: React.FC = () => {
                         setEnrollmentMode('UPLOAD');
                         stopCamera();
                       }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-                        enrollmentMode === 'UPLOAD'
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${enrollmentMode === 'UPLOAD'
                           ? 'bg-slate-900 text-white shadow-xs'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
+                        }`}
                     >
                       <Upload className="w-3.5 h-3.5" />
                       <span>Upload Face Photo</span>
@@ -1171,13 +1169,12 @@ export const EmployeeManagement: React.FC = () => {
                 {/* Camera Viewfinder */}
                 {!enrolledFacePhoto && enrollmentMode === 'CAMERA' && (
                   <div className="space-y-3">
-                    <div className={`relative rounded-xl overflow-hidden bg-slate-950 transition-colors duration-200 border-2 aspect-[4/3] max-w-md mx-auto flex items-center justify-center ${
-                      cameraActive
+                    <div className={`relative rounded-xl overflow-hidden bg-slate-950 transition-colors duration-200 border-2 aspect-[4/3] max-w-md mx-auto flex items-center justify-center ${cameraActive
                         ? faceCentered
                           ? 'border-emerald-500 shadow-md shadow-emerald-500/15'
                           : 'border-rose-500/80 shadow-md shadow-rose-500/10'
                         : 'border-slate-800'
-                    }`}>
+                      }`}>
                       <video
                         ref={videoRef}
                         autoPlay
@@ -1200,20 +1197,18 @@ export const EmployeeManagement: React.FC = () => {
                       )}
 
                       {cameraActive && (
-                        <div className={`absolute bottom-2.5 inset-x-2.5 backdrop-blur-xs border rounded-lg px-3 py-1.5 flex items-center justify-between text-xs transition-colors duration-200 ${
-                          faceCentered
+                        <div className={`absolute bottom-2.5 inset-x-2.5 backdrop-blur-xs border rounded-lg px-3 py-1.5 flex items-center justify-between text-xs transition-colors duration-200 ${faceCentered
                             ? 'bg-slate-950/85 border-emerald-500/40 text-emerald-200'
                             : 'bg-slate-950/85 border-rose-500/40 text-rose-200'
-                        }`}>
+                          }`}>
                           <div className="flex items-center gap-1.5 min-w-0">
                             <span className={`w-2 h-2 rounded-full shrink-0 ${faceCentered ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
                             <span className="truncate text-[11px] font-medium">{faceStatusMessage}</span>
                           </div>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded tracking-wide shrink-0 ${
-                            faceCentered
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded tracking-wide shrink-0 ${faceCentered
                               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                               : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                          }`}>
+                            }`}>
                             {faceCentered ? 'IN FRAME (GREEN)' : 'ALIGN (RED)'}
                           </span>
                         </div>
@@ -1227,14 +1222,19 @@ export const EmployeeManagement: React.FC = () => {
                           variant="primary"
                           onClick={handleCaptureFromCamera}
                           leftIcon={<Camera className="w-4 h-4" />}
-                          disabled={!faceCentered}
-                          className={`!h-10 px-6 font-semibold transition-all ${
-                            faceCentered
+                          disabled={!faceCentered && !faceDetected}
+                          className={`!h-10 px-6 font-semibold transition-all ${faceCentered
                               ? '!bg-emerald-600 hover:!bg-emerald-700 !text-white shadow-xs'
-                              : '!bg-slate-200 !text-slate-400 !border-slate-200 cursor-not-allowed'
-                          }`}
+                              : faceDetected
+                                ? '!bg-emerald-700 hover:!bg-emerald-800 !text-white shadow-xs'
+                                : '!bg-slate-200 !text-slate-400 !border-slate-200 cursor-not-allowed'
+                            }`}
                         >
-                          {faceCentered ? 'Capture Face Biometrics' : 'Align Face in Green Frame to Capture'}
+                          {faceCentered
+                            ? 'Capture Face Biometrics'
+                            : faceDetected
+                              ? 'Capture Face Photo'
+                              : 'Align Face in Green Frame to Capture'}
                         </Button>
                       </div>
                     )}

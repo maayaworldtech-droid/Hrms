@@ -737,21 +737,21 @@ export function analyzeVideoFrame(
 
   // 3. Framing Centering & Sizing Evaluation against HUD Oval Target
   const targetCx = width * 0.50;
-  const targetCy = height * 0.45;
+  const targetCy = height * 0.48;
   const faceCenterX = box.x + box.width * 0.50;
-  const faceCenterY = box.y + box.height * 0.48;
+  const faceCenterY = box.y + box.height * 0.50;
 
   const dx = faceCenterX - targetCx;
   const dy = faceCenterY - targetCy;
 
   const isSizedProperly =
-    box.width >= width * 0.16 &&
-    box.width <= width * 0.88 &&
-    box.height >= height * 0.18 &&
-    box.height <= height * 0.92;
+    box.width >= width * 0.12 &&
+    box.width <= width * 0.90 &&
+    box.height >= height * 0.14 &&
+    box.height <= height * 0.94;
 
-  const isHorizCentered = Math.abs(dx) <= width * 0.22;
-  const isVertCentered = Math.abs(dy) <= height * 0.22;
+  const isHorizCentered = Math.abs(dx) <= width * 0.28;
+  const isVertCentered = Math.abs(dy) <= height * 0.28;
 
   const rawCentered = faceDetected && isSizedProperly && isHorizCentered && isVertCentered;
 
@@ -768,16 +768,16 @@ export function analyzeVideoFrame(
   if (!faceDetected) {
     alignmentStatus = 'NOT_DETECTED';
     guideMessage = '✕ Align Face Inside Red Frame';
-  } else if (box.width < width * 0.16 || box.height < height * 0.18) {
+  } else if (box.width < width * 0.12 || box.height < height * 0.14) {
     alignmentStatus = 'TOO_FAR';
     guideMessage = '✕ Move Closer to Camera';
-  } else if (box.width > width * 0.88 || box.height > height * 0.92) {
+  } else if (box.width > width * 0.90 || box.height > height * 0.94) {
     alignmentStatus = 'TOO_CLOSE';
     guideMessage = '✕ Move Slightly Back';
-  } else if (dx < -width * 0.22) {
+  } else if (dx < -width * 0.28) {
     alignmentStatus = 'MOVE_RIGHT';
     guideMessage = '✕ Move Slightly Right';
-  } else if (dx > width * 0.22) {
+  } else if (dx > width * 0.28) {
     alignmentStatus = 'MOVE_LEFT';
     guideMessage = '✕ Move Slightly Left';
   } else if (dy < -height * 0.22) {

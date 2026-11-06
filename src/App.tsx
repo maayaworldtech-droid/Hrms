@@ -18,6 +18,7 @@ import { AdminDashboard } from '@/features/admin/AdminDashboard';
 import { EmployeeManagement } from '@/features/admin/EmployeeManagement';
 import { AttendanceManagement } from '@/features/admin/AttendanceManagement';
 import { LeaveManagement } from '@/features/admin/LeaveManagement';
+import { OnDutyManagement } from '@/features/admin/OnDutyManagement';
 import { PayrollProcessing } from '@/features/admin/PayrollProcessing';
 import { ReportsAnalytics } from '@/features/admin/ReportsAnalytics';
 import { CompanySettings } from '@/features/admin/CompanySettings';
@@ -26,11 +27,13 @@ import { CompanySettings } from '@/features/admin/CompanySettings';
 import { ManagerDashboard } from '@/features/manager/ManagerDashboard';
 import { TeamAttendance } from '@/features/manager/TeamAttendance';
 import { TeamLeaves } from '@/features/manager/TeamLeaves';
+import { TeamOnDuty } from '@/features/manager/TeamOnDuty';
 
 // Employee Feature Screens
 import { EmployeeDashboard } from '@/features/employee/EmployeeDashboard';
 import { MyAttendance } from '@/features/employee/MyAttendance';
 import { MyLeaves } from '@/features/employee/MyLeaves';
+import { MyOnDuty } from '@/features/employee/MyOnDuty';
 import { MySalary } from '@/features/employee/MySalary';
 import { EmployeeProfile } from '@/features/employee/EmployeeProfile';
 
@@ -108,6 +111,14 @@ export const AppContent: React.FC = () => {
               }
             />
             <Route
+              path="/admin/on-duty"
+              element={
+                <ProtectedRoute allowedRoles={['ADMIN']}>
+                  <OnDutyManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/admin/payroll"
               element={
                 <ProtectedRoute allowedRoles={['ADMIN']}>
@@ -157,6 +168,14 @@ export const AppContent: React.FC = () => {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/manager/on-duty"
+              element={
+                <ProtectedRoute allowedRoles={['MANAGER', 'ADMIN']}>
+                  <TeamOnDuty />
+                </ProtectedRoute>
+              }
+            />
           </Route>
 
           {/* Dedicated Mobile-First Employee Portal Shell */}
@@ -170,6 +189,7 @@ export const AppContent: React.FC = () => {
             <Route path="/employee/dashboard" element={<EmployeeDashboard />} />
             <Route path="/employee/attendance" element={<MyAttendance />} />
             <Route path="/employee/leaves" element={<MyLeaves />} />
+            <Route path="/employee/on-duty" element={<MyOnDuty />} />
             <Route path="/employee/salary" element={<MySalary />} />
             <Route path="/employee/profile" element={<EmployeeProfile />} />
             <Route path="/profile" element={<Navigate to="/employee/profile" replace />} />

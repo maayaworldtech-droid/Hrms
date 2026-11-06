@@ -136,6 +136,44 @@ export interface LeaveBalance {
   compOff: { total: number; used: number; remaining: number };
 }
 
+export type OnDutyType = 
+  | 'BANK_DEPOSIT' 
+  | 'PROCUREMENT' 
+  | 'CLIENT_VISIT' 
+  | 'DELIVERY' 
+  | 'OFFICIAL_ERRAND' 
+  | 'OTHER';
+
+export type OnDutyStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED' | 'CANCELLED';
+
+export type ReimbursementStatus = 'NONE' | 'PENDING' | 'REIMBURSED' | 'REJECTED';
+
+export interface OnDutyRequest {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  departmentName?: string;
+  location?: string;
+  dutyDate: string;
+  startTime: string;
+  endTime: string;
+  dutyType: OnDutyType;
+  reason: string;
+  status: OnDutyStatus;
+  reviewedBy?: string;
+  reviewedOn?: string;
+  reviewerComments?: string;
+  hasExpense?: boolean;
+  expenseAmount?: number;
+  expenseDescription?: string;
+  billPhoto?: string;
+  reimbursementStatus?: ReimbursementStatus;
+  reimbursedBy?: string;
+  reimbursedOn?: string;
+  reimbursementComments?: string;
+  createdAt?: string;
+}
+
 export interface SalaryComponent {
   basic: number;
   hra: number;

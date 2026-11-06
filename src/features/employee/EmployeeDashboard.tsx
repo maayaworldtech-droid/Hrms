@@ -14,6 +14,7 @@ import {
   ChevronRight,
   FileText,
   ShieldCheck,
+  Briefcase,
 } from 'lucide-react';
 
 export const EmployeeDashboard: React.FC = () => {
@@ -207,6 +208,27 @@ export const EmployeeDashboard: React.FC = () => {
               {remainingLeaves} days available
             </span>
             <span className="text-[11px] text-slate-500">Leave balance for 2026</span>
+          </div>
+        </div>
+        <span className="text-xs text-[var(--brand-600)] font-semibold flex items-center gap-1">
+          Apply <ChevronRight className="w-3.5 h-3.5" />
+        </span>
+      </Link>
+
+      {/* On Duty & Errand Claims Touch Target */}
+      <Link
+        to="/employee/on-duty"
+        className="employee-card flex items-center justify-between hover:border-slate-300 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200">
+            <Briefcase className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="text-sm font-bold text-slate-900 block leading-tight">
+              On Duty (OD) & Errand Claims
+            </span>
+            <span className="text-[11px] text-slate-500">Bank runs, official tasks & bill reimbursement</span>
           </div>
         </div>
         <span className="text-xs text-[var(--brand-600)] font-semibold flex items-center gap-1">

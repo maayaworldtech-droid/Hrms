@@ -14,6 +14,7 @@ import {
   Settings,
   User,
   Plus,
+  Briefcase,
   ChevronLeft,
   ChevronRight,
   X,
@@ -70,6 +71,7 @@ export const Sidebar: React.FC = () => {
         { label: 'Employee Management', path: '/admin/employees', icon: Users },
         { label: 'Attendance Records', path: '/admin/attendance', icon: Clock },
         { label: 'Leave Management', path: '/admin/leaves', icon: CalendarDays },
+        { label: 'On Duty & Claims', path: '/admin/on-duty', icon: Briefcase },
       ],
     },
     {
@@ -98,6 +100,7 @@ export const Sidebar: React.FC = () => {
       items: [
         { label: 'Team Attendance', path: '/manager/attendance', icon: Clock },
         { label: 'Team Leave Approvals', path: '/manager/leaves', icon: CalendarDays },
+        { label: 'Team On Duty Approvals', path: '/manager/on-duty', icon: Briefcase },
       ],
     },
     {
@@ -119,6 +122,7 @@ export const Sidebar: React.FC = () => {
       items: [
         { label: 'My Attendance', path: '/employee/attendance', icon: Clock },
         { label: 'My Leave Requests', path: '/employee/leaves', icon: CalendarDays },
+        { label: 'My On Duty (OD)', path: '/employee/on-duty', icon: Briefcase },
         { label: 'My Salary & Payslips', path: '/employee/salary', icon: CreditCard },
       ],
     },

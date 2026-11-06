@@ -4,6 +4,7 @@ import {
   AttendanceRecord,
   LeaveRequest,
   LeaveBalance,
+  OnDutyRequest,
   PayrollRun,
   Payslip,
   Holiday,
@@ -464,6 +465,66 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify({ status, comments, reviewer }),
       });
+    },
+  },
+
+  // On Duty (OD) & Expense Reimbursement Endpoints
+  onDuty: {
+    getAll: async (): Promise<OnDutyRequest[]> => {
+      const list = await fetchJSON<any[]>(`${API_BASE}/on-duty`);
+      return (list || []).map((item) => ({ ...item, id: String(item.id) }));
+    },
+
+    getByEmployee: async (employeeId: string | number): Promise<OnDutyRequest[]> => {
+      const cleanId = String(employeeId).replace('emp-', '');
+      const list = await fetchJSON<any[]>(`${API_BASE}/on-duty/employee/${cleanId}`);
+      return (list || []).map((item) => ({ ...item, id: String(item.id) }));
+    },
+
+    apply: async (request: Partial<OnDutyRequest>): Promise<OnDutyRequest> => {
+      const cleanId = request.employeeId ? String(request.employeeId).replace('emp-', '') : undefined;
+      const res = await fetchJSON<any>(`${API_BASE}/on-duty/apply`, {
+        method: 'POST',
+        body: JSON.stringify({ ...request, employeeId: cleanId }),
+      });
+      return { ...res, id: String(res.id) };
+    },
+
+    updateStatus: async (
+      id: string | number,
+      status: 'APPROVED' | 'REJECTED' | 'COMPLETED' | 'CANCELLED',
+      comments?: string,
+      reviewer?: string
+    ): Promise<OnDutyRequest> => {
+      const res = await fetchJSON<any>(`${API_BASE}/on-duty/${id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status, comments, reviewer }),
+      });
+      return { ...res, id: String(res.id) };
+    },
+
+    claimExpense: async (
+      id: string | number,
+      expense: { expenseAmount: number; expenseDescription: string; billPhoto: string }
+    ): Promise<OnDutyRequest> => {
+      const res = await fetchJSON<any>(`${API_BASE}/on-duty/${id}/claim-expense`, {
+        method: 'POST',
+        body: JSON.stringify(expense),
+      });
+      return { ...res, id: String(res.id) };
+    },
+
+    updateReimbursement: async (
+      id: string | number,
+      reimbursementStatus: 'REIMBURSED' | 'REJECTED',
+      comments?: string,
+      reviewer?: string
+    ): Promise<OnDutyRequest> => {
+      const res = await fetchJSON<any>(`${API_BASE}/on-duty/${id}/reimburse`, {
+        method: 'PUT',
+        body: JSON.stringify({ reimbursementStatus, comments, reviewer }),
+      });
+      return { ...res, id: String(res.id) };
     },
   },
 
