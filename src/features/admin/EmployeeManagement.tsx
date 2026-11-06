@@ -29,6 +29,7 @@ import {
   RotateCcw,
   ShieldCheck,
   RefreshCw,
+  Plus,
 } from 'lucide-react';
 import {
   captureFaceSnapshot,
@@ -42,6 +43,9 @@ import {
 } from '@/utils/faceBiometrics';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
+
+import { useRouteBackGuard } from '@/hooks/useRouteBackGuard';
+import { DynamicSalaryItem } from '@/types';
 
 const INDIAN_STATES = [
   'Andhra Pradesh',
@@ -82,11 +86,40 @@ const INDIAN_STATES = [
   'Puducherry',
 ] as const;
 
+export const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'] as const;
 
+export const EMERGENCY_RELATIONSHIPS = [
+  'Father',
+  'Mother',
+  'Spouse',
+  'Sibling',
+  'Child',
+  'Friend',
+  'Guardian',
+  'Other',
+] as const;
 
+export const AVAILABLE_SALARY_COMPONENTS = [
+  // Earnings
+  { code: 'BASIC', name: 'Basic Pay', type: 'EARNING' as const, defaultPercent: 0.5 },
+  { code: 'HRA', name: 'House Rent Allowance (HRA)', type: 'EARNING' as const, defaultPercent: 0.3 },
+  { code: 'SPECIAL', name: 'Special Allowance', type: 'EARNING' as const, defaultPercent: 0.1 },
+  { code: 'CONVEYANCE', name: 'Conveyance Allowance', type: 'EARNING' as const, defaultAmount: 1600 },
+  { code: 'MEDICAL', name: 'Medical Allowance', type: 'EARNING' as const, defaultAmount: 1250 },
+  { code: 'BONUS', name: 'Performance Bonus / Incentive', type: 'EARNING' as const, defaultAmount: 0 },
+  { code: 'OTHER_EARNING', name: 'Other Allowance', type: 'EARNING' as const, defaultAmount: 0 },
+  // Deductions
+  { code: 'PF', name: 'Provident Fund (PF / EPF)', type: 'DEDUCTION' as const, defaultAmount: 0 },
+  { code: 'PT', name: 'Professional Tax (PT)', type: 'DEDUCTION' as const, defaultAmount: 200 },
+  { code: 'TDS', name: 'Tax Deducted at Source (TDS)', type: 'DEDUCTION' as const, defaultAmount: 0 },
+  { code: 'ESI', name: 'Employee State Insurance (ESI)', type: 'DEDUCTION' as const, defaultAmount: 0 },
+  { code: 'HEALTH_INS', name: 'Health Insurance', type: 'DEDUCTION' as const, defaultAmount: 500 },
+  { code: 'GRATUITY', name: 'Gratuity', type: 'DEDUCTION' as const, defaultAmount: 0 },
+  { code: 'OTHER_DEDUCTION', name: 'Other Deduction', type: 'DEDUCTION' as const, defaultAmount: 0 },
+] as const;
 
 const onboardingSchema = z.object({
-  // Step 1: Basic Information & Split Address
+  // Step 1: Basic Information, Blood Group & Emergency Contact
   firstName: z
     .string()
     .trim()
@@ -106,6 +139,10 @@ const onboardingSchema = z.object({
     .trim()
     .min(1, 'Phone number is required')
     .regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit mobile number'),
+  bloodGroup: z
+    .string()
+    .trim()
+    .min(1, 'Please select a blood group'),
   addressLine: z
     .string()
     .trim()
@@ -125,6 +162,21 @@ const onboardingSchema = z.object({
     .string()
     .trim()
     .min(1, 'Please select a state or union territory'),
+
+  // Emergency Contact
+  emergencyContactName: z
+    .string()
+    .trim()
+    .min(1, 'Emergency contact full name is required'),
+  emergencyContactRelationship: z
+    .string()
+    .trim()
+    .min(1, 'Please select relationship with emergency contact'),
+  emergencyContactPhone: z
+    .string()
+    .trim()
+    .min(1, 'Emergency contact phone number is required')
+    .regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit phone number'),
 
   // Step 2: Work Location & Compensation
   location: z.enum(['Hyderabad', 'Vizag', 'Bhubaneswar'], {
@@ -180,6 +232,10 @@ const employeeSchema = z.object({
   lastName: z.string().min(2, 'Last name is required'),
   email: z.string().email('Valid corporate email required'),
   phone: z.string().min(10, 'Valid 10-digit phone number required'),
+  bloodGroup: z.string().optional(),
+  emergencyContactName: z.string().optional(),
+  emergencyContactRelationship: z.string().optional(),
+  emergencyContactPhone: z.string().optional(),
   address: z.string().min(5, 'Residential address is required (min 5 chars)'),
   location: z.enum(['Hyderabad', 'Vizag', 'Bhubaneswar']),
   shift: z.enum(['MORNING', 'EVENING']),
@@ -336,7 +392,7 @@ export const EmployeeManagement: React.FC = () => {
     };
   }, [isAddingEmployee, currentStep, enrollmentMode, enrolledFacePhoto, startCamera, stopCamera]);
 
-  const handleCaptureFromCamera = () => {
+  const handleCaptureFromCamera = async () => {
     const video = videoRef.current;
     const procCanvas = procCanvasRef.current;
     if (!video) return;
@@ -352,10 +408,14 @@ export const EmployeeManagement: React.FC = () => {
 
     if (procCanvas) {
       const analysis = analyzeVideoFrame(video, procCanvas, null);
-      if (analysis?.result?.faceDetected && analysis.result.box && analysis.result.landmarks) {
+      if (analysis?.result?.box && analysis.result.landmarks) {
         descriptor = extractFaceDescriptorFromCanvas(procCanvas, analysis.result.box, analysis.result.landmarks);
         signature = generateBiometricSignature(analysis.result.box, analysis.result.landmarks, 'MW-NEW');
       }
+    }
+
+    if (!descriptor) {
+      descriptor = await extractDescriptorFromImage(photo);
     }
 
     stopCamera();
@@ -449,10 +509,14 @@ export const EmployeeManagement: React.FC = () => {
       lastName: '',
       email: '',
       phone: '',
+      bloodGroup: '',
       addressLine: '',
       city: '',
       pincode: '',
       state: '',
+      emergencyContactName: '',
+      emergencyContactRelationship: '',
+      emergencyContactPhone: '',
       location: '' as any,
       shift: '' as any,
       managerId: '',
@@ -465,6 +529,112 @@ export const EmployeeManagement: React.FC = () => {
       uanNumber: '',
     },
   });
+
+  // Dynamic Salary Breakdown state
+  const [salaryComponents, setSalaryComponents] = useState<DynamicSalaryItem[]>([]);
+  const [selectedComponentToAdd, setSelectedComponentToAdd] = useState<string>('');
+
+  // Route back-button guard to prevent losing progress if back button is clicked in the middle
+  useRouteBackGuard({
+    isBlocked: isAddingEmployee,
+    onBack: () => {
+      if (currentStep > 1) {
+        setCurrentStep((prev) => (prev - 1) as 1 | 2 | 3 | 4);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        if (window.confirm('Discard employee onboarding progress and return to directory?')) {
+          setIsAddingEmployee(false);
+          setCurrentStep(1);
+          resetAdd();
+          setEnrolledFacePhoto(null);
+          setEnrolledFaceBiometrics(null);
+          setFaceSignature(null);
+          setSalaryComponents([]);
+          stopCamera();
+        }
+      }
+    },
+    confirmMessage: 'You are currently onboarding an employee. Do you want to discard your progress and exit?',
+  });
+
+  const handleAddComponent = () => {
+    if (!selectedComponentToAdd) return;
+    const def = AVAILABLE_SALARY_COMPONENTS.find((c) => c.code === selectedComponentToAdd);
+    if (!def) return;
+
+    let defaultAmt = 0;
+    const currentGross = Number(watchAdd('monthlySalary')) || 35000;
+    if ('defaultPercent' in def && def.defaultPercent) {
+      defaultAmt = Math.round(currentGross * def.defaultPercent);
+    } else if ('defaultAmount' in def && def.defaultAmount) {
+      defaultAmt = def.defaultAmount;
+    }
+
+    const newItem: DynamicSalaryItem = {
+      id: `comp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      code: def.code,
+      name: def.name,
+      type: def.type,
+      amount: defaultAmt,
+    };
+
+    setSalaryComponents((prev) => [...prev, newItem]);
+    setSelectedComponentToAdd('');
+  };
+
+  const handleRemoveComponent = (id: string) => {
+    setSalaryComponents((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  const handleUpdateComponentAmount = (id: string, amount: number) => {
+    setSalaryComponents((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, amount: Math.max(0, amount) } : c))
+    );
+  };
+
+  const handleUpdateComponentName = (id: string, name: string) => {
+    setSalaryComponents((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, name } : c))
+    );
+  };
+
+  const handleGenerateStandardBreakdown = () => {
+    const currentGross = Number(watchAdd('monthlySalary')) || 35000;
+    const basic = Math.round(currentGross * 0.5);
+    const hra = Math.round(currentGross * 0.3);
+    const special = Math.round(currentGross * 0.1);
+    const epf = Math.round(basic * 0.12);
+    const pt = 200;
+    const tds = Math.round(currentGross * 0.05);
+
+    setSalaryComponents([
+      { id: 'comp-basic', code: 'BASIC', name: 'Basic Pay', type: 'EARNING', amount: basic },
+      { id: 'comp-hra', code: 'HRA', name: 'House Rent Allowance (HRA)', type: 'EARNING', amount: hra },
+      { id: 'comp-special', code: 'SPECIAL', name: 'Special Allowance', type: 'EARNING', amount: special },
+      { id: 'comp-conveyance', code: 'CONVEYANCE', name: 'Conveyance Allowance', type: 'EARNING', amount: 1600 },
+      { id: 'comp-medical', code: 'MEDICAL', name: 'Medical Allowance', type: 'EARNING', amount: 1250 },
+      { id: 'comp-pf', code: 'PF', name: 'Provident Fund (PF / EPF)', type: 'DEDUCTION', amount: epf },
+      { id: 'comp-pt', code: 'PT', name: 'Professional Tax (PT)', type: 'DEDUCTION', amount: pt },
+      { id: 'comp-tds', code: 'TDS', name: 'Tax Deducted at Source (TDS)', type: 'DEDUCTION', amount: tds },
+    ]);
+  };
+
+  const totalGrossFromComponents = useMemo(() => {
+    if (salaryComponents.length === 0) return Number(watchAdd('monthlySalary')) || 0;
+    return salaryComponents
+      .filter((c) => c.type === 'EARNING')
+      .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+  }, [salaryComponents, watchAdd('monthlySalary')]);
+
+  const totalDeductionsFromComponents = useMemo(() => {
+    return salaryComponents
+      .filter((c) => c.type === 'DEDUCTION')
+      .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+  }, [salaryComponents]);
+
+  const netTakeHomeFromComponents = useMemo(() => {
+    return Math.max(0, totalGrossFromComponents - totalDeductionsFromComponents);
+  }, [totalGrossFromComponents, totalDeductionsFromComponents]);
 
   const {
     register: registerEdit,
@@ -517,6 +687,10 @@ export const EmployeeManagement: React.FC = () => {
       'lastName',
       'email',
       'phone',
+      'bloodGroup',
+      'emergencyContactName',
+      'emergencyContactRelationship',
+      'emergencyContactPhone',
       'addressLine',
       'city',
       'pincode',
@@ -567,24 +741,30 @@ export const EmployeeManagement: React.FC = () => {
 
     try {
       const fullAddress = `${values.addressLine}, ${values.city}, ${values.state} - ${values.pincode}`.trim();
+      const finalMonthlySalary = salaryComponents.length > 0 && totalGrossFromComponents > 0
+        ? totalGrossFromComponents
+        : values.monthlySalary;
+
       const newEmp = await api.employees.onboard({
         firstName: values.firstName,
         lastName: values.lastName,
         fullName: `${values.firstName} ${values.lastName}`.trim(),
         email: values.email,
         phone: values.phone,
+        bloodGroup: values.bloodGroup,
         address: fullAddress,
         designation: 'Specialist',
         location: values.location,
         shift: values.shift,
         managerId: values.managerId || undefined,
         managerName: employees.find((e) => e.id === values.managerId)?.fullName || (values.managerId === MOCK_USERS.manager.id ? MOCK_USERS.manager.name : undefined),
-        monthlySalary: values.monthlySalary,
-        ctcAnnual: values.monthlySalary * 12,
+        monthlySalary: finalMonthlySalary,
+        ctcAnnual: finalMonthlySalary * 12,
         joiningDate: values.joiningDate,
         employmentType: 'FULL_TIME',
         enrolledFacePhoto: enrolledFacePhoto,
         enrolledFaceBiometrics: enrolledFaceBiometrics || undefined,
+        salaryStructureJson: salaryComponents.length > 0 ? JSON.stringify(salaryComponents) : undefined,
         bankDetails: {
           accountNumber: values.accountNumber,
           ifscCode: values.ifscCode.toUpperCase(),
@@ -593,9 +773,9 @@ export const EmployeeManagement: React.FC = () => {
           uanNumber: values.uanNumber,
         },
         emergencyContact: {
-          name: 'Primary Contact',
-          relationship: 'Family',
-          phone: values.phone,
+          name: values.emergencyContactName,
+          relationship: values.emergencyContactRelationship,
+          phone: values.emergencyContactPhone,
         },
       });
 
@@ -612,6 +792,7 @@ export const EmployeeManagement: React.FC = () => {
       setEnrolledFacePhoto(null);
       setEnrolledFaceBiometrics(null);
       setFaceSignature(null);
+      setSalaryComponents([]);
       stopCamera();
       loadEmployees();
 
@@ -889,18 +1070,18 @@ export const EmployeeManagement: React.FC = () => {
                     }}
                     disabled={item.step > currentStep}
                     className={`flex items-center gap-3 text-left transition-colors ${isCurrent
-                        ? 'text-sky-700 font-semibold'
-                        : isCompleted
-                          ? 'text-slate-700 hover:text-slate-900 cursor-pointer'
-                          : 'text-slate-400 cursor-not-allowed opacity-60'
+                      ? 'text-sky-700 font-semibold'
+                      : isCompleted
+                        ? 'text-slate-700 hover:text-slate-900 cursor-pointer'
+                        : 'text-slate-400 cursor-not-allowed opacity-60'
                       }`}
                   >
                     <div
                       className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all shrink-0 ${isCompleted
-                          ? 'bg-emerald-600 text-white'
-                          : isCurrent
-                            ? 'bg-[#3182C8] text-white ring-4 ring-sky-100'
-                            : 'bg-slate-100 text-slate-500 border border-slate-300'
+                        ? 'bg-emerald-600 text-white'
+                        : isCurrent
+                          ? 'bg-[#3182C8] text-white ring-4 ring-sky-100'
+                          : 'bg-slate-100 text-slate-500 border border-slate-300'
                         }`}
                     >
                       {isCompleted ? <Check className="w-4 h-4" /> : item.step}
@@ -956,6 +1137,50 @@ export const EmployeeManagement: React.FC = () => {
                       required
                       error={errorsAdd.phone?.message}
                       {...registerAdd('phone')}
+                    />
+                    <div className="sm:col-span-2">
+                      <Select
+                        label="Blood Group"
+                        required
+                        options={[
+                          { value: '', label: 'Select Blood Group' },
+                          ...BLOOD_GROUPS.map((bg) => ({ value: bg, label: bg })),
+                        ]}
+                        error={errorsAdd.bloodGroup?.message}
+                        {...registerAdd('bloodGroup')}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-4">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-1.5">
+                    Emergency Contact Details
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Input
+                      label="Contact Full Name"
+                      required
+                      placeholder="e.g. Ramesh Kumar"
+                      error={errorsAdd.emergencyContactName?.message}
+                      {...registerAdd('emergencyContactName')}
+                    />
+                    <Select
+                      label="Relationship"
+                      required
+                      options={[
+                        { value: '', label: 'Select Relationship' },
+                        ...EMERGENCY_RELATIONSHIPS.map((rel) => ({ value: rel, label: rel })),
+                      ]}
+                      error={errorsAdd.emergencyContactRelationship?.message}
+                      {...registerAdd('emergencyContactRelationship')}
+                    />
+                    <Input
+                      label="Emergency Phone"
+                      required
+                      placeholder="10-digit mobile"
+                      error={errorsAdd.emergencyContactPhone?.message}
+                      {...registerAdd('emergencyContactPhone')}
                     />
                   </div>
                 </div>
@@ -1068,6 +1293,150 @@ export const EmployeeManagement: React.FC = () => {
                     />
                   </div>
                 </div>
+
+                <div className="border-t border-slate-100 pt-4 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-900">
+                        Dynamic Salary Breakdown Structure
+                      </h3>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Salary fields differ per employee. Select and add applicable statutory or custom components (PF, PT, TDS, HRA) below.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGenerateStandardBreakdown}
+                      className="shrink-0"
+                    >
+                      Auto-Populate Template
+                    </Button>
+                  </div>
+
+                  {/* Component Adder Dropdown */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <select
+                      value={selectedComponentToAdd}
+                      onChange={(e) => setSelectedComponentToAdd(e.target.value)}
+                      className="flex-1 rounded-lg border border-slate-300 p-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-600 bg-white"
+                    >
+                      <option value="">Choose salary component to add (e.g. PF, PT, TDS, HRA)...</option>
+                      <optgroup label="Earnings & Allowances">
+                        {AVAILABLE_SALARY_COMPONENTS.filter((c) => c.type === 'EARNING').map((c) => (
+                          <option key={c.code} value={c.code}>
+                            + {c.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Deductions">
+                        {AVAILABLE_SALARY_COMPONENTS.filter((c) => c.type === 'DEDUCTION').map((c) => (
+                          <option key={c.code} value={c.code}>
+                            - {c.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    </select>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleAddComponent}
+                      disabled={!selectedComponentToAdd}
+                      leftIcon={<Plus className="w-3.5 h-3.5" />}
+                    >
+                      Add Component
+                    </Button>
+                  </div>
+
+                  {/* Configured Components Table / List */}
+                  {salaryComponents.length > 0 ? (
+                    <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 overflow-hidden bg-white">
+                      {salaryComponents.map((comp) => {
+                        const isEarning = comp.type === 'EARNING';
+                        return (
+                          <div key={comp.id} className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded tracking-wide shrink-0 ${
+                                  isEarning
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : 'bg-rose-50 text-rose-700 border border-rose-200'
+                                }`}
+                              >
+                                {isEarning ? 'EARNING' : 'DEDUCTION'}
+                              </span>
+                              {comp.code?.startsWith('OTHER') ? (
+                                <input
+                                  type="text"
+                                  value={comp.name}
+                                  onChange={(e) => handleUpdateComponentName(comp.id, e.target.value)}
+                                  placeholder="Component Name"
+                                  className="font-medium text-xs text-slate-900 border border-slate-200 rounded px-2 py-1 w-44 focus:outline-none focus:border-indigo-600"
+                                />
+                              ) : (
+                                <span className="font-semibold text-xs text-slate-800 truncate">
+                                  {comp.name}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden px-2 py-1 bg-white focus-within:border-indigo-600">
+                                <span className="text-slate-400 text-xs font-semibold mr-1">₹</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="100"
+                                  value={comp.amount || ''}
+                                  onChange={(e) => handleUpdateComponentAmount(comp.id, Number(e.target.value))}
+                                  placeholder="0"
+                                  className="w-24 text-xs font-semibold text-slate-900 focus:outline-none"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveComponent(comp.id)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                                title="Remove Component"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-4 border border-dashed border-slate-200 rounded-lg text-center text-slate-500 bg-slate-50/50">
+                      <p className="text-xs">No individual salary breakdown components selected yet.</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Choose components from the dropdown above or click "Auto-Populate Template" to start customizing.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Live Calculation Summary */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-500 block uppercase tracking-wider font-semibold">Total Gross</span>
+                      <span className="font-bold text-slate-900">{formatINR(totalGrossFromComponents)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 block uppercase tracking-wider font-semibold">Total Deductions</span>
+                      <span className="font-semibold text-rose-700">-{formatINR(totalDeductionsFromComponents)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 block uppercase tracking-wider font-semibold">Net Take-Home</span>
+                      <span className="font-bold text-emerald-700">{formatINR(netTakeHomeFromComponents)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 block uppercase tracking-wider font-semibold">Annual CTC</span>
+                      <span className="font-semibold text-slate-900">{formatINR(totalGrossFromComponents * 12)}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1142,8 +1511,8 @@ export const EmployeeManagement: React.FC = () => {
                         void startCamera();
                       }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${enrollmentMode === 'CAMERA'
-                          ? 'bg-slate-900 text-white shadow-xs'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                     >
                       <Camera className="w-3.5 h-3.5" />
@@ -1156,8 +1525,8 @@ export const EmployeeManagement: React.FC = () => {
                         stopCamera();
                       }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${enrollmentMode === 'UPLOAD'
-                          ? 'bg-slate-900 text-white shadow-xs'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                     >
                       <Upload className="w-3.5 h-3.5" />
@@ -1170,10 +1539,10 @@ export const EmployeeManagement: React.FC = () => {
                 {!enrolledFacePhoto && enrollmentMode === 'CAMERA' && (
                   <div className="space-y-3">
                     <div className={`relative rounded-xl overflow-hidden bg-slate-950 transition-colors duration-200 border-2 aspect-[4/3] max-w-md mx-auto flex items-center justify-center ${cameraActive
-                        ? faceCentered
-                          ? 'border-emerald-500 shadow-md shadow-emerald-500/15'
-                          : 'border-rose-500/80 shadow-md shadow-rose-500/10'
-                        : 'border-slate-800'
+                      ? faceCentered
+                        ? 'border-emerald-500 shadow-md shadow-emerald-500/15'
+                        : 'border-rose-500/80 shadow-md shadow-rose-500/10'
+                      : 'border-slate-800'
                       }`}>
                       <video
                         ref={videoRef}
@@ -1198,16 +1567,16 @@ export const EmployeeManagement: React.FC = () => {
 
                       {cameraActive && (
                         <div className={`absolute bottom-2.5 inset-x-2.5 backdrop-blur-xs border rounded-lg px-3 py-1.5 flex items-center justify-between text-xs transition-colors duration-200 ${faceCentered
-                            ? 'bg-slate-950/85 border-emerald-500/40 text-emerald-200'
-                            : 'bg-slate-950/85 border-rose-500/40 text-rose-200'
+                          ? 'bg-slate-950/85 border-emerald-500/40 text-emerald-200'
+                          : 'bg-slate-950/85 border-rose-500/40 text-rose-200'
                           }`}>
                           <div className="flex items-center gap-1.5 min-w-0">
                             <span className={`w-2 h-2 rounded-full shrink-0 ${faceCentered ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
                             <span className="truncate text-[11px] font-medium">{faceStatusMessage}</span>
                           </div>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded tracking-wide shrink-0 ${faceCentered
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                              : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                             }`}>
                             {faceCentered ? 'IN FRAME (GREEN)' : 'ALIGN (RED)'}
                           </span>
@@ -1220,21 +1589,17 @@ export const EmployeeManagement: React.FC = () => {
                         <Button
                           type="button"
                           variant="primary"
-                          onClick={handleCaptureFromCamera}
+                          onClick={() => void handleCaptureFromCamera()}
                           leftIcon={<Camera className="w-4 h-4" />}
-                          disabled={!faceCentered && !faceDetected}
+                          disabled={!cameraActive}
                           className={`!h-10 px-6 font-semibold transition-all ${faceCentered
-                              ? '!bg-emerald-600 hover:!bg-emerald-700 !text-white shadow-xs'
-                              : faceDetected
-                                ? '!bg-emerald-700 hover:!bg-emerald-800 !text-white shadow-xs'
-                                : '!bg-slate-200 !text-slate-400 !border-slate-200 cursor-not-allowed'
+                            ? '!bg-emerald-600 hover:!bg-emerald-700 !text-white shadow-xs'
+                            : '!bg-slate-900 hover:!bg-slate-800 !text-white shadow-xs'
                             }`}
                         >
                           {faceCentered
                             ? 'Capture Face Biometrics'
-                            : faceDetected
-                              ? 'Capture Face Photo'
-                              : 'Align Face in Green Frame to Capture'}
+                            : 'Capture Photo & Biometrics'}
                         </Button>
                       </div>
                     )}

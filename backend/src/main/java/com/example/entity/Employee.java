@@ -60,10 +60,17 @@ public class Employee {
     private String panNumber;
     private String uanNumber;
 
+    // Health & Emergency
+    private String bloodGroup; // A+, A-, B+, B-, O+, O-, AB+, AB-
+
     // Emergency Contact
     private String emergencyContactName;
     private String emergencyContactPhone;
     private String emergencyContactRelationship;
+
+    // Dynamic Salary Structure Breakdown (JSON Array of components)
+    @Column(columnDefinition = "TEXT")
+    private String salaryStructureJson;
 
     @ManyToOne(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinColumn(name = "location_id", nullable = true)

@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "./components/layout/operations.css";
+@import "./components/layout/employee.css";
 
 /* ==========================================================================
    MAAYA WORLD HRMS — BRAND-DRIVEN DESIGN SYSTEM
@@ -271,66 +273,66 @@ button { cursor: pointer; border: none; background: none; padding: 0; font: inhe
 }
 
 .app-btn-primary {
-  background-color: var(--brand-500) !important;
-  color: #ffffff !important;
-  border: 1px solid var(--brand-600) !important;
+  background-color: var(--brand-500);
+  color: #ffffff;
+  border: 1px solid var(--brand-600);
   box-shadow: 0 1px 3px rgba(49, 130, 200, 0.3);
 }
 
 .app-btn-primary:hover:not(:disabled) {
-  background-color: var(--brand-600) !important;
-  border-color: var(--brand-700) !important;
+  background-color: var(--brand-600);
+  border-color: var(--brand-700);
 }
 
 .app-btn-primary:active:not(:disabled) {
-  background-color: var(--brand-700) !important;
+  background-color: var(--brand-700);
   transform: scale(0.98);
 }
 
 .app-btn-secondary {
-  background-color: #ffffff !important;
-  color: var(--gray-800) !important;
-  border: 1px solid var(--border-default) !important;
+  background-color: #ffffff;
+  color: var(--gray-800);
+  border: 1px solid var(--border-default);
 }
 
 .app-btn-secondary:hover:not(:disabled) {
-  background-color: var(--gray-50) !important;
-  border-color: var(--border-strong) !important;
-  color: var(--gray-900) !important;
+  background-color: var(--gray-50);
+  border-color: var(--border-strong);
+  color: var(--gray-900);
 }
 
 .app-btn-outline {
-  background-color: transparent !important;
-  color: var(--gray-700) !important;
-  border: 1px solid var(--border-default) !important;
+  background-color: transparent;
+  color: var(--gray-700);
+  border: 1px solid var(--border-default);
 }
 
 .app-btn-outline:hover:not(:disabled) {
-  background-color: var(--gray-50) !important;
-  color: var(--gray-900) !important;
+  background-color: var(--gray-50);
+  color: var(--gray-900);
 }
 
 .app-btn-danger {
-  background-color: var(--danger-600) !important;
-  color: #ffffff !important;
-  border: 1px solid var(--danger-700) !important;
+  background-color: var(--danger-600);
+  color: #ffffff;
+  border: 1px solid var(--danger-700);
 }
 
 .app-btn-ghost {
-  background-color: transparent !important;
-  color: var(--gray-600) !important;
-  border: 1px solid transparent !important;
+  background-color: transparent;
+  color: var(--gray-600);
+  border: 1px solid transparent;
 }
 
 .app-btn-ghost:hover:not(:disabled) {
-  background-color: var(--gray-100) !important;
-  color: var(--gray-900) !important;
+  background-color: var(--gray-100);
+  color: var(--gray-900);
 }
 
 .app-btn-success {
-  background-color: var(--success-600) !important;
-  color: #ffffff !important;
-  border: 1px solid var(--success-700) !important;
+  background-color: var(--success-600);
+  color: #ffffff;
+  border: 1px solid var(--success-700);
 }
 
 .app-btn:disabled {

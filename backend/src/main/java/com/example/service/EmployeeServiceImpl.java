@@ -77,6 +77,11 @@ public class EmployeeServiceImpl implements EmployeeService {
                 if (employee.getIfscCode() != null) target.setIfscCode(employee.getIfscCode());
                 if (employee.getPanNumber() != null) target.setPanNumber(employee.getPanNumber());
                 if (employee.getUanNumber() != null) target.setUanNumber(employee.getUanNumber());
+                if (employee.getBloodGroup() != null) target.setBloodGroup(employee.getBloodGroup());
+                if (employee.getEmergencyContactName() != null) target.setEmergencyContactName(employee.getEmergencyContactName());
+                if (employee.getEmergencyContactPhone() != null) target.setEmergencyContactPhone(employee.getEmergencyContactPhone());
+                if (employee.getEmergencyContactRelationship() != null) target.setEmergencyContactRelationship(employee.getEmergencyContactRelationship());
+                if (employee.getSalaryStructureJson() != null) target.setSalaryStructureJson(employee.getSalaryStructureJson());
                 if (employee.getRole() != null) target.setRole(employee.getRole());
                 if (employee.getStatus() != null) target.setStatus(employee.getStatus());
                 if (employee.getEmploymentType() != null) target.setEmploymentType(employee.getEmploymentType());
@@ -222,10 +227,14 @@ public class EmployeeServiceImpl implements EmployeeService {
             if (student.getPanNumber() != null) existing.setPanNumber(student.getPanNumber());
             if (student.getUanNumber() != null) existing.setUanNumber(student.getUanNumber());
 
-            // Emergency contact
+            // Health & Emergency
+            if (student.getBloodGroup() != null) existing.setBloodGroup(student.getBloodGroup());
             if (student.getEmergencyContactName() != null) existing.setEmergencyContactName(student.getEmergencyContactName());
             if (student.getEmergencyContactPhone() != null) existing.setEmergencyContactPhone(student.getEmergencyContactPhone());
             if (student.getEmergencyContactRelationship() != null) existing.setEmergencyContactRelationship(student.getEmergencyContactRelationship());
+
+            // Dynamic Salary Structure
+            if (student.getSalaryStructureJson() != null) existing.setSalaryStructureJson(student.getSalaryStructureJson());
 
             if (student.getLocation() != null) {
                 existing.setLocation(student.getLocation());

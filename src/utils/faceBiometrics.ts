@@ -78,6 +78,8 @@ export interface BiometricAnalysisResult {
   faceAspectRatio?: number;
   livenessScore?: number;
   descriptor?: FaceBiometricDescriptor;
+  sourceWidth?: number;
+  sourceHeight?: number;
 }
 
 export interface RealFaceBiometricData {
@@ -467,7 +469,7 @@ export function analyzeVideoFrame(
   const currentImageData = ctx.getImageData(0, 0, width, height);
   const data = currentImageData.data;
 
-  // 1. Luminosity and Universal Skin Chrominance Analysis
+  // 1. Luminosity and Universal Skin Chrominance Analysis with Spatial Gradient
   let totalBrightness = 0;
   let sampleCount = 0;
   let skinPixelCount = 0;
@@ -478,8 +480,13 @@ export function analyzeVideoFrame(
   const minYLimit = Math.floor(height * 0.05);
   const maxYLimit = Math.floor(height * 0.95);
 
-  const rawXHist = new Uint32Array(width);
-  const rawYHist = new Uint32Array(height);
+  const rawXHist = new Float32Array(width);
+  const rawYHist = new Float32Array(height);
+
+  const cx = width * 0.50;
+  const cy = height * 0.46;
+  const rx = width * 0.32;
+  const ry = height * 0.38;
 
   // Stride of 2 for fast 60fps processing
   const step = 2;
@@ -498,54 +505,62 @@ export function analyzeVideoFrame(
       const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
       const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
 
-      // Robust universal skin filters across all human skin complexions
-      // Melanin absorbs blue > green > red, so R >= G >= B holds for human skin across all ethnicities.
-      // For deeper/darker complexions, inter-channel deltas are naturally smaller in indoor lighting.
+      // Robust universal skin filters across all human skin complexions and indoor lighting
       const isWarmSkin =
-        r > 40 &&
-        g > 25 &&
-        b > 15 &&
-        r - g >= 3 &&
-        g - b >= 2 &&
-        r - b >= 8 &&
-        cb >= 65 &&
-        cb <= 145 &&
-        cr >= 118 &&
-        cr <= 188;
+        r > 35 && g > 20 && b > 12 &&
+        (r >= g * 0.85 || r - g >= -3) &&
+        (r >= b * 0.82 || r - b >= -3) &&
+        cb >= 65 && cb <= 148 &&
+        cr >= 115 && cr <= 186;
 
-      const isNeutralSkin =
-        r > 35 &&
-        g > 25 &&
-        b > 15 &&
-        r >= g * 0.85 &&
-        g >= b &&
-        r - b >= 5 &&
-        cr >= 118 &&
-        cr <= 185;
-
-      // Dedicated dark complexion path for deeper skin tones in indoor/low lighting
       const isDarkComplexion =
-        luma >= 15 &&
-        luma <= 130 &&
-        r > 25 &&
-        g > 16 &&
-        b > 8 &&
-        r >= g &&
-        g >= b &&
-        r - b >= 4 &&
-        cb >= 58 &&
-        cb <= 152 &&
-        cr >= 112 &&
-        cr <= 182;
+        luma >= 12 && luma <= 140 &&
+        r > 20 && g > 12 && b > 6 &&
+        (r >= g * 0.80 || r - g >= -4) &&
+        (r >= b * 0.75 || r - b >= -4) &&
+        cb >= 58 && cb <= 152 &&
+        cr >= 112 && cr <= 182;
 
-      const isSkin = (isWarmSkin || isNeutralSkin || isDarkComplexion) && luma >= 15 && luma <= 248;
+      const isCoolLightingSkin =
+        r > 28 && g > 20 && b > 15 &&
+        cb >= 65 && cb <= 148 &&
+        cr >= 115 && cr <= 182 &&
+        (r + g) > (2 * b - 20);
+
+      const isSkin = (isWarmSkin || isDarkComplexion || isCoolLightingSkin) && luma >= 12 && luma <= 250;
 
       if (isSkin) {
         skinPixelCount++;
-        rawXHist[x]++;
-        if (x + 1 < width) rawXHist[x + 1]++;
-        rawYHist[y]++;
-        if (y + 1 < height) rawYHist[y + 1]++;
+
+        // Fast horizontal and vertical spatial gradient magnitude
+        // A flat wall has gradient near 0, while facial features (hairline, eyes, nose, lips) have gradient > 4
+        let grad = 0;
+        if (x + 1 < width) {
+          const rR = data[(y * width + x + 1) * 4];
+          const gR = data[(y * width + x + 1) * 4 + 1];
+          const bR = data[(y * width + x + 1) * 4 + 2];
+          grad += Math.abs(rR - r) + Math.abs(gR - g) + Math.abs(bR - b);
+        }
+        if (y + 1 < height) {
+          const rD = data[((y + 1) * width + x) * 4];
+          const gD = data[((y + 1) * width + x) * 4 + 1];
+          const bD = data[((y + 1) * width + x) * 4 + 2];
+          grad += Math.abs(rD - r) + Math.abs(gD - g) + Math.abs(bD - b);
+        }
+
+        // Elliptical portrait weighting: boost center oval, damp background corners
+        const nx = (x - cx) / rx;
+        const ny = (y - cy) / ry;
+        const ovalDist = nx * nx + ny * ny;
+        const ovalWeight = ovalDist <= 1.2 ? 1.4 : 0.45;
+
+        // Face feature weight combining skin chrominance with localized facial texture
+        const weight = (1.0 + Math.min(3.0, grad / 12.0)) * ovalWeight;
+
+        rawXHist[x] += weight;
+        if (x + 1 < width) rawXHist[x + 1] += weight;
+        rawYHist[y] += weight;
+        if (y + 1 < height) rawYHist[y + 1] += weight;
       }
     }
   }
@@ -600,8 +615,8 @@ export function analyzeVideoFrame(
   }
   maxDensityY = yHist[peakY];
 
-  const minRequiredSkin = Math.max(30, Math.floor(sampleCount * 0.008));
-  const hasFaceMass = skinPixelCount >= minRequiredSkin && maxDensityX >= 4 && maxDensityY >= 4;
+  const minRequiredSkin = Math.max(25, Math.floor(sampleCount * 0.005));
+  const hasFaceMass = skinPixelCount >= minRequiredSkin && maxDensityX >= 3 && maxDensityY >= 3;
 
   let minX = minXLimit;
   let maxX = maxXLimit;
@@ -612,14 +627,12 @@ export function analyzeVideoFrame(
   let faceDetected = false;
 
   if (hasFaceMass) {
-    // Higher cutoff (28%) to tighten bounding box and resist background wall contamination
-    const cutX = Math.max(3, Math.floor(maxDensityX * 0.28));
-    const cutY = Math.max(3, Math.floor(maxDensityY * 0.28));
+    // Cutoff based on gradient-weighted density profile
+    const cutX = Math.max(4.0, maxDensityX * 0.30);
+    const cutY = Math.max(4.0, maxDensityY * 0.30);
 
-    // Cap max expansion from peak: a human face in a selfie frame should not
-    // span more than ~38% of width or ~44% of height from the peak in either direction.
-    const maxExpandX = Math.floor(width * 0.38);
-    const maxExpandY = Math.floor(height * 0.44);
+    const maxExpandX = Math.floor(width * 0.36);
+    const maxExpandY = Math.floor(height * 0.42);
 
     minX = peakX;
     while (minX > minXLimit && (peakX - minX) < maxExpandX && xHist[minX] >= cutX) {
@@ -648,23 +661,20 @@ export function analyzeVideoFrame(
       rawBoxWidth <= width * 0.88 &&
       rawBoxHeight >= height * 0.12 &&
       rawBoxHeight <= height * 0.92 &&
-      aspect >= 0.55 &&
-      aspect <= 2.10;
+      aspect >= 0.50 &&
+      aspect <= 2.25;
 
     faceDetected = isHumanProportions;
   }
 
   // ── Fallback: Edge-gradient face detection ──
-  // When background walls have skin-like chrominance (pink, salmon, beige),
-  // the skin-based bounding box gets polluted and faceDetected stays false.
-  // Faces ALWAYS have strong spatial gradients from eyes, brows, nose, lips
-  // while uniform walls have near-zero gradients. This fallback detects
-  // facial structure in the central oval region using edge magnitude analysis.
+  // Detects facial structure in the central oval region using edge magnitude analysis
+  // when lighting or skin chrominance is unusual.
   if (!faceDetected) {
     const edgeCx = Math.floor(width / 2);
-    const edgeCy = Math.floor(height * 0.42);
-    const edgeRx = Math.floor(width * 0.24);
-    const edgeRy = Math.floor(height * 0.30);
+    const edgeCy = Math.floor(height * 0.44);
+    const edgeRx = Math.floor(width * 0.26);
+    const edgeRy = Math.floor(height * 0.32);
 
     let edgeSum = 0;
     let edgeSamples = 0;
@@ -680,7 +690,6 @@ export function analyzeVideoFrame(
         const idxR = (y * width + x + 1) * 4;
         const idxD = ((y + 1) * width + x) * 4;
 
-        // Horizontal and vertical gradient magnitude (sum of RGB channel diffs)
         const gx = Math.abs(data[idxR] - data[idx]) +
                     Math.abs(data[idxR + 1] - data[idx + 1]) +
                     Math.abs(data[idxR + 2] - data[idx + 2]);
@@ -695,14 +704,13 @@ export function analyzeVideoFrame(
 
     const avgEdge = edgeSamples > 0 ? edgeSum / edgeSamples : 0;
 
-    // A face typically has avgEdge > 12 (feature gradients from eyes, brows, nose, lips).
-    // A flat wall has avgEdge < 5. Threshold 10 gives comfortable margin.
-    if (avgEdge > 10 && skinPixelCount > 20) {
+    // Face has distinct facial gradients from eyes, brows, nose, lips
+    if (avgEdge > 7.5) {
       faceDetected = true;
       const faceW = Math.round(width * 0.48);
-      const faceH = Math.round(faceW * 1.28);
+      const faceH = Math.round(faceW * 1.25);
       minX = Math.round((width - faceW) / 2);
-      minY = Math.round(height * 0.42 - faceH / 2);
+      minY = Math.round(height * 0.44 - faceH / 2);
       rawBoxWidth = faceW;
       rawBoxHeight = faceH;
     }
@@ -737,7 +745,7 @@ export function analyzeVideoFrame(
 
   // 3. Framing Centering & Sizing Evaluation against HUD Oval Target
   const targetCx = width * 0.50;
-  const targetCy = height * 0.48;
+  const targetCy = height * 0.46;
   const faceCenterX = box.x + box.width * 0.50;
   const faceCenterY = box.y + box.height * 0.50;
 
@@ -898,6 +906,8 @@ export function analyzeVideoFrame(
       symmetryScore: Math.round(confidenceScore),
       livenessScore: blinkDetected || headMotionDetected ? 98 : 88,
       descriptor,
+      sourceWidth: width,
+      sourceHeight: height,
     },
     currentImageData,
   };
@@ -937,9 +947,22 @@ export function drawBiometricHud(
 
   // Dynamic Face Placement Detection:
   // Face must be detected, centered within tolerance, and sized appropriately inside the frame
+  const srcW = result?.sourceWidth || 240;
+  const srcH = result?.sourceHeight || 180;
+  const scaleX = w / srcW;
+  const scaleY = h / srcH;
+
   const faceDetected = !!result?.faceDetected;
   const isCentered = !!result?.isCentered;
-  const box = result?.box;
+  const rawBox = result?.box;
+  const box = rawBox
+    ? {
+        x: rawBox.x * scaleX,
+        y: rawBox.y * scaleY,
+        width: rawBox.width * scaleX,
+        height: rawBox.height * scaleY,
+      }
+    : undefined;
   const isSizedProperly = box ? box.width >= w * 0.16 && box.width <= w * 0.90 : true;
   const isPlacedCorrectly = faceDetected && isCentered && isSizedProperly;
 
@@ -1108,15 +1131,15 @@ export function drawBiometricHud(
     ctx.fillStyle = isGreen ? 'rgba(16, 185, 129, 0.9)' : 'rgba(239, 68, 68, 0.9)';
     ctx.lineWidth = 1.2;
 
-    // Feature keypoints
+    // Feature keypoints scaled to canvas coordinates
     const points = [
-      lm.leftEye,
-      lm.rightEye,
-      lm.nose,
-      lm.mouthLeft,
-      lm.mouthRight,
-      lm.forehead,
-      lm.chin,
+      { x: lm.leftEye.x * scaleX, y: lm.leftEye.y * scaleY },
+      { x: lm.rightEye.x * scaleX, y: lm.rightEye.y * scaleY },
+      { x: lm.nose.x * scaleX, y: lm.nose.y * scaleY },
+      { x: lm.mouthLeft.x * scaleX, y: lm.mouthLeft.y * scaleY },
+      { x: lm.mouthRight.x * scaleX, y: lm.mouthRight.y * scaleY },
+      { x: lm.forehead.x * scaleX, y: lm.forehead.y * scaleY },
+      { x: lm.chin.x * scaleX, y: lm.chin.y * scaleY },
     ];
 
     points.forEach((p) => {
@@ -1127,17 +1150,17 @@ export function drawBiometricHud(
 
     // Triangle connections for real geometric facial topography
     ctx.beginPath();
-    ctx.moveTo(lm.leftEye.x, lm.leftEye.y);
-    ctx.lineTo(lm.rightEye.x, lm.rightEye.y);
-    ctx.lineTo(lm.nose.x, lm.nose.y);
+    ctx.moveTo(lm.leftEye.x * scaleX, lm.leftEye.y * scaleY);
+    ctx.lineTo(lm.rightEye.x * scaleX, lm.rightEye.y * scaleY);
+    ctx.lineTo(lm.nose.x * scaleX, lm.nose.y * scaleY);
     ctx.closePath();
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(lm.nose.x, lm.nose.y);
-    ctx.lineTo(lm.mouthLeft.x, lm.mouthLeft.y);
-    ctx.lineTo(lm.chin.x, lm.chin.y);
-    ctx.lineTo(lm.mouthRight.x, lm.mouthRight.y);
+    ctx.moveTo(lm.nose.x * scaleX, lm.nose.y * scaleY);
+    ctx.lineTo(lm.mouthLeft.x * scaleX, lm.mouthLeft.y * scaleY);
+    ctx.lineTo(lm.chin.x * scaleX, lm.chin.y * scaleY);
+    ctx.lineTo(lm.mouthRight.x * scaleX, lm.mouthRight.y * scaleY);
     ctx.closePath();
     ctx.stroke();
 

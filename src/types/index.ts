@@ -62,6 +62,11 @@ export interface Employee {
     relationship: string;
     phone: string;
   };
+  bloodGroup?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelationship?: string;
+  salaryStructureJson?: string;
   avatarUrl?: string;
   enrolledFacePhoto?: string;
   enrolledFaceBiometrics?: string;
@@ -174,12 +179,23 @@ export interface OnDutyRequest {
   createdAt?: string;
 }
 
+export interface DynamicSalaryItem {
+  id: string;
+  name: string;
+  type: 'EARNING' | 'DEDUCTION';
+  amount: number;
+  code?: string;
+}
+
 export interface SalaryComponent {
   basic: number;
   hra: number;
   specialAllowance: number;
   conveyanceAllowance: number;
   medicalAllowance: number;
+  bonus?: number;
+  incentives?: number;
+  adjustmentNotes?: string;
   grossMonthly: number;
   epfEmployee: number;
   epfEmployer: number;

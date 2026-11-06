@@ -104,10 +104,19 @@ export const EmployeeDetailsPanel = ({
           )}
           {details([
             ['Employee ID', employee.employeeCode || employee.id],
+            ['Blood Group', employee.bloodGroup || 'Not provided'],
             ['Joining date', formatDate(employee.joiningDate)],
             ['Email', employee.email],
             ['Phone', employee.phone],
             ['Residential address', employee.address],
+            [
+              'Emergency Contact',
+              employee.emergencyContact?.name
+                ? `${employee.emergencyContact.name} (${employee.emergencyContact.relationship || 'Emergency'} - ${employee.emergencyContact.phone || ''})`
+                : employee.emergencyContactName
+                  ? `${employee.emergencyContactName} (${employee.emergencyContactRelationship || 'Emergency'} - ${employee.emergencyContactPhone || ''})`
+                  : 'Not provided',
+            ],
             ['Facial Attendance Profile', employee.enrolledFacePhoto ? 'Enrolled & Verified' : 'Not Registered'],
           ])}
         </>
@@ -136,6 +145,42 @@ export const EmployeeDetailsPanel = ({
             ['PAN', employee.bankDetails?.panNumber],
             ['UAN', employee.bankDetails?.uanNumber],
           ])}
+
+          {employee.salaryStructureJson && (() => {
+            try {
+              const comps: any[] = JSON.parse(employee.salaryStructureJson);
+              if (Array.isArray(comps) && comps.length > 0) {
+                return (
+                  <div className="mt-5 pt-4 border-t border-slate-200">
+                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">
+                      Custom Salary Components Breakdown
+                    </h4>
+                    <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-100 bg-white">
+                      {comps.map((c, idx) => {
+                        const isEarn = c.type === 'EARNING';
+                        return (
+                          <div key={c.id || idx} className="p-2.5 flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                isEarn
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'bg-rose-50 text-rose-700 border border-rose-200'
+                              }`}>
+                                {isEarn ? 'EARNING' : 'DEDUCTION'}
+                              </span>
+                              <span className="font-medium text-slate-800">{c.name}</span>
+                            </div>
+                            <span className="font-semibold text-slate-900">{formatINR(c.amount || 0)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
+            } catch (ignored) {}
+            return null;
+          })()}
         </>
       )}
 

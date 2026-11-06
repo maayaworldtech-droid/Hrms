@@ -45,6 +45,9 @@ public class Payslip {
     private Double specialAllowance = 0.0;
     private Double conveyanceAllowance = 0.0;
     private Double medicalAllowance = 0.0;
+    private Double bonus = 0.0;
+    private Double incentives = 0.0;
+    private String adjustmentNotes;
     private Double grossMonthly = 0.0;
     private Double epfEmployee = 0.0;
     private Double epfEmployer = 0.0;
@@ -71,6 +74,9 @@ public class Payslip {
         comp.put("specialAllowance", specialAllowance != null ? specialAllowance : 0.0);
         comp.put("conveyanceAllowance", conveyanceAllowance != null ? conveyanceAllowance : 0.0);
         comp.put("medicalAllowance", medicalAllowance != null ? medicalAllowance : 0.0);
+        comp.put("bonus", bonus != null ? bonus : 0.0);
+        comp.put("incentives", incentives != null ? incentives : 0.0);
+        comp.put("adjustmentNotes", adjustmentNotes != null ? adjustmentNotes : "");
         comp.put("grossMonthly", grossMonthly != null ? grossMonthly : 0.0);
         comp.put("epfEmployee", epfEmployee != null ? epfEmployee : 0.0);
         comp.put("epfEmployer", epfEmployer != null ? epfEmployer : 0.0);

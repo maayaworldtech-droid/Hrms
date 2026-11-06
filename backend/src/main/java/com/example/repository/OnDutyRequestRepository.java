@@ -12,3 +12,4 @@ public interface OnDutyRequestRepository extends JpaRepository<OnDutyRequest, Lo
     List<OnDutyRequest> findAllByOrderByDutyDateDesc();
     List<OnDutyRequest> findByStatusOrderByDutyDateDesc(String status);
 }
+

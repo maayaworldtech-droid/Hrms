@@ -250,7 +250,19 @@ export const PayrollProcessing: React.FC = () => {
           subtitle={`${selectedRun.totalEmployees} employees | Status: ${selectedRun.status}`}
           size="2xl"
         >
-          <PayrollReview key={selectedRun.id} run={selectedRun} saving={saving} onFinalize={() => handleDisburse(selectedRun.id)} onView={slip => { setSelectedPayslip(slip); setIsPayslipModalOpen(true); }} />
+          <PayrollReview
+            key={selectedRun.id}
+            run={selectedRun}
+            saving={saving}
+            onFinalize={() => handleDisburse(selectedRun.id)}
+            onView={(slip) => {
+              setSelectedPayslip(slip);
+              setIsPayslipModalOpen(true);
+            }}
+            onRunUpdated={() => {
+              void loadData();
+            }}
+          />
         </Modal>
       )}
 

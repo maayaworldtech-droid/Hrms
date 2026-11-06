@@ -203,6 +203,11 @@ export const api = {
           relationship: emp.emergencyContactRelationship || 'Spouse',
           phone: emp.emergencyContactPhone || '+91 98765 00000',
         },
+        bloodGroup: emp.bloodGroup || '',
+        emergencyContactName: emp.emergencyContactName || emp.emergencyContact?.name || '',
+        emergencyContactPhone: emp.emergencyContactPhone || emp.emergencyContact?.phone || '',
+        emergencyContactRelationship: emp.emergencyContactRelationship || emp.emergencyContact?.relationship || '',
+        salaryStructureJson: emp.salaryStructureJson || '',
         enrolledFacePhoto: emp.enrolledFacePhoto || localStorage.getItem(`maaya_face_photo_${emp.id}`) || undefined,
         enrolledFaceBiometrics: emp.enrolledFaceBiometrics || localStorage.getItem(`maaya_face_bio_${emp.id}`) || undefined,
       }));
@@ -244,6 +249,11 @@ export const api = {
             relationship: emp.emergencyContactRelationship || 'Spouse',
             phone: emp.emergencyContactPhone || '+91 98765 00000',
           },
+          bloodGroup: emp.bloodGroup || '',
+          emergencyContactName: emp.emergencyContactName || emp.emergencyContact?.name || '',
+          emergencyContactPhone: emp.emergencyContactPhone || emp.emergencyContact?.phone || '',
+          emergencyContactRelationship: emp.emergencyContactRelationship || emp.emergencyContact?.relationship || '',
+          salaryStructureJson: emp.salaryStructureJson || '',
           enrolledFacePhoto: emp.enrolledFacePhoto || localStorage.getItem(`maaya_face_photo_${cleanId}`) || undefined,
           enrolledFaceBiometrics: emp.enrolledFaceBiometrics || localStorage.getItem(`maaya_face_bio_${cleanId}`) || undefined,
         };
@@ -576,6 +586,23 @@ export const api = {
         id: String(res.id),
         payslips: Array.isArray(res.payslips) ? res.payslips.map(normalizePayslip) : [],
       };
+    },
+
+    adjustPayslip: async (
+      payslipId: string | number,
+      adjustment: {
+        bonus?: number;
+        incentives?: number;
+        specialAllowance?: number;
+        lossOfPayDays?: number;
+        notes?: string;
+      }
+    ): Promise<Payslip> => {
+      const res = await fetchJSON<any>(`${API_BASE}/payroll/payslips/${payslipId}/adjust`, {
+        method: 'PUT',
+        body: JSON.stringify(adjustment),
+      });
+      return normalizePayslip(res);
     },
   },
 
