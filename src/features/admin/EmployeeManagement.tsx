@@ -86,6 +86,7 @@ const INDIAN_STATES = [
   'Puducherry',
 ] as const;
 
+
 export const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'] as const;
 
 export const EMERGENCY_RELATIONSHIPS = [
@@ -98,6 +99,7 @@ export const EMERGENCY_RELATIONSHIPS = [
   'Guardian',
   'Other',
 ] as const;
+
 
 export const AVAILABLE_SALARY_COMPONENTS = [
   // Earnings
@@ -117,6 +119,7 @@ export const AVAILABLE_SALARY_COMPONENTS = [
   { code: 'GRATUITY', name: 'Gratuity', type: 'DEDUCTION' as const, defaultAmount: 0 },
   { code: 'OTHER_DEDUCTION', name: 'Other Deduction', type: 'DEDUCTION' as const, defaultAmount: 0 },
 ] as const;
+
 
 const onboardingSchema = z.object({
   // Step 1: Basic Information, Blood Group & Emergency Contact
@@ -227,6 +230,7 @@ const onboardingSchema = z.object({
 
 type OnboardingFormValues = z.infer<typeof onboardingSchema>;
 
+
 const employeeSchema = z.object({
   firstName: z.string().min(2, 'First name is required'),
   lastName: z.string().min(2, 'Last name is required'),
@@ -247,6 +251,7 @@ const employeeSchema = z.object({
   panNumber: z.string().min(10, 'Valid 10-character PAN required'),
   uanNumber: z.string().min(10, 'Valid UAN required'),
 });
+
 
 type EmployeeFormValues = z.infer<typeof employeeSchema>;
 
@@ -287,6 +292,7 @@ export const EmployeeManagement: React.FC = () => {
   const streamRef = useRef<MediaStream | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const prevImageDataRef = useRef<ImageData | null>(null);
+
 
   const stopCamera = useCallback(() => {
     if (animFrameRef.current) {
@@ -1359,11 +1365,10 @@ export const EmployeeManagement: React.FC = () => {
                           <div key={comp.id} className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div className="flex items-center gap-2.5 min-w-0 flex-1">
                               <span
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded tracking-wide shrink-0 ${
-                                  isEarning
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded tracking-wide shrink-0 ${isEarning
                                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                     : 'bg-rose-50 text-rose-700 border border-rose-200'
-                                }`}
+                                  }`}
                               >
                                 {isEarning ? 'EARNING' : 'DEDUCTION'}
                               </span>
