@@ -8,7 +8,6 @@ import { getShiftDefinition } from '@/utils/shiftUtils';
 import { BiometricAttendanceModal } from '@/components/attendance/BiometricAttendanceModal';
 import {
   ScanFace,
-  CalendarDays,
   CheckCircle2,
   Clock,
   ChevronRight,
@@ -95,12 +94,6 @@ export const EmployeeDashboard: React.FC = () => {
   }
 
   const shift = getShiftDefinition(employee.shift || 'MORNING');
-  const remainingLeaves = balance
-    ? (balance.casualLeave?.remaining ?? 0) +
-      (balance.sickLeave?.remaining ?? 0) +
-      (balance.earnedLeave?.remaining ?? 0) +
-      (balance.compOff?.remaining ?? 0)
-    : 42;
 
   const completed = !!attendance?.checkOut;
   const working = !!attendance?.checkIn && !completed;
@@ -193,27 +186,6 @@ export const EmployeeDashboard: React.FC = () => {
           )}
         </button>
       </section>
-
-      {/* Available Leaves Flat Touch Target (Strict rule: total directly, no nested cards) */}
-      <Link
-        to="/employee/leaves"
-        className="employee-card flex items-center justify-between hover:border-slate-300 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-[var(--brand-50)] text-[var(--brand-600)] flex items-center justify-center shrink-0 border border-[var(--brand-200)]">
-            <CalendarDays className="w-4 h-4" />
-          </div>
-          <div>
-            <span className="text-sm font-bold text-slate-900 block leading-tight">
-              {remainingLeaves} days available
-            </span>
-            <span className="text-[11px] text-slate-500">Leave balance for 2026</span>
-          </div>
-        </div>
-        <span className="text-xs text-[var(--brand-600)] font-semibold flex items-center gap-1">
-          Apply <ChevronRight className="w-3.5 h-3.5" />
-        </span>
-      </Link>
 
       {/* On Duty & Errand Claims Touch Target */}
       <Link
