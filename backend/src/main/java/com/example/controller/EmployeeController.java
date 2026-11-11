@@ -1,6 +1,7 @@
 package com.example.controller;
 
 import com.example.entity.Employee;
+import com.example.security.AuthFilter;
 import com.example.service.EmployeeService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -12,9 +13,8 @@ import java.net.URI;
 import java.util.List;
 import java.util.Map;
 
-@CrossOrigin(origins = "*")
 @RestController
-@RequestMapping({"/api/employees", "/employees"})
+@RequestMapping("/api/employees")
 public class EmployeeController {
 
     @Autowired
@@ -51,7 +51,25 @@ public class EmployeeController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Employee> updateEmployee(@PathVariable Long id, @RequestBody Employee employee) {
+    public ResponseEntity<Employee> updateEmployee(
+            @PathVariable Long id,
+            @RequestBody Employee employee,
+            HttpServletRequest request
+    ) {
+        String authRole = (String) request.getAttribute(AuthFilter.ATTR_ROLE);
+        Long authId = (Long) request.getAttribute(AuthFilter.ATTR_EMPLOYEE_ID);
+        if (!"ADMIN".equals(authRole)) {
+            if (authId == null || !authId.equals(id)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+            // Non-admin self-updates are restricted strictly to contact details
+            Employee safeUpdate = new Employee();
+            safeUpdate.setPhone(employee.getPhone());
+            safeUpdate.setAddress(employee.getAddress());
+            return employeeService.updateEmployee(id, safeUpdate)
+                    .map(ResponseEntity::ok)
+                    .orElseGet(() -> ResponseEntity.notFound().build());
+        }
         return employeeService.updateEmployee(id, employee)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
@@ -60,8 +78,16 @@ public class EmployeeController {
     @PostMapping("/{id}/enroll-face")
     public ResponseEntity<Map<String, Object>> enrollFaceBiometrics(
             @PathVariable Long id,
-            @RequestBody Map<String, String> payload
+            @RequestBody Map<String, String> payload,
+            HttpServletRequest request
     ) {
+        String authRole = (String) request.getAttribute(AuthFilter.ATTR_ROLE);
+        Long authId = (Long) request.getAttribute(AuthFilter.ATTR_EMPLOYEE_ID);
+        if (!"ADMIN".equals(authRole) && (authId == null || !authId.equals(id))) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("success", false, "message", "You can only enroll your own face profile."));
+        }
+
         String facePhoto = payload.get("enrolledFacePhoto");
         String faceBiometrics = payload.get("enrolledFaceBiometrics");
         return employeeService.getEmployeeById(id).map(emp -> {
@@ -71,7 +97,7 @@ public class EmployeeController {
             if (faceBiometrics != null && !faceBiometrics.trim().isEmpty()) {
                 emp.setEnrolledFaceBiometrics(faceBiometrics);
             }
-            Employee updated = employeeService.createEmployee(emp);
+            Employee updated = employeeService.saveEmployee(emp);
             return ResponseEntity.ok(Map.<String, Object>of(
                     "success", true,
                     "message", "Face biometrics enrolled successfully",

@@ -246,13 +246,15 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
                         </td>
                         <td>{formatINR(slip.components?.totalDeductions ?? 0)}</td>
                         <td>
-                          <button
-                            type="button"
-                            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
-                            onClick={() => openAdjustmentModal(slip)}
-                          >
-                            Add Bonus / Adjust
-                          </button>
+                          {!complete && (
+                            <button
+                              type="button"
+                              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                              onClick={() => openAdjustmentModal(slip)}
+                            >
+                              Add Bonus / Adjust
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -326,13 +328,15 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
                             >
                               View
                             </button>
-                            <button
-                              type="button"
-                              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
-                              onClick={() => openAdjustmentModal(slip)}
-                            >
-                              Adjust / Bonus
-                            </button>
+                            {!complete && (
+                              <button
+                                type="button"
+                                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                                onClick={() => openAdjustmentModal(slip)}
+                              >
+                                Adjust / Bonus
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -542,12 +546,14 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
               const hra = adjustingSlip.components?.hra || 0;
               const conv = adjustingSlip.components?.conveyanceAllowance || 0;
               const med = adjustingSlip.components?.medicalAllowance || 0;
-              const newGross = basic + hra + conv + med + Number(specialAmount) + Number(bonusAmount) + Number(incentivesAmount);
+              const baseGross = basic + hra + conv + med + Number(specialAmount);
+              const newGross = baseGross + Number(bonusAmount) + Number(incentivesAmount);
               const epf = adjustingSlip.components?.epfEmployee || 0;
               const pt = adjustingSlip.components?.professionalTax || 0;
               const tds = adjustingSlip.components?.tds || 0;
               const health = adjustingSlip.components?.healthInsurance || 0;
-              const lopDeduction = lossOfPayDays > 0 ? Math.round(((basic + hra) / 30) * lossOfPayDays) : 0;
+              const payableDays = Math.max(1, adjustingSlip.payableDays || 30);
+              const lopDeduction = lossOfPayDays > 0 ? Math.round((baseGross / payableDays) * lossOfPayDays) : 0;
               const totalDed = epf + pt + tds + health + lopDeduction;
               const newNet = Math.max(0, newGross - totalDed);
 

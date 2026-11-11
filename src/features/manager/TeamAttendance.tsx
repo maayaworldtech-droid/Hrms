@@ -8,41 +8,113 @@ import { DataTable, Column } from '@/components/common/DataTable';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
+import { EmployeeAttendanceHistoryModal } from '@/components/attendance/EmployeeAttendanceHistoryModal';
 import { formatDate, formatTime } from '@/utils/formatters';
-import  { Check } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 
+const PAGE_SIZE = 20;
+
 export const TeamAttendance: React.FC = () => {
   const dispatch = useAppDispatch();
-  const user = useAppSelector(state => state.auth.user);
+  const user = useAppSelector((state) => state.auth.user);
   const filters = useOperationsFilters(true);
   const [team, setTeam] = useState<Employee[]>([]);
+  const [teamLoaded, setTeamLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalElements, setTotalElements] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [historyEmployee, setHistoryEmployee] = useState<{
+    employeeId: string;
+    employeeName: string;
+    location?: string;
+    shift?: string;
+  } | null>(null);
 
   const managerId = user?.id || 'emp-002';
 
-  const loadData = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const [allEmps, allAtt] = await Promise.all([
-        api.employees.getAll(),
-        api.attendance.getAll(),
-      ]);
-      const myTeam = allEmps.filter((e) => getReportingManager(e).id === managerId);
-      setTeam(myTeam);
-      const teamIds = new Set(myTeam.map((e) => e.id));
-      setAttendance(allAtt.filter((a) => teamIds.has(a.employeeId)));
-    } catch { dispatch(addToast({ type: 'error', title: 'Could not load team attendance' })); } finally {
-      setIsLoading(false);
-    }
-  }, [dispatch,managerId]);
+  useEffect(() => {
+    let active = true;
+    api.employees
+      .getAll()
+      .then((allEmps) => {
+        if (!active) return;
+        const myTeam = (allEmps || []).filter((e) => getReportingManager(e).id === managerId);
+        setTeam(myTeam);
+        setTeamLoaded(true);
+      })
+      .catch(() => {
+        if (!active) return;
+        dispatch(addToast({ type: 'error', title: 'Could not load team directory' }));
+        setTeamLoaded(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [dispatch, managerId]);
 
-  useEffect(() => { void loadData(); }, [loadData]);
+  const loadPage = useCallback(
+    async (targetPage: number, append: boolean) => {
+      if (!teamLoaded) return;
+      if (team.length === 0) {
+        setAttendance([]);
+        setHasMore(false);
+        setTotalElements(0);
+        setIsLoading(false);
+        return;
+      }
+
+      if (append) {
+        setIsLoadingMore(true);
+      } else {
+        setIsLoading(true);
+      }
+      try {
+        const res = await api.attendance.getPaged({
+          employeeIds: team.map((e) => e.id),
+          date: filters.date,
+          location: filters.venue,
+          shift: filters.shift,
+          status: filters.status,
+          search: searchQuery,
+          page: targetPage,
+          size: PAGE_SIZE,
+        });
+        const items = Array.isArray(res.items) ? res.items : [];
+        setAttendance((prev) => {
+          if (!append) return items;
+          const merged = new Map<string, AttendanceRecord>();
+          prev.forEach((r) => merged.set(String(r.id), r));
+          items.forEach((r) => merged.set(String(r.id), r));
+          return Array.from(merged.values());
+        });
+        setPage(res.page ?? targetPage);
+        setHasMore(Boolean(res.hasMore));
+        setTotalElements(res.totalElements ?? items.length);
+      } catch {
+        dispatch(addToast({ type: 'error', title: 'Could not load team attendance' }));
+      } finally {
+        setIsLoading(false);
+        setIsLoadingMore(false);
+      }
+    },
+    [dispatch, teamLoaded, team, filters.date, filters.venue, filters.shift, filters.status, searchQuery]
+  );
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void loadPage(0, false);
+    }, searchQuery ? 250 : 0);
+    return () => clearTimeout(timer);
+  }, [loadPage, searchQuery]);
 
   const handleApproveRegularization = async (id: string) => {
     if (saving) return;
@@ -57,16 +129,22 @@ export const TeamAttendance: React.FC = () => {
         })
       );
       setIsModalOpen(false);
-      loadData();
+      void loadPage(0, false);
     } catch {
       dispatch(addToast({ type: 'error', title: 'Approval failed' }));
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const filtered = attendance.filter(record => {
-    const employee = team.find(person => person.id === record.employeeId);
-    return (!filters.date || record.date === filters.date) && (filters.venue === 'ALL' || (record.location || employee?.location) === filters.venue) && (filters.shift === 'ALL' || (record.shift || employee?.shift || 'MORNING') === filters.shift) && (filters.status === 'ALL' || (filters.status === 'ISSUES' ? record.status === 'LATE' || record.status === 'ABSENT' || record.regularizationStatus === 'PENDING' : filters.status === 'REGULARIZATION_PENDING' ? record.regularizationStatus === 'PENDING' : record.status === filters.status));
-  }).sort((a,b) => Number(b.regularizationStatus === 'PENDING') - Number(a.regularizationStatus === 'PENDING') || Number(b.status === 'ABSENT' || b.status === 'LATE') - Number(a.status === 'ABSENT' || a.status === 'LATE') || b.date.localeCompare(a.date));
+  const openEmployeeHistory = (row: AttendanceRecord) => {
+    setHistoryEmployee({
+      employeeId: row.employeeId,
+      employeeName: row.employeeName,
+      location: row.location || team.find((e) => e.id === row.employeeId)?.location,
+      shift: row.shift,
+    });
+  };
 
   const columns: Column<AttendanceRecord>[] = [
     {
@@ -87,7 +165,7 @@ export const TeamAttendance: React.FC = () => {
               {row.employeeName?.charAt(0) || 'E'}
             </div>
           )}
-          <span className="font-semibold text-slate-900">{row.employeeName}</span>
+          <span className="font-semibold text-slate-900 hover:text-indigo-700">{row.employeeName}</span>
         </div>
       ),
     },
@@ -122,47 +200,38 @@ export const TeamAttendance: React.FC = () => {
       header: 'Status',
       sortable: true,
       render: (row) => (
-        <Badge
-          variant={
-            row.status === 'PRESENT'
-              ? 'success'
-              : row.status === 'WORK_FROM_HOME'
-              ? 'info'
-              : row.status === 'LATE'
-              ? 'warning'
-              : 'error'
-          }
-          size="sm"
-          dot
-        >
-          {row.status.replace('_', ' ')}
-        </Badge>
-      ),
-    },
-    {
-      key: 'regularizationStatus',
-      header: 'Regularization',
-      render: (row) => {
-        if (row.regularizationStatus === 'PENDING') {
-          return (
+        <div className="flex items-center gap-2">
+          <Badge
+            variant={
+              row.status === 'PRESENT'
+                ? 'success'
+                : row.status === 'WORK_FROM_HOME'
+                ? 'info'
+                : row.status === 'LATE'
+                ? 'warning'
+                : 'error'
+            }
+            size="sm"
+            dot
+          >
+            {row.status.replace('_', ' ')}
+          </Badge>
+          {row.regularizationStatus === 'PENDING' && (
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setSelectedRecord(row);
                 setIsModalOpen(true);
               }}
-              className="!py-1 !px-2.5 text-xs text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-300"
+              className="!py-0.5 !px-2 text-[11px] text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-300"
             >
               Review correction
             </Button>
-          );
-        }
-        if (row.regularizationStatus === 'APPROVED') {
-          return <Badge variant="success" size="sm">Regularized</Badge>;
-        }
-        return <span className="text-slate-400 text-xs">Standard</span>;
-      },
+          )}
+        </div>
+      ),
     },
   ];
 
@@ -173,21 +242,73 @@ export const TeamAttendance: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Team attendance</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Check shift attendance and review requested corrections.
+            Check shift attendance or click a teammate row to view their previous 1-month records.
           </p>
         </div>
       </div>
 
-      <OperationsFilters attendance venues={[...new Set(team.map(employee => employee.location))]} />
-      <p className="ops-muted">Attendance exceptions appear first. Choose All dates to review older corrections.</p>
+      <OperationsFilters attendance venues={[...new Set(team.map((employee) => employee.location))]} />
       <DataTable
-        key={[filters.date,filters.venue,filters.shift,filters.status].join(':')}
-        data={filtered}
-        mobileRender={row => <div className="space-y-2"><div className="flex justify-between gap-3"><strong>{row.employeeName}</strong><span>{row.status.replaceAll('_',' ')}</span></div><p className="ops-muted">{formatDate(row.date)} · {row.location || team.find(employee => employee.id === row.employeeId)?.location} · {(row.shift || 'MORNING').toLowerCase()}</p><p>In {row.checkIn ? formatTime(row.checkIn) : '—'} · Out {row.checkOut ? formatTime(row.checkOut) : '—'} · {row.workHours} hours</p>{row.regularizationStatus === 'PENDING' && <button className="ops-button secondary" onClick={() => { setSelectedRecord(row); setIsModalOpen(true); }}>Review correction</button>}</div>}
+        data={attendance}
+        mobileRender={(row) => (
+          <div className="space-y-2" onClick={() => openEmployeeHistory(row)}>
+            <div className="flex justify-between gap-3">
+              <strong>{row.employeeName}</strong>
+              <span>{row.status.replaceAll('_', ' ')}</span>
+            </div>
+            <p className="ops-muted">
+              {formatDate(row.date)} · {row.location || team.find((employee) => employee.id === row.employeeId)?.location} ·{' '}
+              {(row.shift || 'MORNING').toLowerCase()}
+            </p>
+            <p>
+              In {row.checkIn ? formatTime(row.checkIn) : '—'} · Out {row.checkOut ? formatTime(row.checkOut) : '—'} ·{' '}
+              {row.workHours} hours
+            </p>
+            {row.regularizationStatus === 'PENDING' && (
+              <button
+                className="ops-button secondary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedRecord(row);
+                  setIsModalOpen(true);
+                }}
+              >
+                Review correction
+              </button>
+            )}
+          </div>
+        )}
         columns={columns}
         searchPlaceholder="Filter team attendance..."
+        onSearchChange={setSearchQuery}
+        onRowClick={openEmployeeHistory}
         exportFileName="maaya_team_attendance"
         isLoading={isLoading}
+        hidePagination
+      />
+
+      {!isLoading && attendance.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-600">
+          <span className="tabular-nums">
+            Showing <strong className="text-slate-900">{attendance.length}</strong> of{' '}
+            <strong className="text-slate-900">{totalElements}</strong> records
+          </span>
+          {hasMore && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void loadPage(page + 1, true)}
+              isLoading={isLoadingMore}
+            >
+              Load More
+            </Button>
+          )}
+        </div>
+      )}
+
+      <EmployeeAttendanceHistoryModal
+        employee={historyEmployee}
+        onClose={() => setHistoryEmployee(null)}
       />
 
       {/* Review correction Modal */}

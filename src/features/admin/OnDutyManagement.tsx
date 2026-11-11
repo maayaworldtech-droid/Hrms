@@ -5,6 +5,7 @@ import { DataTable, Column } from '@/components/common/DataTable';
 import { Badge } from '@/components/common/Badge';
 import { Modal } from '@/components/common/Modal';
 import { formatDate } from '@/utils/formatters';
+import { businessDate } from '@/utils/operations';
 import {
   Check,
   X,
@@ -44,7 +45,7 @@ export const OnDutyManagement: React.FC = () => {
   // Assign On Duty Modal (Admin can assign task to an employee)
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [assignEmpId, setAssignEmpId] = useState('');
-  const [assignDate, setAssignDate] = useState(new Date().toISOString().split('T')[0]);
+  const [assignDate, setAssignDate] = useState(() => businessDate());
   const [assignStartTime, setAssignStartTime] = useState('10:00');
   const [assignEndTime, setAssignEndTime] = useState('14:00');
   const [assignType, setAssignType] = useState<OnDutyType>('BANK_DEPOSIT');

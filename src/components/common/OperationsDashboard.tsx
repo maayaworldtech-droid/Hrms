@@ -108,8 +108,8 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
       await api.leaves.updateStatus(
         review.id,
         status,
-        user?.name || 'People operations',
-        comment.trim() || 'Approved after reviewing shift coverage'
+        comment.trim() || 'Approved after reviewing shift coverage',
+        user?.name || 'People operations'
       );
       dispatch(
         addToast({

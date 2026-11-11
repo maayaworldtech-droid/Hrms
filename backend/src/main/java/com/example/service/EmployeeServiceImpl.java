@@ -2,14 +2,19 @@ package com.example.service;
 
 import com.example.entity.Employee;
 import com.example.entity.LeaveBalance;
+import com.example.entity.Location;
 import com.example.repository.EmployeeRepository;
 import com.example.repository.LeaveBalanceRepository;
+import com.example.repository.LocationRepository;
+import com.example.security.PasswordHasher;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.security.SecureRandom;
 import java.util.List;
 import java.util.Optional;
-import java.util.Random;
 
 @Service
 public class EmployeeServiceImpl implements EmployeeService {
@@ -21,7 +26,12 @@ public class EmployeeServiceImpl implements EmployeeService {
     private LeaveBalanceRepository leaveBalanceRepository;
 
     @Autowired
+    private LocationRepository locationRepository;
+
+    @Autowired
     private ZeptoMailService zeptoMailService;
+
+    private final SecureRandom secureRandom = new SecureRandom();
 
     public EmployeeServiceImpl(EmployeeRepository employeeRepository) {
         this.employeeRepository = employeeRepository;
@@ -44,12 +54,18 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     public Optional<Employee> getEmployeeByEmail(String email) {
-        return employeeRepository.findByEmail(email);
+        if (email == null) return Optional.empty();
+        return employeeRepository.findByEmailIgnoreCase(email.trim());
     }
 
     @Override
     public Employee createEmployee(Employee employee) {
         return onboardEmployee(employee);
+    }
+
+    @Override
+    public Employee saveEmployee(Employee employee) {
+        return employeeRepository.save(employee);
     }
 
     @Override
@@ -59,39 +75,18 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     public Employee onboardEmployee(Employee employee, String portalUrl) {
-        Employee target = employee;
-        if (employee.getEmail() != null && !employee.getEmail().trim().isEmpty()) {
-            Optional<Employee> existingOpt = employeeRepository.findByEmail(employee.getEmail().trim());
-            if (existingOpt.isPresent()) {
-                target = existingOpt.get();
-                if (employee.getFirstName() != null) target.setFirstName(employee.getFirstName());
-                if (employee.getLastName() != null) target.setLastName(employee.getLastName());
-                if (employee.getJobTitle() != null) target.setJobTitle(employee.getJobTitle());
-                if (employee.getDepartment() != null) target.setDepartment(employee.getDepartment());
-                if (employee.getPhone() != null) target.setPhone(employee.getPhone());
-                if (employee.getAddress() != null) target.setAddress(employee.getAddress());
-                if (employee.getMonthlySalary() != null) target.setMonthlySalary(employee.getMonthlySalary());
-                if (employee.getCtcAnnual() != null) target.setCtcAnnual(employee.getCtcAnnual());
-                if (employee.getBankName() != null) target.setBankName(employee.getBankName());
-                if (employee.getAccountNumber() != null) target.setAccountNumber(employee.getAccountNumber());
-                if (employee.getIfscCode() != null) target.setIfscCode(employee.getIfscCode());
-                if (employee.getPanNumber() != null) target.setPanNumber(employee.getPanNumber());
-                if (employee.getUanNumber() != null) target.setUanNumber(employee.getUanNumber());
-                if (employee.getBloodGroup() != null) target.setBloodGroup(employee.getBloodGroup());
-                if (employee.getEmergencyContactName() != null) target.setEmergencyContactName(employee.getEmergencyContactName());
-                if (employee.getEmergencyContactPhone() != null) target.setEmergencyContactPhone(employee.getEmergencyContactPhone());
-                if (employee.getEmergencyContactRelationship() != null) target.setEmergencyContactRelationship(employee.getEmergencyContactRelationship());
-                if (employee.getSalaryStructureJson() != null) target.setSalaryStructureJson(employee.getSalaryStructureJson());
-                if (employee.getRole() != null) target.setRole(employee.getRole());
-                if (employee.getStatus() != null) target.setStatus(employee.getStatus());
-                if (employee.getEmploymentType() != null) target.setEmploymentType(employee.getEmploymentType());
-                if (employee.getShift() != null) target.setShift(employee.getShift());
-                if (employee.getDateOfJoining() != null) target.setDateOfJoining(employee.getDateOfJoining());
-                if (employee.getLocation() != null) target.setLocation(employee.getLocation());
-                if (employee.getEnrolledFacePhoto() != null) target.setEnrolledFacePhoto(employee.getEnrolledFacePhoto());
-                if (employee.getEnrolledFaceBiometrics() != null) target.setEnrolledFaceBiometrics(employee.getEnrolledFaceBiometrics());
-            }
+        if (employee.getEmail() == null || employee.getEmail().trim().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required");
         }
+        String normalizedEmail = employee.getEmail().trim().toLowerCase();
+        if (employeeRepository.existsByEmailIgnoreCase(normalizedEmail)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "An employee with this email already exists.");
+        }
+        employee.setEmail(normalizedEmail);
+        Employee target = employee;
+
+        // Resolve existing Location row rather than creating duplicate rows
+        resolveAndAttachLocation(target, employee.getLocationName());
 
         // Auto-generate employee code if missing or empty
         if (target.getEmployeeCode() == null || target.getEmployeeCode().trim().isEmpty()) {
@@ -107,18 +102,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         // Auto-generate secure temporary password if not provided
         String plainPassword = employee.getPassword();
         if (plainPassword == null || plainPassword.trim().isEmpty()) {
-            if (target.getPassword() == null || target.getPassword().trim().isEmpty() || target.isMustChangePassword()) {
-                int randomDigits = 1000 + new Random().nextInt(9000);
-                plainPassword = "Maaya@" + randomDigits;
-                target.setPassword(plainPassword);
-                target.setMustChangePassword(true);
-            } else {
-                plainPassword = target.getPassword();
-            }
-        } else {
-            target.setPassword(plainPassword);
-            target.setMustChangePassword(true);
+            int randomDigits = 100000 + secureRandom.nextInt(900000);
+            plainPassword = "Maaya@" + randomDigits;
         }
+        target.setPassword(PasswordHasher.hash(plainPassword));
+        target.setMustChangePassword(true);
 
         if (target.getRole() == null || target.getRole().trim().isEmpty()) {
             target.setRole("EMPLOYEE");
@@ -132,6 +120,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         // Save employee to PostgreSQL
         Employee saved = employeeRepository.save(target);
+        saved.setTemporaryPassword(plainPassword);
 
         // Initialize Leave Balance for this employee
         if (leaveBalanceRepository.findByEmployeeId(saved.getId()).isEmpty()) {
@@ -185,70 +174,78 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     public boolean resendWelcomeEmailByEmail(String email, String portalUrl) {
         if (email == null || email.trim().isEmpty()) return false;
-        return employeeRepository.findByEmail(email.trim()).map(emp -> sendWelcomeEmailToEmployee(emp, portalUrl)).orElse(false);
+        return employeeRepository.findByEmailIgnoreCase(email.trim()).map(emp -> sendWelcomeEmailToEmployee(emp, portalUrl)).orElse(false);
     }
 
     private boolean sendWelcomeEmailToEmployee(Employee emp, String portalUrl) {
-        String pwd = emp.getPassword();
-        if (pwd == null || pwd.trim().isEmpty()) {
-            int randomDigits = 1000 + new Random().nextInt(9000);
-            pwd = "Maaya@" + randomDigits;
-            emp.setPassword(pwd);
-            emp.setMustChangePassword(true);
-            employeeRepository.save(emp);
-        }
+        int randomDigits = 100000 + secureRandom.nextInt(900000);
+        String pwd = "Maaya@" + randomDigits;
+        emp.setPassword(PasswordHasher.hash(pwd));
+        emp.setMustChangePassword(true);
+        employeeRepository.save(emp);
         return zeptoMailService.sendOnboardingEmail(emp.getEmail(), emp.getFullName(), emp.getEmployeeCode(), pwd, portalUrl);
     }
 
     @Override
-    public Optional<Employee> updateEmployee(Long id, Employee student) {
+    public Optional<Employee> updateEmployee(Long id, Employee updates) {
         return employeeRepository.findById(id).map(existing -> {
-            if (student.getEmployeeCode() != null) existing.setEmployeeCode(student.getEmployeeCode());
-            if (student.getFirstName() != null) existing.setFirstName(student.getFirstName());
-            if (student.getLastName() != null) existing.setLastName(student.getLastName());
-            if (student.getEmail() != null) existing.setEmail(student.getEmail());
-            if (student.getPhone() != null) existing.setPhone(student.getPhone());
-            if (student.getAddress() != null) existing.setAddress(student.getAddress());
-            if (student.getJobTitle() != null) existing.setJobTitle(student.getJobTitle());
-            if (student.getDepartment() != null) existing.setDepartment(student.getDepartment());
-            if (student.getManagerId() != null) existing.setManagerId(student.getManagerId());
-            if (student.getEmploymentType() != null) existing.setEmploymentType(student.getEmploymentType());
-            if (student.getStatus() != null) existing.setStatus(student.getStatus());
-            if (student.getShift() != null) existing.setShift(student.getShift());
-            if (student.getDateOfJoining() != null) existing.setDateOfJoining(student.getDateOfJoining());
-            if (student.getMonthlySalary() != null) existing.setMonthlySalary(student.getMonthlySalary());
-            if (student.getCtcAnnual() != null) existing.setCtcAnnual(student.getCtcAnnual());
-            if (student.getRole() != null) existing.setRole(student.getRole());
-            
+            if (updates.getEmployeeCode() != null) existing.setEmployeeCode(updates.getEmployeeCode());
+            if (updates.getFirstName() != null) existing.setFirstName(updates.getFirstName());
+            if (updates.getLastName() != null) existing.setLastName(updates.getLastName());
+            if (updates.getEmail() != null && !updates.getEmail().trim().isEmpty()) {
+                existing.setEmail(updates.getEmail().trim().toLowerCase());
+            }
+            if (updates.getPhone() != null) existing.setPhone(updates.getPhone());
+            if (updates.getAddress() != null) existing.setAddress(updates.getAddress());
+            if (updates.getJobTitle() != null) existing.setJobTitle(updates.getJobTitle());
+            if (updates.getDepartment() != null) existing.setDepartment(updates.getDepartment());
+            if (updates.getManagerId() != null) existing.setManagerId(updates.getManagerId());
+            if (updates.getManagerName() != null) existing.setManagerName(updates.getManagerName());
+            if (updates.getEmploymentType() != null) existing.setEmploymentType(updates.getEmploymentType());
+            if (updates.getStatus() != null) existing.setStatus(updates.getStatus());
+            if (updates.getShift() != null) existing.setShift(updates.getShift());
+            if (updates.getDateOfJoining() != null) existing.setDateOfJoining(updates.getDateOfJoining());
+            if (updates.getMonthlySalary() != null) existing.setMonthlySalary(updates.getMonthlySalary());
+            if (updates.getCtcAnnual() != null) existing.setCtcAnnual(updates.getCtcAnnual());
+            if (updates.getRole() != null) existing.setRole(updates.getRole());
+
             // Bank details
-            if (student.getAccountNumber() != null) existing.setAccountNumber(student.getAccountNumber());
-            if (student.getIfscCode() != null) existing.setIfscCode(student.getIfscCode());
-            if (student.getBankName() != null) existing.setBankName(student.getBankName());
-            if (student.getPanNumber() != null) existing.setPanNumber(student.getPanNumber());
-            if (student.getUanNumber() != null) existing.setUanNumber(student.getUanNumber());
+            if (updates.getAccountNumber() != null) existing.setAccountNumber(updates.getAccountNumber());
+            if (updates.getIfscCode() != null) existing.setIfscCode(updates.getIfscCode());
+            if (updates.getBankName() != null) existing.setBankName(updates.getBankName());
+            if (updates.getPanNumber() != null) existing.setPanNumber(updates.getPanNumber());
+            if (updates.getUanNumber() != null) existing.setUanNumber(updates.getUanNumber());
 
             // Health & Emergency
-            if (student.getBloodGroup() != null) existing.setBloodGroup(student.getBloodGroup());
-            if (student.getEmergencyContactName() != null) existing.setEmergencyContactName(student.getEmergencyContactName());
-            if (student.getEmergencyContactPhone() != null) existing.setEmergencyContactPhone(student.getEmergencyContactPhone());
-            if (student.getEmergencyContactRelationship() != null) existing.setEmergencyContactRelationship(student.getEmergencyContactRelationship());
+            if (updates.getBloodGroup() != null) existing.setBloodGroup(updates.getBloodGroup());
+            if (updates.getEmergencyContactName() != null) existing.setEmergencyContactName(updates.getEmergencyContactName());
+            if (updates.getEmergencyContactPhone() != null) existing.setEmergencyContactPhone(updates.getEmergencyContactPhone());
+            if (updates.getEmergencyContactRelationship() != null) existing.setEmergencyContactRelationship(updates.getEmergencyContactRelationship());
 
             // Dynamic Salary Structure
-            if (student.getSalaryStructureJson() != null) existing.setSalaryStructureJson(student.getSalaryStructureJson());
+            if (updates.getSalaryStructureJson() != null) existing.setSalaryStructureJson(updates.getSalaryStructureJson());
 
-            if (student.getLocation() != null) {
-                existing.setLocation(student.getLocation());
+            if (updates.getLocation() != null && updates.getLocation().getName() != null) {
+                resolveAndAttachLocation(existing, updates.getLocation().getName());
             }
 
-            if (student.getEnrolledFacePhoto() != null) {
-                existing.setEnrolledFacePhoto(student.getEnrolledFacePhoto());
+            if (updates.getEnrolledFacePhoto() != null) {
+                existing.setEnrolledFacePhoto(updates.getEnrolledFacePhoto());
             }
-            if (student.getEnrolledFaceBiometrics() != null) {
-                existing.setEnrolledFaceBiometrics(student.getEnrolledFaceBiometrics());
+            if (updates.getEnrolledFaceBiometrics() != null) {
+                existing.setEnrolledFaceBiometrics(updates.getEnrolledFaceBiometrics());
             }
 
             return employeeRepository.save(existing);
         });
+    }
+
+    private void resolveAndAttachLocation(Employee target, String locationName) {
+        if (locationName == null || locationName.trim().isEmpty()) return;
+        String cleanName = locationName.trim();
+        Location loc = locationRepository.findByNameIgnoreCase(cleanName)
+                .orElseGet(() -> locationRepository.save(new Location(cleanName)));
+        target.setLocation(loc);
     }
 
     @Override

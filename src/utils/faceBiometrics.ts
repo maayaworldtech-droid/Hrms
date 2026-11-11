@@ -451,8 +451,8 @@ export function analyzeVideoFrame(
   canvas: HTMLCanvasElement,
   prevImageData: ImageData | null
 ): { result: BiometricAnalysisResult; currentImageData: ImageData } | null {
-  const vWidth = video.videoWidth || video.clientWidth || 0;
-  const vHeight = video.videoHeight || video.clientHeight || 0;
+  const vWidth = video.videoWidth || (video as any).naturalWidth || video.clientWidth || 0;
+  const vHeight = video.videoHeight || (video as any).naturalHeight || video.clientHeight || 0;
   if (!vWidth || !vHeight) {
     return null;
   }
@@ -771,32 +771,32 @@ export function analyzeVideoFrame(
 
   // Granular Actionable Positioning Guidance
   let alignmentStatus: BiometricAnalysisResult['alignmentStatus'] = 'NOT_DETECTED';
-  let guideMessage = '✕ Align Face Inside Red Frame';
+  let guideMessage = 'Position face inside frame';
 
   if (!faceDetected) {
     alignmentStatus = 'NOT_DETECTED';
-    guideMessage = '✕ Align Face Inside Red Frame';
+    guideMessage = 'Position face inside frame';
   } else if (box.width < width * 0.12 || box.height < height * 0.14) {
     alignmentStatus = 'TOO_FAR';
-    guideMessage = '✕ Move Closer to Camera';
+    guideMessage = 'Move closer';
   } else if (box.width > width * 0.90 || box.height > height * 0.94) {
     alignmentStatus = 'TOO_CLOSE';
-    guideMessage = '✕ Move Slightly Back';
+    guideMessage = 'Move back slightly';
   } else if (dx < -width * 0.28) {
     alignmentStatus = 'MOVE_RIGHT';
-    guideMessage = '✕ Move Slightly Right';
+    guideMessage = 'Move slightly right';
   } else if (dx > width * 0.28) {
     alignmentStatus = 'MOVE_LEFT';
-    guideMessage = '✕ Move Slightly Left';
+    guideMessage = 'Move slightly left';
   } else if (dy < -height * 0.22) {
     alignmentStatus = 'MOVE_DOWN';
-    guideMessage = '✕ Move Down into Frame';
+    guideMessage = 'Move down slightly';
   } else if (dy > height * 0.22) {
     alignmentStatus = 'MOVE_UP';
-    guideMessage = '✕ Move Up into Frame';
+    guideMessage = 'Move up slightly';
   } else {
     alignmentStatus = 'PERFECT';
-    guideMessage = '✓ Face Placed Correctly in Frame';
+    guideMessage = 'Face in frame';
   }
 
   // 4. Anatomical Landmark Synthesis in Direct Canvas Pixel Coordinates
@@ -968,18 +968,15 @@ export function drawBiometricHud(
 
   // Visual State Determination:
   // GREEN: Face is detected & correctly placed in frame, or verification succeeded
-  // RED: No face detected, face is off-center / outside bounds, or verification failed
+  // ROSE: No face detected, face is off-center / outside bounds, or verification failed
   const isGreen = isSuccess || (!isFailed && isPlacedCorrectly);
+  void scanProgress;
 
-  const brandEmerald = '#10B981';
-  const brandRed = '#EF4444';
-  const themeColor = isGreen ? brandEmerald : brandRed;
-  const strokeColor = isGreen ? 'rgba(16, 185, 129, 0.95)' : 'rgba(239, 68, 68, 0.95)';
-  const glowColor = isGreen ? 'rgba(16, 185, 129, 0.28)' : 'rgba(239, 68, 68, 0.22)';
+  const strokeColor = isGreen ? 'rgba(16, 185, 129, 0.95)' : 'rgba(244, 63, 94, 0.85)';
 
-  // 1. Dark Vignette Outer Mask (Direct focus to face inside oval)
+  // 1. Subtle Dark Vignette Outer Mask (Direct focus to face inside oval)
   ctx.save();
-  ctx.fillStyle = 'rgba(15, 23, 42, 0.44)';
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.36)';
   ctx.fillRect(0, 0, w, h);
 
   // Cut out clear oval viewport
@@ -989,103 +986,46 @@ export function drawBiometricHud(
   ctx.fill();
   ctx.restore();
 
-  // 2. Soft Ambient Ring Glow
-  ctx.save();
-  ctx.strokeStyle = glowColor;
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, ovalW / 2 + 1, ovalH / 2 + 1, 0, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
-
-  // 3. Dynamic Reticle Border Line (Green when placed correctly, Red when misaligned or no face)
+  // 2. Clean Reticle Border Line (Solid green when aligned, subtle dashed when aligning)
   ctx.save();
   ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = 2.5;
+  ctx.lineWidth = 2;
   if (!isGreen) {
-    // Distinct dashed red line when not properly framed
-    ctx.setLineDash([8, 6]);
+    ctx.setLineDash([7, 5]);
   }
   ctx.beginPath();
   ctx.ellipse(cx, cy, ovalW / 2, ovalH / 2, 0, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 
-  // 4. Corner Brackets around Oval Frame (react to Green / Red status)
-  const bracketSize = 24;
-  const bx1 = cx - ovalW / 2 - 8;
-  const bx2 = cx + ovalW / 2 + 8;
-  const by1 = cy - ovalH / 2 - 8;
-  const by2 = cy + ovalH / 2 + 8;
-
-  ctx.save();
-  ctx.strokeStyle = themeColor;
-  ctx.lineWidth = 3;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-
-  // Top-Left
-  ctx.beginPath();
-  ctx.moveTo(bx1, by1 + bracketSize);
-  ctx.lineTo(bx1, by1);
-  ctx.lineTo(bx1 + bracketSize, by1);
-  ctx.stroke();
-
-  // Top-Right
-  ctx.beginPath();
-  ctx.moveTo(bx2 - bracketSize, by1);
-  ctx.lineTo(bx2, by1);
-  ctx.lineTo(bx2, by1 + bracketSize);
-  ctx.stroke();
-
-  // Bottom-Left
-  ctx.beginPath();
-  ctx.moveTo(bx1, by2 - bracketSize);
-  ctx.lineTo(bx1, by2);
-  ctx.lineTo(bx1 + bracketSize, by2);
-  ctx.stroke();
-
-  // Bottom-Right
-  ctx.beginPath();
-  ctx.moveTo(bx2 - bracketSize, by2);
-  ctx.lineTo(bx2, by2);
-  ctx.lineTo(bx2, by2 - bracketSize);
-  ctx.stroke();
-  ctx.restore();
-
-  // 5. Dynamic Guidance Pill (Floating on Canvas)
+  // 3. Clean Guidance Pill above Oval
   let guideText = '';
   if (isSuccess) {
-    guideText = '✓ Face Placed Correctly & Verified';
+    guideText = 'Verified';
   } else if (isFailed) {
-    guideText = '✕ Face Verification Mismatch';
+    guideText = 'Verification failed';
   } else if (isPlacedCorrectly) {
-    if (scanStage === 'LIVENESS_CHALLENGE') {
-      guideText = '✓ Face In Frame • Blink or Nod';
-    } else {
-      guideText = '✓ Face Placed Correctly in Frame';
-    }
+    guideText = scanStage === 'LIVENESS_CHALLENGE' ? 'Blink or nod to verify' : 'Hold steady';
   } else if (!faceDetected) {
-    guideText = '✕ Align Face Inside Red Frame';
+    guideText = 'Position face inside frame';
   } else if (!isCentered) {
-    guideText = '✕ Center Face Inside Oval Frame';
+    guideText = 'Center face inside oval';
   } else if (!isSizedProperly) {
-    guideText = '✕ Move Closer to Camera';
+    guideText = 'Move closer';
   } else {
-    guideText = '✕ Position Face in Frame';
+    guideText = 'Position face inside frame';
   }
 
   const pillY = Math.max(12, Math.floor(cy - ovalH / 2 - 28));
   ctx.save();
   ctx.font = '600 11px Inter, system-ui, -apple-system, sans-serif';
   const textMetrics = ctx.measureText(guideText);
-  const pillW = Math.min(w - 24, Math.round(textMetrics.width + 24));
+  const pillW = Math.min(w - 24, Math.round(textMetrics.width + 22));
   const pillH = 24;
   const pillX = Math.round(cx - pillW / 2);
 
-  // Background pill
-  ctx.fillStyle = isGreen ? 'rgba(6, 95, 70, 0.92)' : 'rgba(159, 18, 57, 0.92)';
-  ctx.strokeStyle = isGreen ? 'rgba(16, 185, 129, 0.85)' : 'rgba(244, 63, 94, 0.85)';
+  ctx.fillStyle = isGreen ? 'rgba(6, 95, 70, 0.90)' : 'rgba(15, 23, 42, 0.85)';
+  ctx.strokeStyle = isGreen ? 'rgba(16, 185, 129, 0.75)' : 'rgba(244, 63, 94, 0.70)';
   ctx.lineWidth = 1;
   ctx.beginPath();
   if (typeof ctx.roundRect === 'function') {
@@ -1096,74 +1036,9 @@ export function drawBiometricHud(
   ctx.fill();
   ctx.stroke();
 
-  // Text inside pill
   ctx.fillStyle = '#FFFFFF';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(guideText, cx, pillY + pillH / 2);
   ctx.restore();
-
-  // 6. Dynamic Laser Scan Line (when scanning or verifying)
-  if (scanStage === 'LIVENESS_CHALLENGE' || scanStage === 'AUTHENTICATING' || (scanStage === 'ENROLLING' && isGreen)) {
-    const scanY = cy - ovalH / 2 + (ovalH * (scanProgress % 100)) / 100;
-    ctx.save();
-    const grad = ctx.createLinearGradient(0, scanY - 12, 0, scanY + 12);
-    grad.addColorStop(0, 'rgba(16, 185, 129, 0)');
-    grad.addColorStop(0.5, isGreen ? 'rgba(16, 185, 129, 0.65)' : 'rgba(239, 68, 68, 0.65)');
-    grad.addColorStop(1, 'rgba(16, 185, 129, 0)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(bx1, scanY - 8, bx2 - bx1, 16);
-
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(bx1 + 10, scanY);
-    ctx.lineTo(bx2 - 10, scanY);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  // 7. Real Landmark Geometry Overlay (subtle wireframe tracking)
-  if (result?.landmarks && result.faceDetected) {
-    const lm = result.landmarks;
-    ctx.save();
-    ctx.strokeStyle = isGreen ? 'rgba(16, 185, 129, 0.7)' : 'rgba(239, 68, 68, 0.7)';
-    ctx.fillStyle = isGreen ? 'rgba(16, 185, 129, 0.9)' : 'rgba(239, 68, 68, 0.9)';
-    ctx.lineWidth = 1.2;
-
-    // Feature keypoints scaled to canvas coordinates
-    const points = [
-      { x: lm.leftEye.x * scaleX, y: lm.leftEye.y * scaleY },
-      { x: lm.rightEye.x * scaleX, y: lm.rightEye.y * scaleY },
-      { x: lm.nose.x * scaleX, y: lm.nose.y * scaleY },
-      { x: lm.mouthLeft.x * scaleX, y: lm.mouthLeft.y * scaleY },
-      { x: lm.mouthRight.x * scaleX, y: lm.mouthRight.y * scaleY },
-      { x: lm.forehead.x * scaleX, y: lm.forehead.y * scaleY },
-      { x: lm.chin.x * scaleX, y: lm.chin.y * scaleY },
-    ];
-
-    points.forEach((p) => {
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
-      ctx.fill();
-    });
-
-    // Triangle connections for real geometric facial topography
-    ctx.beginPath();
-    ctx.moveTo(lm.leftEye.x * scaleX, lm.leftEye.y * scaleY);
-    ctx.lineTo(lm.rightEye.x * scaleX, lm.rightEye.y * scaleY);
-    ctx.lineTo(lm.nose.x * scaleX, lm.nose.y * scaleY);
-    ctx.closePath();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(lm.nose.x * scaleX, lm.nose.y * scaleY);
-    ctx.lineTo(lm.mouthLeft.x * scaleX, lm.mouthLeft.y * scaleY);
-    ctx.lineTo(lm.chin.x * scaleX, lm.chin.y * scaleY);
-    ctx.lineTo(lm.mouthRight.x * scaleX, lm.mouthRight.y * scaleY);
-    ctx.closePath();
-    ctx.stroke();
-
-    ctx.restore();
-  }
 }

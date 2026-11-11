@@ -19,10 +19,12 @@ export function useRouteBackGuard({
   confirmMessage = 'You have unsaved form progress. Are you sure you want to discard and exit?',
 }: RouteBackGuardOptions): void {
   const onBackRef = useRef(onBack);
-  onBackRef.current = onBack;
-
   const isBlockedRef = useRef(isBlocked);
-  isBlockedRef.current = isBlocked;
+
+  useEffect(() => {
+    onBackRef.current = onBack;
+    isBlockedRef.current = isBlocked;
+  }, [onBack, isBlocked]);
 
   useEffect(() => {
     if (!isBlocked) return;
@@ -31,7 +33,7 @@ export function useRouteBackGuard({
     const sentinelState = { __hrms_guard: true, timestamp: Date.now() };
     window.history.pushState(sentinelState, '', window.location.href);
 
-    const handlePopState = (event: PopStateEvent) => {
+    const handlePopState = () => {
       if (!isBlockedRef.current) return;
 
       if (onBackRef.current) {

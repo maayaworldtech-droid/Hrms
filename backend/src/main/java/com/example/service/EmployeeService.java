@@ -13,6 +13,7 @@ public interface EmployeeService {
     Employee onboardEmployee(Employee employee);
     Employee onboardEmployee(Employee employee, String portalUrl);
     Employee createEmployee(Employee employee);
+    Employee saveEmployee(Employee employee);
     Optional<Employee> updateEmployee(Long id, Employee employee);
     boolean deleteEmployee(Long id);
 

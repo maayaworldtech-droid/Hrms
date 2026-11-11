@@ -6,6 +6,7 @@ import com.example.entity.LeaveBalance;
 import com.example.repository.DepartmentRepository;
 import com.example.repository.EmployeeRepository;
 import com.example.repository.LeaveBalanceRepository;
+import com.example.security.PasswordHasher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -32,16 +33,16 @@ public class DataInitializer {
 
         // 1. Ensure Admin User: shyamsundaryedla1@gmail.com
         String adminEmail = "shyamsundaryedla1@gmail.com";
-        Optional<Employee> adminOpt = employeeRepository.findByEmail(adminEmail);
+        Optional<Employee> adminOpt = employeeRepository.findByEmailIgnoreCase(adminEmail);
         Employee admin;
         if (adminOpt.isEmpty()) {
             admin = new Employee();
             admin.setEmail(adminEmail);
             admin.setFirstName("Shyam Sundar");
             admin.setLastName("Yedla");
-            admin.setEmployeeCode("MW-1000");
+            admin.setEmployeeCode(resolveAvailableCode("MW-1000"));
             admin.setRole("ADMIN");
-            admin.setPassword("Admin@12345");
+            admin.setPassword(PasswordHasher.hash("Admin@12345"));
             admin.setMustChangePassword(false);
             admin.setPhone("+91 98765 43210");
             admin.setAddress("Floor 5, Cyber Gateway, HITEC City, Hyderabad, Telangana 500081");
@@ -68,7 +69,9 @@ public class DataInitializer {
             admin.setRole("ADMIN");
             admin.setMustChangePassword(false);
             if (admin.getPassword() == null || admin.getPassword().isEmpty()) {
-                admin.setPassword("Admin@12345");
+                admin.setPassword(PasswordHasher.hash("Admin@12345"));
+            } else if (!PasswordHasher.isHashed(admin.getPassword())) {
+                admin.setPassword(PasswordHasher.hash(admin.getPassword()));
             }
             employeeRepository.save(admin);
             System.out.println("Verified administrator role for: " + adminEmail);
@@ -114,18 +117,29 @@ public class DataInitializer {
         }
     }
 
+    private String resolveAvailableCode(String preferredCode) {
+        if (!employeeRepository.existsByEmployeeCode(preferredCode)) {
+            return preferredCode;
+        }
+        int suffix = 1005;
+        while (employeeRepository.existsByEmployeeCode("MW-" + suffix)) {
+            suffix++;
+        }
+        return "MW-" + suffix;
+    }
+
     private void seedStaffIfMissing(
             String email, String first, String last, String code, String role, String pwd,
             String title, String dept, double salary, String loc, String phone
     ) {
-        if (employeeRepository.findByEmail(email).isEmpty()) {
+        if (employeeRepository.findByEmailIgnoreCase(email).isEmpty()) {
             Employee emp = new Employee();
             emp.setEmail(email);
             emp.setFirstName(first);
             emp.setLastName(last);
-            emp.setEmployeeCode(code);
+            emp.setEmployeeCode(resolveAvailableCode(code));
             emp.setRole(role);
-            emp.setPassword(pwd);
+            emp.setPassword(PasswordHasher.hash(pwd));
             emp.setMustChangePassword(false);
             emp.setJobTitle(title);
             emp.setDepartment(dept);

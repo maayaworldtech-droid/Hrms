@@ -4,7 +4,7 @@ import { Payslip, Employee } from '@/types';
 import { Modal } from '@/components/common/Modal';
 import { formatINR } from '@/utils/formatters';
 import { useAppSelector } from '@/store';
-import { Printer, Eye, FileText, Download } from 'lucide-react';
+import { Printer, Eye, FileText } from 'lucide-react';
 import maayaLogo from '@/assets/logo-new.png';
 
 export const MySalary: React.FC = () => {
@@ -47,18 +47,36 @@ export const MySalary: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  // Compute structure from current payslip or employee record
-  const currentStructure = payslips[0]?.components || (employee ? {
-    basic: Math.round(employee.monthlySalary * 0.5),
-    hra: Math.round(employee.monthlySalary * 0.3),
-    specialAllowance: Math.round(employee.monthlySalary * 0.2),
-    grossMonthly: employee.monthlySalary,
-    epfEmployee: Math.min(1800, Math.round(employee.monthlySalary * 0.12)),
-    professionalTax: 200,
-    tdsMonthly: 0,
-    totalDeductions: Math.min(1800, Math.round(employee.monthlySalary * 0.12)) + 200,
-    netMonthly: employee.monthlySalary - (Math.min(1800, Math.round(employee.monthlySalary * 0.12)) + 200),
-  } : null);
+  // Compute structure from current payslip or employee record matching backend PayrollController rules
+  const currentStructure = payslips[0]?.components || (employee ? (() => {
+    const gross = employee.monthlySalary || 0;
+    const basic = Math.round(gross * 0.50);
+    const hra = Math.round(gross * 0.30);
+    const specialAllowance = Math.round(gross * 0.10);
+    const conveyanceAllowance = 1600;
+    const medicalAllowance = 1250;
+    const epfEmployee = Math.round(basic * 0.12);
+    const professionalTax = 200;
+    const tds = Math.round(gross * 0.05);
+    const healthInsurance = 500;
+    const totalDeductions = epfEmployee + professionalTax + tds + healthInsurance;
+    return {
+      basic,
+      hra,
+      specialAllowance,
+      conveyanceAllowance,
+      medicalAllowance,
+      bonus: 0,
+      incentives: 0,
+      grossMonthly: gross,
+      epfEmployee,
+      professionalTax,
+      tds,
+      healthInsurance,
+      totalDeductions,
+      netMonthly: Math.max(0, gross - totalDeductions),
+    };
+  })() : null);
 
   return (
     <div className="space-y-3 pb-4">
@@ -83,7 +101,7 @@ export const MySalary: React.FC = () => {
         </div>
 
         <div className="text-2xl font-bold text-slate-900 font-mono tabular-nums leading-tight">
-          {currentStructure ? formatINR(currentStructure.netMonthly) : '₹45,000'}
+          {currentStructure ? formatINR(currentStructure.netMonthly) : '—'}
         </div>
 
         {/* 3 Inline Telemetry Metrics */}
@@ -91,21 +109,21 @@ export const MySalary: React.FC = () => {
           <div className="employee-metric-tile">
             <span className="metric-label">Gross</span>
             <strong className="metric-value">
-              {currentStructure ? formatINR(currentStructure.grossMonthly) : '₹50,000'}
+              {currentStructure ? formatINR(currentStructure.grossMonthly) : '—'}
             </strong>
           </div>
 
           <div className="employee-metric-tile">
             <span className="metric-label">Deductions</span>
             <strong className="metric-value text-[var(--accent-600)]">
-              {currentStructure ? formatINR(currentStructure.totalDeductions) : '₹5,000'}
+              {currentStructure ? formatINR(currentStructure.totalDeductions) : '—'}
             </strong>
           </div>
 
           <div className="employee-metric-tile">
             <span className="metric-label">Annual CTC</span>
             <strong className="metric-value">
-              {employee ? formatINR(employee.ctcAnnual) : '₹6,00,000'}
+              {employee ? formatINR(employee.ctcAnnual) : '—'}
             </strong>
           </div>
         </div>
@@ -216,6 +234,30 @@ export const MySalary: React.FC = () => {
                   <span className="text-slate-600">Special Allowance</span>
                   <span className="font-mono">{formatINR(selectedPayslip.components.specialAllowance)}</span>
                 </div>
+                {selectedPayslip.components.conveyanceAllowance > 0 && (
+                  <div className="flex justify-between pt-1">
+                    <span className="text-slate-600">Conveyance Allowance</span>
+                    <span className="font-mono">{formatINR(selectedPayslip.components.conveyanceAllowance)}</span>
+                  </div>
+                )}
+                {selectedPayslip.components.medicalAllowance > 0 && (
+                  <div className="flex justify-between pt-1">
+                    <span className="text-slate-600">Medical Allowance</span>
+                    <span className="font-mono">{formatINR(selectedPayslip.components.medicalAllowance)}</span>
+                  </div>
+                )}
+                {(selectedPayslip.components.bonus ?? 0) > 0 && (
+                  <div className="flex justify-between pt-1">
+                    <span className="text-slate-600">Bonus</span>
+                    <span className="font-mono">{formatINR(selectedPayslip.components.bonus ?? 0)}</span>
+                  </div>
+                )}
+                {(selectedPayslip.components.incentives ?? 0) > 0 && (
+                  <div className="flex justify-between pt-1">
+                    <span className="text-slate-600">Incentives</span>
+                    <span className="font-mono">{formatINR(selectedPayslip.components.incentives ?? 0)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between pt-1 font-bold text-slate-900">
                   <span>Gross Total</span>
                   <span className="font-mono">{formatINR(selectedPayslip.components.grossMonthly)}</span>
@@ -238,6 +280,18 @@ export const MySalary: React.FC = () => {
                   <span className="text-slate-600">Professional Tax (PT)</span>
                   <span className="font-mono text-[var(--accent-600)]">{formatINR(selectedPayslip.components.professionalTax)}</span>
                 </div>
+                {selectedPayslip.components.tds > 0 && (
+                  <div className="flex justify-between pt-1">
+                    <span className="text-slate-600">TDS / Income Tax</span>
+                    <span className="font-mono text-[var(--accent-600)]">{formatINR(selectedPayslip.components.tds)}</span>
+                  </div>
+                )}
+                {selectedPayslip.components.healthInsurance > 0 && (
+                  <div className="flex justify-between pt-1">
+                    <span className="text-slate-600">Health Insurance</span>
+                    <span className="font-mono text-[var(--accent-600)]">{formatINR(selectedPayslip.components.healthInsurance)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between pt-1 font-bold text-slate-900">
                   <span>Total Deductions</span>
                   <span className="font-mono text-[var(--accent-600)]">{formatINR(selectedPayslip.components.totalDeductions)}</span>

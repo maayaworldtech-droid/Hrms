@@ -31,6 +31,7 @@ export const PayrollProcessing: React.FC = () => {
     try {
       const data = await api.payroll.getRuns();
       setRuns(data);
+      setSelectedRun((prev) => (prev ? data.find((r) => r.id === prev.id) || prev : null));
     } catch { dispatch(addToast({ type: 'error', title: 'Could not load payroll' })); } finally {
       setIsLoading(false);
     }

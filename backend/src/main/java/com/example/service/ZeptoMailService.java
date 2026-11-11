@@ -17,7 +17,7 @@ public class ZeptoMailService {
     @Value("${zeptomail.url:https://api.zeptomail.in/v1.1/email}")
     private String zeptoUrl;
 
-    @Value("${zeptomail.token:Zoho-enczapikey PHtE6r0NFL2/jTQp+xED4f+7EsOmYY1//bk0LAQS4Y1ACaRRSk1Vq9x4lz7lrRx5BvEXQKSdmo1v5bPOs7+BcG7lZDlKXmqyqK3sx/VYSPOZsbq6x00Ztl8cf03ZUYfsdN5q1S3fu9fcNA==}")
+    @Value("${zeptomail.token:}")
     private String zeptoToken;
 
     @Value("${zeptomail.from.name:Maaya World}")
@@ -64,7 +64,10 @@ public class ZeptoMailService {
 
     public boolean sendPasswordResetEmail(String recipientEmail, String recipientName, String resetCode, String customPortalUrl) {
         String basePortalUrl = (customPortalUrl != null && !customPortalUrl.trim().isEmpty()) ? customPortalUrl.trim() : this.portalUrl;
-        String dynamicUrl = basePortalUrl.replace("/login", "/forgot-password");
+        String cleanBase = basePortalUrl.endsWith("/") ? basePortalUrl.substring(0, basePortalUrl.length() - 1) : basePortalUrl;
+        String dynamicUrl = cleanBase.endsWith("/login")
+                ? cleanBase.substring(0, cleanBase.length() - "/login".length()) + "/forgot-password"
+                : cleanBase + "/forgot-password";
         if (recipientEmail != null && !recipientEmail.trim().isEmpty()) {
             try {
                 String encodedEmail = URLEncoder.encode(recipientEmail.trim(), StandardCharsets.UTF_8);
@@ -72,12 +75,16 @@ public class ZeptoMailService {
             } catch (Exception ignored) {}
         }
 
-        String subject = "Maaya World HRMS | Password Recovery Verification Code: " + resetCode;
+        String subject = "Maaya World HRMS | Password Recovery Verification Code";
         String htmlBody = buildPasswordResetHtml(recipientName, recipientEmail, resetCode, dynamicUrl);
         return dispatchZeptoEmail(recipientEmail, recipientName, subject, htmlBody);
     }
 
     private boolean dispatchZeptoEmail(String recipientEmail, String recipientName, String subject, String htmlBody) {
+        if (zeptoToken == null || zeptoToken.trim().isEmpty()) {
+            System.err.println("ZeptoMail skipped: ZEPTOMAIL_TOKEN environment variable is not configured.");
+            return false;
+        }
         int maxRetries = 2;
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
@@ -120,8 +127,10 @@ public class ZeptoMailService {
     }
 
     private String buildPasswordResetHtml(String recipientName, String recipientEmail, String resetCode, String resetUrl) {
-        String cleanName = (recipientName != null && !recipientName.trim().isEmpty()) ? recipientName.trim() : "Team Member";
-        String cleanEmail = (recipientEmail != null) ? recipientEmail.trim() : "";
+        String cleanName = escapeHtml((recipientName != null && !recipientName.trim().isEmpty()) ? recipientName.trim() : "Team Member");
+        String cleanEmail = escapeHtml((recipientEmail != null) ? recipientEmail.trim() : "");
+        String cleanCode = escapeHtml(resetCode);
+        String cleanResetUrl = escapeHtml(resetUrl);
 
         return "<!DOCTYPE html>"
                 + "<html lang=\"en\">"
@@ -149,12 +158,12 @@ public class ZeptoMailService {
                 + "<p style=\"margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #475467;\">We received a password reset request for your account associated with <strong>" + cleanEmail + "</strong>. Use the verification code below to authorize this password change:</p>"
                 + "<div style=\"background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;\">"
                 + "<div style=\"font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #64748B; margin-bottom: 8px;\">Verification Code</div>"
-                + "<div style=\"font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #0F172A;\">" + resetCode + "</div>"
+                + "<div style=\"font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #0F172A;\">" + cleanCode + "</div>"
                 + "<div style=\"font-size: 12px; color: #B45309; margin-top: 8px;\">This code expires in 15 minutes. For security, never share it with anyone.</div>"
                 + "</div>"
                 + "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin-bottom: 24px;\">"
                 + "<tr><td align=\"center\">"
-                + "<a href=\"" + resetUrl + "\" target=\"_blank\" style=\"display: inline-block; background-color: #0F172A; color: #FFFFFF; font-size: 14px; font-weight: 600; text-decoration: none; padding: 12px 28px; border-radius: 6px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); text-align: center;\">Reset Password Online &rarr;</a>"
+                + "<a href=\"" + cleanResetUrl + "\" target=\"_blank\" style=\"display: inline-block; background-color: #0F172A; color: #FFFFFF; font-size: 14px; font-weight: 600; text-decoration: none; padding: 12px 28px; border-radius: 6px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); text-align: center;\">Reset Password Online &rarr;</a>"
                 + "</td></tr>"
                 + "</table>"
                 + "<p style=\"margin: 0; font-size: 13px; line-height: 1.6; color: #64748B;\">If you did not initiate this request, you can safely ignore this email; your existing password will remain secure.</p>"
@@ -171,11 +180,11 @@ public class ZeptoMailService {
     }
 
     private String buildHtmlEmailBody(String recipientName, String recipientEmail, String employeeCode, String defaultPassword, String targetPortalUrl) {
-        String cleanName = (recipientName != null && !recipientName.trim().isEmpty()) ? recipientName.trim() : "Team Member";
-        String cleanCode = (employeeCode != null && !employeeCode.trim().isEmpty()) ? employeeCode.trim() : "MW-PENDING";
-        String cleanEmail = (recipientEmail != null) ? recipientEmail.trim() : "";
-        String cleanPassword = (defaultPassword != null) ? defaultPassword : "";
-        String cleanPortalUrl = (targetPortalUrl != null && !targetPortalUrl.trim().isEmpty()) ? targetPortalUrl.trim() : this.portalUrl;
+        String cleanName = escapeHtml((recipientName != null && !recipientName.trim().isEmpty()) ? recipientName.trim() : "Team Member");
+        String cleanCode = escapeHtml((employeeCode != null && !employeeCode.trim().isEmpty()) ? employeeCode.trim() : "MW-PENDING");
+        String cleanEmail = escapeHtml((recipientEmail != null) ? recipientEmail.trim() : "");
+        String cleanPassword = escapeHtml((defaultPassword != null) ? defaultPassword : "");
+        String cleanPortalUrl = escapeHtml((targetPortalUrl != null && !targetPortalUrl.trim().isEmpty()) ? targetPortalUrl.trim() : this.portalUrl);
 
         return "<!DOCTYPE html>"
                 + "<html lang=\"en\">"
@@ -237,6 +246,15 @@ public class ZeptoMailService {
                 + "</td></tr>"
                 + "</table>"
                 + "</body></html>";
+    }
+
+    private String escapeHtml(String input) {
+        if (input == null) return "";
+        return input.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                    .replace("\"", "&quot;")
+                    .replace("'", "&#39;");
     }
 
     private String escapeJson(String input) {

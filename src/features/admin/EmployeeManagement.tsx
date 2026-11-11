@@ -87,9 +87,9 @@ const INDIAN_STATES = [
 ] as const;
 
 
-export const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'] as const;
+const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'] as const;
 
-export const EMERGENCY_RELATIONSHIPS = [
+const EMERGENCY_RELATIONSHIPS = [
   'Father',
   'Mother',
   'Spouse',
@@ -100,13 +100,9 @@ export const EMERGENCY_RELATIONSHIPS = [
   'Other',
 ] as const;
 
-
-export const AVAILABLE_SALARY_COMPONENTS = [
+const AVAILABLE_SALARY_COMPONENTS = [
   // Earnings
-  { code: 'BASIC', name: 'Basic Pay', type: 'EARNING' as const, defaultPercent: 0.5 },
-  { code: 'HRA', name: 'House Rent Allowance (HRA)', type: 'EARNING' as const, defaultPercent: 0.3 },
-  { code: 'SPECIAL', name: 'Special Allowance', type: 'EARNING' as const, defaultPercent: 0.1 },
-  { code: 'CONVEYANCE', name: 'Conveyance Allowance', type: 'EARNING' as const, defaultAmount: 1600 },
+  { code: 'BASIC', name: 'Basic Pay', type: 'EARNING' as const, defaultPercent: 0.8 },
   { code: 'MEDICAL', name: 'Medical Allowance', type: 'EARNING' as const, defaultAmount: 1250 },
   { code: 'BONUS', name: 'Performance Bonus / Incentive', type: 'EARNING' as const, defaultAmount: 0 },
   { code: 'OTHER_EARNING', name: 'Other Allowance', type: 'EARNING' as const, defaultAmount: 0 },
@@ -114,143 +110,189 @@ export const AVAILABLE_SALARY_COMPONENTS = [
   { code: 'PF', name: 'Provident Fund (PF / EPF)', type: 'DEDUCTION' as const, defaultAmount: 0 },
   { code: 'PT', name: 'Professional Tax (PT)', type: 'DEDUCTION' as const, defaultAmount: 200 },
   { code: 'TDS', name: 'Tax Deducted at Source (TDS)', type: 'DEDUCTION' as const, defaultAmount: 0 },
-  { code: 'ESI', name: 'Employee State Insurance (ESI)', type: 'DEDUCTION' as const, defaultAmount: 0 },
   { code: 'HEALTH_INS', name: 'Health Insurance', type: 'DEDUCTION' as const, defaultAmount: 500 },
-  { code: 'GRATUITY', name: 'Gratuity', type: 'DEDUCTION' as const, defaultAmount: 0 },
   { code: 'OTHER_DEDUCTION', name: 'Other Deduction', type: 'DEDUCTION' as const, defaultAmount: 0 },
 ] as const;
 
+const isPfComponentItem = (comp: Pick<DynamicSalaryItem, 'code' | 'name' | 'type'>) =>
+  comp.type === 'DEDUCTION' &&
+  (comp.code === 'PF' ||
+    comp.name.toUpperCase().includes('PF') ||
+    comp.name.toUpperCase().includes('PROVIDENT'));
 
-const onboardingSchema = z.object({
-  // Step 1: Basic Information, Blood Group & Emergency Contact
-  firstName: z
-    .string()
-    .trim()
-    .min(1, 'First name is required')
-    .min(2, 'First name must be at least 2 characters'),
-  lastName: z
-    .string()
-    .trim()
-    .min(1, 'Last name is required'),
-  email: z
-    .string()
-    .trim()
-    .min(1, 'Corporate email is required')
-    .email('Valid corporate email address required'),
-  phone: z
-    .string()
-    .trim()
-    .min(1, 'Phone number is required')
-    .regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit mobile number'),
-  bloodGroup: z
-    .string()
-    .trim()
-    .min(1, 'Please select a blood group'),
-  addressLine: z
-    .string()
-    .trim()
-    .min(1, 'Address line is required')
-    .min(3, 'Address line must be at least 3 characters'),
-  city: z
-    .string()
-    .trim()
-    .min(1, 'City is required')
-    .min(2, 'City must be at least 2 characters'),
-  pincode: z
-    .string()
-    .trim()
-    .min(1, 'PIN code is required')
-    .regex(/^\d{6}$/, 'Enter a valid 6-digit postal PIN code'),
-  state: z
-    .string()
-    .trim()
-    .min(1, 'Please select a state or union territory'),
+const onboardingSchema = z
+  .object({
+    // Step 1: Basic Information, Blood Group & Emergency Contact
+    firstName: z
+      .string()
+      .trim()
+      .min(1, 'First name is required')
+      .min(2, 'First name must be at least 2 characters'),
+    lastName: z
+      .string()
+      .trim()
+      .min(1, 'Last name is required'),
+    email: z
+      .string()
+      .trim()
+      .min(1, 'Corporate email is required')
+      .email('Valid corporate email address required'),
+    phone: z
+      .string()
+      .trim()
+      .min(1, 'Phone number is required')
+      .regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit mobile number'),
+    bloodGroup: z
+      .string()
+      .trim()
+      .min(1, 'Please select a blood group'),
+    addressLine: z
+      .string()
+      .trim()
+      .min(1, 'Address line is required')
+      .min(3, 'Address line must be at least 3 characters'),
+    city: z
+      .string()
+      .trim()
+      .min(1, 'City is required')
+      .min(2, 'City must be at least 2 characters'),
+    pincode: z
+      .string()
+      .trim()
+      .min(1, 'PIN code is required')
+      .regex(/^\d{6}$/, 'Enter a valid 6-digit postal PIN code'),
+    state: z
+      .string()
+      .trim()
+      .min(1, 'Please select a state or union territory'),
 
-  // Emergency Contact
-  emergencyContactName: z
-    .string()
-    .trim()
-    .min(1, 'Emergency contact full name is required'),
-  emergencyContactRelationship: z
-    .string()
-    .trim()
-    .min(1, 'Please select relationship with emergency contact'),
-  emergencyContactPhone: z
-    .string()
-    .trim()
-    .min(1, 'Emergency contact phone number is required')
-    .regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit phone number'),
+    // Emergency Contact
+    emergencyContactName: z
+      .string()
+      .trim()
+      .min(1, 'Emergency contact full name is required'),
+    emergencyContactRelationship: z
+      .string()
+      .trim()
+      .min(1, 'Please select relationship with emergency contact'),
+    emergencyContactPhone: z
+      .string()
+      .trim()
+      .min(1, 'Emergency contact phone number is required')
+      .regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit phone number'),
 
-  // Step 2: Work Location & Compensation
-  location: z.enum(['Hyderabad', 'Vizag', 'Bhubaneswar'], {
-    errorMap: () => ({ message: 'Please select a center location' }),
-  }),
-  shift: z.enum(['MORNING', 'EVENING'], {
-    errorMap: () => ({ message: 'Please select an operational shift' }),
-  }),
-  managerId: z
-    .string()
-    .trim()
-    .min(1, 'Please select a reporting manager'),
-  joiningDate: z
-    .string()
-    .trim()
-    .min(1, 'Joining date is required'),
-  monthlySalary: z.coerce
-    .number({ invalid_type_error: 'Monthly salary is required' })
-    .min(10000, 'Minimum monthly salary is ₹10,000'),
+    // Step 2: Work Location & Compensation
+    location: z.enum(['Hyderabad', 'Vizag', 'Bhubaneswar'], {
+      errorMap: () => ({ message: 'Please select a center location' }),
+    }),
+    shift: z.enum(['MORNING', 'EVENING'], {
+      errorMap: () => ({ message: 'Please select an operational shift' }),
+    }),
+    managerId: z
+      .string()
+      .trim()
+      .min(1, 'Please select a reporting manager'),
+    joiningDate: z
+      .string()
+      .trim()
+      .min(1, 'Joining date is required'),
+    annualSalary: z.coerce
+      .number({ invalid_type_error: 'Annual salary is required' })
+      .min(120000, 'Minimum annual salary is ₹1,20,000'),
+    hasPf: z.boolean().optional(),
+    uanNumber: z.string().trim().optional().or(z.literal('')),
 
-  // Step 3: Bank Account Details
-  bankName: z
-    .string()
-    .trim()
-    .min(1, 'Bank name is required')
-    .min(2, 'Bank name must be at least 2 characters'),
-  accountNumber: z
-    .string()
-    .trim()
-    .min(1, 'Bank account number is required')
-    .regex(/^\d{9,18}$/, 'Enter a valid bank account number (9 to 18 digits)'),
-  ifscCode: z
-    .string()
-    .trim()
-    .min(1, 'Bank IFSC code is required')
-    .regex(/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/, 'Enter a valid 11-character IFSC code'),
-  panNumber: z
-    .string()
-    .trim()
-    .min(1, 'Income Tax PAN is required')
-    .regex(/^[A-Za-z]{5}[0-9]{4}[A-Za-z]{1}$/, 'Enter a valid 10-character PAN number'),
-  uanNumber: z
-    .string()
-    .trim()
-    .min(1, 'EPFO UAN number is required')
-    .regex(/^\d{12}$/, 'Enter a valid 12-digit UAN number'),
-});
+    // Step 3: Bank Account Details
+    bankName: z
+      .string()
+      .trim()
+      .min(1, 'Bank name is required')
+      .min(2, 'Bank name must be at least 2 characters'),
+    accountNumber: z
+      .string()
+      .trim()
+      .min(1, 'Bank account number is required')
+      .regex(/^\d{9,18}$/, 'Enter a valid bank account number (9 to 18 digits)'),
+    confirmAccountNumber: z
+      .string()
+      .trim()
+      .min(1, 'Please confirm the bank account number'),
+    ifscCode: z
+      .string()
+      .trim()
+      .min(1, 'Bank IFSC code is required')
+      .regex(/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/, 'Enter a valid 11-character IFSC code'),
+    panNumber: z
+      .string()
+      .trim()
+      .min(1, 'Income Tax PAN is required')
+      .regex(/^[A-Za-z]{5}[0-9]{4}[A-Za-z]{1}$/, 'Enter a valid 10-character PAN number'),
+  })
+  .superRefine((data, ctx) => {
+    if (data.hasPf) {
+      const cleanUan = (data.uanNumber || '').trim();
+      if (!cleanUan) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'EPFO UAN number is required when PF is added',
+          path: ['uanNumber'],
+        });
+      } else if (!/^\d{12}$/.test(cleanUan)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Enter a valid 12-digit UAN number',
+          path: ['uanNumber'],
+        });
+      }
+    }
+    if (data.accountNumber && data.confirmAccountNumber !== data.accountNumber) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Bank account numbers do not match',
+        path: ['confirmAccountNumber'],
+      });
+    }
+  });
 
 type OnboardingFormValues = z.infer<typeof onboardingSchema>;
 
-
-const employeeSchema = z.object({
-  firstName: z.string().min(2, 'First name is required'),
-  lastName: z.string().min(2, 'Last name is required'),
-  email: z.string().email('Valid corporate email required'),
-  phone: z.string().min(10, 'Valid 10-digit phone number required'),
-  bloodGroup: z.string().optional(),
-  emergencyContactName: z.string().optional(),
-  emergencyContactRelationship: z.string().optional(),
-  emergencyContactPhone: z.string().optional(),
-  address: z.string().min(5, 'Residential address is required (min 5 chars)'),
-  location: z.enum(['Hyderabad', 'Vizag', 'Bhubaneswar']),
-  shift: z.enum(['MORNING', 'EVENING']),
-  managerId: z.string(),
-  joiningDate: z.string().min(1, 'Joining date required'),
-  monthlySalary: z.coerce.number().min(10000, 'Minimum monthly salary is ₹10,000'),
-  accountNumber: z.string().min(8, 'Bank account number required'),
-  ifscCode: z.string().min(6, 'IFSC code required'),
-  panNumber: z.string().min(10, 'Valid 10-character PAN required'),
-  uanNumber: z.string().min(10, 'Valid UAN required'),
-});
+const employeeSchema = z
+  .object({
+    firstName: z.string().min(2, 'First name is required'),
+    lastName: z.string().min(2, 'Last name is required'),
+    email: z.string().email('Valid corporate email required'),
+    phone: z.string().min(10, 'Valid 10-digit phone number required'),
+    bloodGroup: z.string().optional(),
+    emergencyContactName: z.string().optional(),
+    emergencyContactRelationship: z.string().optional(),
+    emergencyContactPhone: z.string().optional(),
+    address: z.string().min(5, 'Residential address is required (min 5 chars)'),
+    location: z.enum(['Hyderabad', 'Vizag', 'Bhubaneswar']),
+    shift: z.enum(['MORNING', 'EVENING']),
+    managerId: z.string(),
+    joiningDate: z.string().min(1, 'Joining date required'),
+    monthlySalary: z.coerce.number().min(10000, 'Minimum monthly salary is ₹10,000'),
+    accountNumber: z.string().min(8, 'Bank account number required'),
+    confirmAccountNumber: z.string().min(8, 'Please confirm the bank account number'),
+    bankName: z.string().min(2, 'Bank name is required'),
+    ifscCode: z.string().min(6, 'IFSC code required'),
+    panNumber: z.string().min(10, 'Valid 10-character PAN required'),
+    uanNumber: z
+      .string()
+      .trim()
+      .optional()
+      .or(z.literal(''))
+      .refine((v) => !v || /^\d{12}$/.test(v), 'Enter a valid 12-digit UAN number'),
+  })
+  .superRefine((data, ctx) => {
+    if (data.accountNumber !== data.confirmAccountNumber) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Bank account numbers do not match',
+        path: ['confirmAccountNumber'],
+      });
+    }
+  });
 
 
 type EmployeeFormValues = z.infer<typeof employeeSchema>;
@@ -259,6 +301,7 @@ export const EmployeeManagement: React.FC = () => {
   const dispatch = useAppDispatch();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -402,6 +445,10 @@ export const EmployeeManagement: React.FC = () => {
     const video = videoRef.current;
     const procCanvas = procCanvasRef.current;
     if (!video) return;
+    if (!faceDetected) {
+      dispatch(addToast({ type: 'error', title: 'No Face Detected', message: 'Position the employee’s face clearly inside the frame before capturing.' }));
+      return;
+    }
 
     const photo = captureFaceSnapshot(video);
     if (!photo) {
@@ -506,6 +553,7 @@ export const EmployeeManagement: React.FC = () => {
     reset: resetAdd,
     trigger: triggerAdd,
     setValue: setValueAdd,
+    clearErrors: clearErrorsAdd,
     watch: watchAdd,
     formState: { errors: errorsAdd, isSubmitting: isSubmittingAdd },
   } = useForm<OnboardingFormValues>({
@@ -527,18 +575,36 @@ export const EmployeeManagement: React.FC = () => {
       shift: '' as any,
       managerId: '',
       joiningDate: '',
-      monthlySalary: '' as any,
+      annualSalary: '' as any,
+      hasPf: false,
+      uanNumber: '',
       bankName: '',
       accountNumber: '',
+      confirmAccountNumber: '',
       ifscCode: '',
       panNumber: '',
-      uanNumber: '',
     },
   });
 
   // Dynamic Salary Breakdown state
   const [salaryComponents, setSalaryComponents] = useState<DynamicSalaryItem[]>([]);
   const [selectedComponentToAdd, setSelectedComponentToAdd] = useState<string>('');
+  const hasPfComponent = useMemo(() => salaryComponents.some(isPfComponentItem), [salaryComponents]);
+
+  const resetOnboardingWizard = useCallback(
+    (openAfterReset = false) => {
+      setIsAddingEmployee(openAfterReset);
+      setCurrentStep(1);
+      resetAdd();
+      setEnrolledFacePhoto(null);
+      setEnrolledFaceBiometrics(null);
+      setFaceSignature(null);
+      setSalaryComponents([]);
+      setSelectedComponentToAdd('');
+      stopCamera();
+    },
+    [resetAdd, stopCamera]
+  );
 
   // Route back-button guard to prevent losing progress if back button is clicked in the middle
   useRouteBackGuard({
@@ -549,14 +615,7 @@ export const EmployeeManagement: React.FC = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         if (window.confirm('Discard employee onboarding progress and return to directory?')) {
-          setIsAddingEmployee(false);
-          setCurrentStep(1);
-          resetAdd();
-          setEnrolledFacePhoto(null);
-          setEnrolledFaceBiometrics(null);
-          setFaceSignature(null);
-          setSalaryComponents([]);
-          stopCamera();
+          resetOnboardingWizard(false);
         }
       }
     },
@@ -568,10 +627,16 @@ export const EmployeeManagement: React.FC = () => {
     const def = AVAILABLE_SALARY_COMPONENTS.find((c) => c.code === selectedComponentToAdd);
     if (!def) return;
 
+    const annualSalaryVal = Number(watchAdd('annualSalary')) || 420000;
+    const currentMonthlyGross = Math.round(annualSalaryVal / 12);
     let defaultAmt = 0;
-    const currentGross = Number(watchAdd('monthlySalary')) || 35000;
-    if ('defaultPercent' in def && def.defaultPercent) {
-      defaultAmt = Math.round(currentGross * def.defaultPercent);
+
+    if (def.code === 'PF') {
+      const existingBasic = salaryComponents.find((c) => c.code === 'BASIC');
+      const baseForPf = existingBasic ? Number(existingBasic.amount) || 0 : Math.round(currentMonthlyGross * 0.8);
+      defaultAmt = Math.round(baseForPf * 0.12);
+    } else if ('defaultPercent' in def && def.defaultPercent) {
+      defaultAmt = Math.round(currentMonthlyGross * def.defaultPercent);
     } else if ('defaultAmount' in def && def.defaultAmount) {
       defaultAmt = def.defaultAmount;
     }
@@ -584,12 +649,24 @@ export const EmployeeManagement: React.FC = () => {
       amount: defaultAmt,
     };
 
-    setSalaryComponents((prev) => [...prev, newItem]);
+    const nextComponents = [...salaryComponents, newItem];
+    setSalaryComponents(nextComponents);
     setSelectedComponentToAdd('');
+
+    if (nextComponents.some(isPfComponentItem)) {
+      setValueAdd('hasPf', true);
+    }
   };
 
   const handleRemoveComponent = (id: string) => {
-    setSalaryComponents((prev) => prev.filter((c) => c.id !== id));
+    const nextComponents = salaryComponents.filter((c) => c.id !== id);
+    setSalaryComponents(nextComponents);
+    const stillHasPf = nextComponents.some(isPfComponentItem);
+    setValueAdd('hasPf', stillHasPf);
+    if (!stillHasPf) {
+      setValueAdd('uanNumber', '');
+      clearErrorsAdd('uanNumber');
+    }
   };
 
   const handleUpdateComponentAmount = (id: string, amount: number) => {
@@ -605,32 +682,31 @@ export const EmployeeManagement: React.FC = () => {
   };
 
   const handleGenerateStandardBreakdown = () => {
-    const currentGross = Number(watchAdd('monthlySalary')) || 35000;
-    const basic = Math.round(currentGross * 0.5);
-    const hra = Math.round(currentGross * 0.3);
-    const special = Math.round(currentGross * 0.1);
+    const annualSalaryVal = Number(watchAdd('annualSalary')) || 420000;
+    const currentMonthlyGross = Math.round(annualSalaryVal / 12);
+    const medical = currentMonthlyGross > 1250 ? 1250 : 0;
+    const basic = Math.max(0, currentMonthlyGross - medical);
     const epf = Math.round(basic * 0.12);
     const pt = 200;
-    const tds = Math.round(currentGross * 0.05);
+    const tds = Math.round(currentMonthlyGross * 0.05);
 
     setSalaryComponents([
       { id: 'comp-basic', code: 'BASIC', name: 'Basic Pay', type: 'EARNING', amount: basic },
-      { id: 'comp-hra', code: 'HRA', name: 'House Rent Allowance (HRA)', type: 'EARNING', amount: hra },
-      { id: 'comp-special', code: 'SPECIAL', name: 'Special Allowance', type: 'EARNING', amount: special },
-      { id: 'comp-conveyance', code: 'CONVEYANCE', name: 'Conveyance Allowance', type: 'EARNING', amount: 1600 },
-      { id: 'comp-medical', code: 'MEDICAL', name: 'Medical Allowance', type: 'EARNING', amount: 1250 },
+      { id: 'comp-medical', code: 'MEDICAL', name: 'Medical Allowance', type: 'EARNING', amount: medical },
       { id: 'comp-pf', code: 'PF', name: 'Provident Fund (PF / EPF)', type: 'DEDUCTION', amount: epf },
       { id: 'comp-pt', code: 'PT', name: 'Professional Tax (PT)', type: 'DEDUCTION', amount: pt },
       { id: 'comp-tds', code: 'TDS', name: 'Tax Deducted at Source (TDS)', type: 'DEDUCTION', amount: tds },
     ]);
+    setValueAdd('hasPf', true);
   };
 
+  const watchedAnnualSalary = Number(watchAdd('annualSalary')) || 0;
   const totalGrossFromComponents = useMemo(() => {
-    if (salaryComponents.length === 0) return Number(watchAdd('monthlySalary')) || 0;
+    if (salaryComponents.length === 0) return Math.round(watchedAnnualSalary / 12);
     return salaryComponents
       .filter((c) => c.type === 'EARNING')
       .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
-  }, [salaryComponents, watchAdd('monthlySalary')]);
+  }, [salaryComponents, watchedAnnualSalary]);
 
   const totalDeductionsFromComponents = useMemo(() => {
     return salaryComponents
@@ -641,6 +717,10 @@ export const EmployeeManagement: React.FC = () => {
   const netTakeHomeFromComponents = useMemo(() => {
     return Math.max(0, totalGrossFromComponents - totalDeductionsFromComponents);
   }, [totalGrossFromComponents, totalDeductionsFromComponents]);
+
+  const annualCtcPreview = useMemo(() => {
+    return salaryComponents.length > 0 ? totalGrossFromComponents * 12 : watchedAnnualSalary;
+  }, [salaryComponents.length, totalGrossFromComponents, watchedAnnualSalary]);
 
   const {
     register: registerEdit,
@@ -653,13 +733,18 @@ export const EmployeeManagement: React.FC = () => {
 
   const loadEmployees = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const data = await api.employees.getAll();
       setEmployees(data);
+    } catch (err: any) {
+      const message = err?.message || 'Unable to connect to the HRMS backend server.';
+      setLoadError(message);
+      dispatch(addToast({ type: 'error', title: 'Could not load employees', message }));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [dispatch]);
 
   useEffect(() => {
     void loadEmployees();
@@ -679,6 +764,8 @@ export const EmployeeManagement: React.FC = () => {
       joiningDate: emp.joiningDate,
       monthlySalary: emp.monthlySalary || Math.round((emp.ctcAnnual || 360000) / 12),
       accountNumber: emp.bankDetails?.accountNumber || '',
+      confirmAccountNumber: emp.bankDetails?.accountNumber || '',
+      bankName: emp.bankDetails?.bankName || 'HDFC Bank',
       ifscCode: emp.bankDetails?.ifscCode || '',
       panNumber: emp.bankDetails?.panNumber || '',
       uanNumber: emp.bankDetails?.uanNumber || '',
@@ -708,13 +795,17 @@ export const EmployeeManagement: React.FC = () => {
   };
 
   const handleNextStep2 = async () => {
-    const isValid = await triggerAdd([
+    const fieldsToValidate: (keyof OnboardingFormValues)[] = [
       'location',
       'shift',
       'managerId',
       'joiningDate',
-      'monthlySalary',
-    ]);
+      'annualSalary',
+    ];
+    if (hasPfComponent) {
+      fieldsToValidate.push('uanNumber');
+    }
+    const isValid = await triggerAdd(fieldsToValidate);
     if (isValid) {
       setCurrentStep(3);
     }
@@ -724,9 +815,9 @@ export const EmployeeManagement: React.FC = () => {
     const isValid = await triggerAdd([
       'bankName',
       'accountNumber',
+      'confirmAccountNumber',
       'ifscCode',
       'panNumber',
-      'uanNumber',
     ]);
     if (isValid) {
       setCurrentStep(4);
@@ -747,9 +838,13 @@ export const EmployeeManagement: React.FC = () => {
 
     try {
       const fullAddress = `${values.addressLine}, ${values.city}, ${values.state} - ${values.pincode}`.trim();
+      const enteredAnnual = Number(values.annualSalary) || 0;
       const finalMonthlySalary = salaryComponents.length > 0 && totalGrossFromComponents > 0
         ? totalGrossFromComponents
-        : values.monthlySalary;
+        : Math.round(enteredAnnual / 12);
+      const finalAnnualSalary = salaryComponents.length > 0 && totalGrossFromComponents > 0
+        ? totalGrossFromComponents * 12
+        : enteredAnnual;
 
       const newEmp = await api.employees.onboard({
         firstName: values.firstName,
@@ -765,7 +860,7 @@ export const EmployeeManagement: React.FC = () => {
         managerId: values.managerId || undefined,
         managerName: employees.find((e) => e.id === values.managerId)?.fullName || (values.managerId === MOCK_USERS.manager.id ? MOCK_USERS.manager.name : undefined),
         monthlySalary: finalMonthlySalary,
-        ctcAnnual: finalMonthlySalary * 12,
+        ctcAnnual: finalAnnualSalary,
         joiningDate: values.joiningDate,
         employmentType: 'FULL_TIME',
         enrolledFacePhoto: enrolledFacePhoto,
@@ -776,7 +871,7 @@ export const EmployeeManagement: React.FC = () => {
           ifscCode: values.ifscCode.toUpperCase(),
           bankName: values.bankName,
           panNumber: values.panNumber.toUpperCase(),
-          uanNumber: values.uanNumber,
+          uanNumber: hasPfComponent ? (values.uanNumber || '').trim() : '',
         },
         emergencyContact: {
           name: values.emergencyContactName,
@@ -792,18 +887,11 @@ export const EmployeeManagement: React.FC = () => {
           message: `${newEmp.fullName} (${newEmp.employeeCode}) onboarded to ${newEmp.location}. Facial biometrics registered for attendance.`,
         })
       );
-      setIsAddingEmployee(false);
-      setCurrentStep(1);
-      resetAdd();
-      setEnrolledFacePhoto(null);
-      setEnrolledFaceBiometrics(null);
-      setFaceSignature(null);
-      setSalaryComponents([]);
-      stopCamera();
+      resetOnboardingWizard(false);
       loadEmployees();
 
       // Show credentials modal for administrative record & copy
-      const generatedPwd = (newEmp as any).password || 'Maaya@' + Math.floor(1000 + Math.random() * 9000);
+      const generatedPwd = (newEmp as any).temporaryPassword || 'Dispatched via email';
       setOnboardSuccessData({
         employee: newEmp,
         tempPassword: generatedPwd,
@@ -833,10 +921,10 @@ export const EmployeeManagement: React.FC = () => {
         joiningDate: values.joiningDate,
         bankDetails: {
           accountNumber: values.accountNumber,
-          ifscCode: values.ifscCode,
-          bankName: editingEmployee.bankDetails?.bankName || 'HDFC Bank Ltd.',
+          ifscCode: values.ifscCode.toUpperCase(),
+          bankName: values.bankName,
           panNumber: values.panNumber.toUpperCase(),
-          uanNumber: values.uanNumber,
+          uanNumber: (values.uanNumber || '').trim(),
         },
       });
 
@@ -857,15 +945,19 @@ export const EmployeeManagement: React.FC = () => {
 
   const handleDelete = async (emp: Employee) => {
     if (window.confirm(`Are you sure you want to deactivate and remove ${emp.fullName}?`)) {
-      await api.employees.delete(emp.id);
-      dispatch(
-        addToast({
-          type: 'info',
-          title: 'Employee Archived',
-          message: `${emp.fullName} has been removed from staff records.`,
-        })
-      );
-      loadEmployees();
+      try {
+        await api.employees.delete(emp.id);
+        dispatch(
+          addToast({
+            type: 'info',
+            title: 'Employee Archived',
+            message: `${emp.fullName} has been removed from staff records.`,
+          })
+        );
+        loadEmployees();
+      } catch (err: any) {
+        dispatch(addToast({ type: 'error', title: 'Delete Failed', message: err?.message || 'Could not delete employee.' }));
+      }
     }
   };
 
@@ -1026,9 +1118,7 @@ export const EmployeeManagement: React.FC = () => {
               size="sm"
               onClick={() => {
                 if (window.confirm('Are you sure you want to exit onboarding? Unsaved changes will be discarded.')) {
-                  setIsAddingEmployee(false);
-                  setCurrentStep(1);
-                  resetAdd();
+                  resetOnboardingWizard(false);
                 }
               }}
               leftIcon={<ArrowLeft className="w-4 h-4" />}
@@ -1291,11 +1381,17 @@ export const EmployeeManagement: React.FC = () => {
                       {...registerAdd('joiningDate')}
                     />
                     <Input
-                      label="Monthly Salary (₹)"
+                      label="Annual Salary (₹)"
                       type="number"
                       required
-                      error={errorsAdd.monthlySalary?.message}
-                      {...registerAdd('monthlySalary')}
+                      placeholder="e.g. 600000"
+                      helperText={
+                        watchedAnnualSalary >= 120000
+                          ? `Monthly equivalent: ${formatINR(Math.round(watchedAnnualSalary / 12))}`
+                          : 'Annual CTC in INR (minimum ₹1,20,000)'
+                      }
+                      error={errorsAdd.annualSalary?.message}
+                      {...registerAdd('annualSalary')}
                     />
                   </div>
                 </div>
@@ -1307,7 +1403,7 @@ export const EmployeeManagement: React.FC = () => {
                         Dynamic Salary Breakdown Structure
                       </h3>
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        Salary fields differ per employee. Select and add applicable statutory or custom components (PF, PT, TDS, HRA) below.
+                        Salary fields differ per employee. Select and add applicable statutory or custom components (Basic Pay, PF, PT, TDS) below.
                       </p>
                     </div>
                     <Button
@@ -1328,7 +1424,7 @@ export const EmployeeManagement: React.FC = () => {
                       onChange={(e) => setSelectedComponentToAdd(e.target.value)}
                       className="flex-1 rounded-lg border border-slate-300 p-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-600 bg-white"
                     >
-                      <option value="">Choose salary component to add (e.g. PF, PT, TDS, HRA)...</option>
+                      <option value="">Choose salary component to add (e.g. Basic Pay, PF, PT, TDS)...</option>
                       <optgroup label="Earnings & Allowances">
                         {AVAILABLE_SALARY_COMPONENTS.filter((c) => c.type === 'EARNING').map((c) => (
                           <option key={c.code} value={c.code}>
@@ -1438,8 +1534,33 @@ export const EmployeeManagement: React.FC = () => {
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-500 block uppercase tracking-wider font-semibold">Annual CTC</span>
-                      <span className="font-semibold text-slate-900">{formatINR(totalGrossFromComponents * 12)}</span>
+                      <span className="font-semibold text-slate-900">{formatINR(annualCtcPreview)}</span>
                     </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-4">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-1.5">
+                    Provident Fund (EPFO UAN)
+                  </h3>
+                  <div className="max-w-md">
+                    <Input
+                      label="EPFO UAN Number"
+                      required={hasPfComponent}
+                      disabled={!hasPfComponent}
+                      placeholder={
+                        hasPfComponent
+                          ? 'Enter 12-digit EPFO UAN number'
+                          : 'Add Provident Fund (PF / EPF) component above to activate'
+                      }
+                      helperText={
+                        hasPfComponent
+                          ? 'PF component added — please enter the 12-digit EPFO UAN number.'
+                          : 'UAN number is deactivated because no PF component is selected.'
+                      }
+                      error={hasPfComponent ? errorsAdd.uanNumber?.message : undefined}
+                      {...registerAdd('uanNumber')}
+                    />
                   </div>
                 </div>
               </div>
@@ -1468,6 +1589,13 @@ export const EmployeeManagement: React.FC = () => {
                       {...registerAdd('accountNumber')}
                     />
                     <Input
+                      label="Confirm Bank Account Number"
+                      required
+                      placeholder="Re-enter bank account number"
+                      error={errorsAdd.confirmAccountNumber?.message}
+                      {...registerAdd('confirmAccountNumber')}
+                    />
+                    <Input
                       label="Bank IFSC Code"
                       required
                       error={errorsAdd.ifscCode?.message}
@@ -1478,12 +1606,6 @@ export const EmployeeManagement: React.FC = () => {
                       required
                       error={errorsAdd.panNumber?.message}
                       {...registerAdd('panNumber')}
-                    />
-                    <Input
-                      label="EPFO UAN Number"
-                      required
-                      error={errorsAdd.uanNumber?.message}
-                      {...registerAdd('uanNumber')}
                     />
                   </div>
                 </div>
@@ -1571,19 +1693,13 @@ export const EmployeeManagement: React.FC = () => {
                       )}
 
                       {cameraActive && (
-                        <div className={`absolute bottom-2.5 inset-x-2.5 backdrop-blur-xs border rounded-lg px-3 py-1.5 flex items-center justify-between text-xs transition-colors duration-200 ${faceCentered
-                          ? 'bg-slate-950/85 border-emerald-500/40 text-emerald-200'
-                          : 'bg-slate-950/85 border-rose-500/40 text-rose-200'
-                          }`}>
+                        <div className="absolute bottom-2.5 inset-x-2.5 bg-slate-950/85 border border-slate-800 rounded-lg px-3 py-1.5 flex items-center justify-between text-xs">
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <span className={`w-2 h-2 rounded-full shrink-0 ${faceCentered ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
-                            <span className="truncate text-[11px] font-medium">{faceStatusMessage}</span>
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${faceCentered ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                            <span className="truncate text-[11px] font-medium text-white">{faceStatusMessage}</span>
                           </div>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded tracking-wide shrink-0 ${faceCentered
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                            : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                            }`}>
-                            {faceCentered ? 'IN FRAME (GREEN)' : 'ALIGN (RED)'}
+                          <span className={`text-[11px] font-semibold shrink-0 ${faceCentered ? 'text-emerald-300' : 'text-amber-300'}`}>
+                            {faceCentered ? 'Ready' : 'Aligning'}
                           </span>
                         </div>
                       )}
@@ -1638,53 +1754,32 @@ export const EmployeeManagement: React.FC = () => {
 
                 {/* Enrolled Face Confirmation Preview */}
                 {enrolledFacePhoto && (
-                  <div className="max-w-md mx-auto p-4 rounded-xl border border-emerald-200 bg-emerald-50/40 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>Facial Biometrics Registered & Validated</span>
-                      </div>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        ENROLLED
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 bg-white p-3 rounded-lg border border-emerald-100">
-                      <div className="w-20 h-20 rounded-md overflow-hidden bg-slate-900 border border-slate-200 shrink-0">
-                        <img
-                          src={enrolledFacePhoto}
-                          alt="Enrolled Face"
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="min-w-0 flex-1 space-y-1">
+                  <div className="max-w-md mx-auto p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img
+                        src={enrolledFacePhoto}
+                        alt="Enrolled Face"
+                        className="w-16 h-16 rounded-lg object-cover border border-emerald-200 shrink-0"
+                      />
+                      <div className="min-w-0 space-y-1">
                         <div className="text-xs font-semibold text-slate-900 truncate">
                           {watchAdd('firstName') || 'Employee'} {watchAdd('lastName') || ''}
                         </div>
-                        <div className="text-[11px] text-slate-500 font-mono truncate">
-                          {faceSignature || 'BIO-MW-ENROLLED'}
-                        </div>
-                        <div className="text-[10px] text-emerald-700 font-medium flex items-center gap-1">
-                          <Check className="w-3 h-3 text-emerald-600" />
-                          <span>64-D Descriptor Generated & Stored</span>
-                        </div>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Face Registered</span>
+                        </span>
                       </div>
                     </div>
 
-                    <p className="text-[11px] text-emerald-800 leading-relaxed">
-                      This registered face will be used as the biometric baseline for attendance punches. Any punch attempt by an unrecognized face will be flagged and rejected.
-                    </p>
-
-                    <div className="flex justify-end pt-1">
-                      <button
-                        type="button"
-                        onClick={handleRetakeFace}
-                        className="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1 cursor-pointer transition-colors"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        <span>Retake / Change Photo</span>
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRetakeFace}
+                      className="px-3 py-1.5 rounded-lg border border-emerald-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1.5 shrink-0 cursor-pointer transition-colors"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Retake</span>
+                    </button>
                   </div>
                 )}
               </div>
@@ -1709,13 +1804,7 @@ export const EmployeeManagement: React.FC = () => {
                   variant="outline"
                   onClick={() => {
                     if (window.confirm('Discard onboarding progress and return to directory?')) {
-                      setIsAddingEmployee(false);
-                      setCurrentStep(1);
-                      resetAdd();
-                      setEnrolledFacePhoto(null);
-                      setEnrolledFaceBiometrics(null);
-                      setFaceSignature(null);
-                      stopCamera();
+                      resetOnboardingWizard(false);
                     }
                   }}
                 >
@@ -1785,15 +1874,36 @@ export const EmployeeManagement: React.FC = () => {
           variant="primary"
           size="sm"
           onClick={() => {
-            setCurrentStep(1);
-            resetAdd();
-            setIsAddingEmployee(true);
+            resetOnboardingWizard(true);
           }}
           leftIcon={<UserPlus className="w-4 h-4" />}
         >
           Add Employee
         </Button>
       </div>
+
+      {loadError && (
+        <div
+          role="alert"
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800"
+        >
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-rose-900">Unable to load employee directory</p>
+              <p className="text-rose-700 mt-0.5">{loadError}</p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void loadEmployees()}
+            className="shrink-0 bg-white border-rose-300 text-rose-700 hover:bg-rose-100"
+          >
+            Retry
+          </Button>
+        </div>
+      )}
 
       {/* Main Employee Directory Data Table */}
       <DataTable
@@ -1804,8 +1914,12 @@ export const EmployeeManagement: React.FC = () => {
         searchPlaceholder="Search by name, employee code, or location..."
         filterComponent={filterToolbar}
         pageSize={15}
-        emptyTitle="No staff records found"
-        emptyDescription="No active employees matched your search or location filter criteria."
+        emptyTitle={loadError ? 'Unable to load staff records' : 'No staff records found'}
+        emptyDescription={
+          loadError
+            ? 'Please check that the backend service is running and click Retry above.'
+            : 'No active employees matched your search or location filter criteria.'
+        }
       />
 
       {/* Edit Employee Modal */}
@@ -1864,7 +1978,7 @@ export const EmployeeManagement: React.FC = () => {
               <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
                 2. Placement & Compensation
               </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                 <Select
                   label="Center Location"
                   options={[
@@ -1898,6 +2012,13 @@ export const EmployeeManagement: React.FC = () => {
                   helperText="Standard monthly salary in INR"
                   {...registerEdit('monthlySalary')}
                 />
+                <Input
+                  label="EPFO UAN Number"
+                  placeholder="12-digit UAN (only if PF applies)"
+                  helperText="Optional unless PF deduction applies"
+                  error={errorsEdit.uanNumber?.message}
+                  {...registerEdit('uanNumber')}
+                />
               </div>
             </div>
 
@@ -1907,10 +2028,22 @@ export const EmployeeManagement: React.FC = () => {
                 3. Banking & Statutory Credentials
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="sm:col-span-2">
+                  <Input
+                    label="Bank Name"
+                    error={errorsEdit.bankName?.message}
+                    {...registerEdit('bankName')}
+                  />
+                </div>
                 <Input
                   label="Bank Account Number"
                   error={errorsEdit.accountNumber?.message}
                   {...registerEdit('accountNumber')}
+                />
+                <Input
+                  label="Confirm Bank Account Number"
+                  error={errorsEdit.confirmAccountNumber?.message}
+                  {...registerEdit('confirmAccountNumber')}
                 />
                 <Input
                   label="Bank IFSC Code"
@@ -1921,11 +2054,6 @@ export const EmployeeManagement: React.FC = () => {
                   label="Income Tax PAN"
                   error={errorsEdit.panNumber?.message}
                   {...registerEdit('panNumber')}
-                />
-                <Input
-                  label="EPFO UAN Number"
-                  error={errorsEdit.uanNumber?.message}
-                  {...registerEdit('uanNumber')}
                 />
               </div>
             </div>

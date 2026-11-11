@@ -6,9 +6,9 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '@/services/api';
 import { Employee } from '@/types';
 import { getShiftDefinition } from '@/utils/shiftUtils';
-import { Edit3, Check, X, LogOut, Phone, Mail, MapPin, ShieldAlert, CreditCard } from 'lucide-react';
+import { Edit3, Check, X, LogOut, Phone, Mail, MapPin, CreditCard } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
-import { logout } from '@/store/slices/authSlice';
+import { logout, updateUser } from '@/store/slices/authSlice';
 import { addToast } from '@/store/slices/uiSlice';
 
 const profileUpdateSchema = z.object({
@@ -24,9 +24,10 @@ export const EmployeeProfile: React.FC = () => {
   const user = useAppSelector((state) => state.auth.user);
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
-  const employeeId = user?.id || 'emp-003';
+  const employeeId = user?.id || '';
 
   const {
     register,
@@ -38,16 +39,30 @@ export const EmployeeProfile: React.FC = () => {
   });
 
   useEffect(() => {
-    api.employees.getById(employeeId).then((data) => {
-      if (data) {
-        setEmployee(data);
-        reset({
-          phone: data.phone || '',
-          address: data.address || '',
-        });
-      }
+    if (!employeeId) {
       setIsLoading(false);
-    });
+      setLoadError(true);
+      return;
+    }
+    api.employees
+      .getById(employeeId)
+      .then((data) => {
+        if (data) {
+          setEmployee(data);
+          reset({
+            phone: data.phone || '',
+            address: data.address || '',
+          });
+        } else {
+          setLoadError(true);
+        }
+      })
+      .catch(() => {
+        setLoadError(true);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, [employeeId, reset]);
 
   const onUpdateSubmit = async (values: ProfileUpdateFormValues) => {
@@ -58,6 +73,7 @@ export const EmployeeProfile: React.FC = () => {
         address: values.address,
       });
       setEmployee(updated);
+      dispatch(updateUser({ phone: values.phone, address: values.address }));
       setIsEditing(false);
       dispatch(
         addToast({
@@ -76,10 +92,25 @@ export const EmployeeProfile: React.FC = () => {
     navigate('/login');
   };
 
-  if (isLoading || !employee) {
+  if (isLoading) {
     return (
       <div className="p-8 text-center text-xs text-slate-400 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-default)]">
         Loading profile…
+      </div>
+    );
+  }
+
+  if (loadError || !employee) {
+    return (
+      <div className="p-8 text-center text-xs text-slate-500 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-default)] space-y-2">
+        <p className="font-semibold text-slate-800">Unable to load employee profile</p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+        >
+          Retry
+        </button>
       </div>
     );
   }

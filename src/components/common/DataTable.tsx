@@ -38,6 +38,8 @@ interface DataTableProps<T> {
   emptyDescription?: string;
   headerAction?: React.ReactNode;
   mobileRender?: (item: T) => React.ReactNode;
+  hidePagination?: boolean;
+  onSearchChange?: (query: string) => void;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -56,6 +58,8 @@ export function DataTable<T extends Record<string, any>>({
   emptyDescription = 'There are no records matching your current filter criteria.',
   headerAction,
   mobileRender,
+  hidePagination = false,
+  onSearchChange,
 }: DataTableProps<T>) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortKey, setSortKey] = useState<string | undefined>(defaultSortKey);
@@ -81,7 +85,7 @@ export function DataTable<T extends Record<string, any>>({
 
   // Filter
   const filteredData = useMemo(() => {
-    if (!searchQuery.trim()) return safeData;
+    if (onSearchChange || !searchQuery.trim()) return safeData;
     const query = searchQuery.toLowerCase().trim();
     if (searchFilter) {
       return safeData.filter((item) => searchFilter(item, query));
@@ -94,7 +98,7 @@ export function DataTable<T extends Record<string, any>>({
           String(val).toLowerCase().includes(query)
       )
     );
-  }, [safeData, searchQuery, searchFilter]);
+  }, [safeData, searchQuery, searchFilter, onSearchChange]);
 
   // Sort
   const sortedData = useMemo(() => {
@@ -119,9 +123,10 @@ export function DataTable<T extends Record<string, any>>({
   // Paginate
   const totalPages = Math.max(1, Math.ceil(sortedData.length / itemsPerPage));
   const paginatedData = useMemo(() => {
+    if (hidePagination) return sortedData;
     const start = (currentPage - 1) * itemsPerPage;
     return sortedData.slice(start, start + itemsPerPage);
-  }, [sortedData, currentPage, itemsPerPage]);
+  }, [sortedData, currentPage, itemsPerPage, hidePagination]);
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -158,6 +163,7 @@ export function DataTable<T extends Record<string, any>>({
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
+                onSearchChange?.(e.target.value);
                 setCurrentPage(1);
               }}
               placeholder={searchPlaceholder}
@@ -168,6 +174,7 @@ export function DataTable<T extends Record<string, any>>({
               <button
                 onClick={() => {
                   setSearchQuery('');
+                  onSearchChange?.('');
                   setCurrentPage(1);
                 }}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#667085] hover:text-[#101828] p-0.5"
@@ -309,7 +316,7 @@ export function DataTable<T extends Record<string, any>>({
       </div>
 
       {/* Pagination Footer */}
-      {!isLoading && sortedData.length > 0 && (
+      {!hidePagination && !isLoading && sortedData.length > 0 && (
         <div className="p-3 px-4 bg-[#F7F8FA] border-t border-[#E4E7EC] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#475467]">
           <div className="flex items-center gap-2">
             <span className="tabular-nums">

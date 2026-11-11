@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -7,6 +8,7 @@ import { OnDutyRequest, OnDutyType } from '@/types';
 import { Modal } from '@/components/common/Modal';
 import { Input } from '@/components/common/Input';
 import { formatDate } from '@/utils/formatters';
+import { businessDate } from '@/utils/operations';
 import {
   Plus,
   Search,
@@ -59,12 +61,15 @@ type ApplyOnDutyFormValues = z.infer<typeof applyOnDutySchema>;
 export const MyOnDuty: React.FC = () => {
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
-  const employeeId = user?.id || 'emp-001';
+  const employeeId = user?.id || '';
 
+  const [searchParams] = useSearchParams();
   const [requests, setRequests] = useState<OnDutyRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'EXPENSES'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'EXPENSES'>(() =>
+    searchParams.get('tab') === 'EXPENSES' ? 'EXPENSES' : 'ALL'
+  );
   const [searchQuery, setSearchQuery] = useState('');
 
   // Bill preview state
@@ -90,7 +95,7 @@ export const MyOnDuty: React.FC = () => {
   } = useForm<ApplyOnDutyFormValues>({
     resolver: zodResolver(applyOnDutySchema),
     defaultValues: {
-      dutyDate: new Date().toISOString().split('T')[0],
+      dutyDate: businessDate(),
       startTime: '10:00',
       endTime: '14:00',
       dutyType: 'BANK_DEPOSIT',
@@ -103,7 +108,11 @@ export const MyOnDuty: React.FC = () => {
 
   const hasExpenseWatch = watch('hasExpense');
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    if (!employeeId) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
       const list = await api.onDuty.getByEmployee(employeeId).catch(() => []);
@@ -111,11 +120,11 @@ export const MyOnDuty: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [employeeId]);
 
   useEffect(() => {
     void loadData();
-  }, []);
+  }, [loadData]);
 
   const handleBillUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'FORM' | 'CLAIM') => {
     const file = e.target.files?.[0];

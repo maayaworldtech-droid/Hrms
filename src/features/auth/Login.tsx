@@ -8,7 +8,7 @@ import { setUser, setPasswordChanged } from '@/store/slices/authSlice';
 import { addToast } from '@/store/slices/uiSlice';
 import { api } from '@/services/api';
 import { Button } from '@/components/common/Button';
-import { Lock, Mail, ArrowRight, KeyRound, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { Lock, Mail, ArrowRight, KeyRound, CheckCircle2, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import maayaLogo from '@/assets/logo-new.png';
 
 const loginSchema = z.object({
@@ -35,12 +35,14 @@ export const Login: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // Extract email dynamically from URL query parameters (e.g. from onboarding email link)
   const initialEmail = searchParams.get('email') || '';
 
   // First-time login forced password change state
   const [pendingUser, setPendingUser] = useState<any | null>(null);
+  const [pendingOldPassword, setPendingOldPassword] = useState<string>('');
   const [showForceChange, setShowForceChange] = useState(false);
 
   const {
@@ -85,6 +87,7 @@ export const Login: React.FC = () => {
 
   const onSubmit = async (values: LoginFormValues) => {
     setIsLoading(true);
+    setAuthError(null);
     try {
       const res = await api.auth.login({
         email: values.email.trim(),
@@ -100,6 +103,7 @@ export const Login: React.FC = () => {
       // Check if user is forced to change password on first login
       if (res.mustChangePassword) {
         setPendingUser(userData);
+        setPendingOldPassword(values.password);
         setShowForceChange(true);
         dispatch(
           addToast({
@@ -142,11 +146,13 @@ export const Login: React.FC = () => {
 
       redirectByRole(userData.role || 'EMPLOYEE');
     } catch (err: any) {
+      const msg = err.message || 'Unable to sign in. Please verify your corporate email and password.';
+      setAuthError(msg);
       dispatch(
         addToast({
           type: 'error',
           title: 'Authentication Failed',
-          message: err.message || 'Unable to sign in. Please verify your corporate email and password.',
+          message: msg,
         })
       );
     } finally {
@@ -159,6 +165,7 @@ export const Login: React.FC = () => {
     try {
       const res = await api.auth.changePassword({
         email: pendingUser.email,
+        oldPassword: pendingOldPassword,
         newPassword: values.newPassword,
       });
 
@@ -166,6 +173,10 @@ export const Login: React.FC = () => {
         throw new Error(res.message || 'Failed to update password');
       }
 
+      if (res.user) {
+        localStorage.setItem('maaya_current_user', JSON.stringify(res.user));
+      }
+      setPendingOldPassword('');
       dispatch(setPasswordChanged());
       dispatch(
         setUser({
@@ -301,6 +312,15 @@ export const Login: React.FC = () => {
           ) : (
             /* Corporate Login Form - Automatic Role Redirect based on Email Account */
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              {authError && (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs text-rose-700"
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+                  <span>{authError}</span>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Email Address
@@ -361,17 +381,6 @@ export const Login: React.FC = () => {
                 {errors.password && (
                   <p className="text-xs text-rose-600 mt-1">{errors.password.message}</p>
                 )}
-              </div>
-
-              <div className="flex items-center justify-between pt-1">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    defaultChecked
-                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20"
-                  />
-                  <span className="text-xs text-slate-600">Remember this workstation</span>
-                </label>
               </div>
 
               <Button

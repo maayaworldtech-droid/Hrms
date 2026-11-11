@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '@/services/api';
+import { getReportingManager } from '@/services/mockData';
 import { OnDutyRequest, OnDutyType } from '@/types';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Badge } from '@/components/common/Badge';
@@ -46,17 +47,30 @@ export const TeamOnDuty: React.FC = () => {
   // Bill preview modal
   const [previewBillUrl, setPreviewBillUrl] = useState<string | null>(null);
 
+  const managerId = user?.id || '';
+
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const list = await api.onDuty.getAll().catch(() => []);
-      setRequests(Array.isArray(list) ? list : []);
+      const [list, allEmps] = await Promise.all([
+        api.onDuty.getAll().catch(() => []),
+        api.employees.getAll().catch(() => []),
+      ]);
+      const myTeamIds = new Set(
+        (Array.isArray(allEmps) ? allEmps : [])
+          .filter((e) => getReportingManager(e).id === managerId)
+          .map((e) => String(e.id))
+      );
+      const teamRequests = (Array.isArray(list) ? list : []).filter(
+        (req) => myTeamIds.has(String(req.employeeId))
+      );
+      setRequests(teamRequests);
     } catch {
       dispatch(addToast({ type: 'error', title: 'Could not load On Duty records' }));
     } finally {
       setIsLoading(false);
     }
-  }, [dispatch]);
+  }, [dispatch, managerId]);
 
   useEffect(() => {
     void loadData();

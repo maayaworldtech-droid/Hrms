@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -7,37 +8,45 @@ import { LeaveRequest, LeaveBalance } from '@/types';
 import { Modal } from '@/components/common/Modal';
 import { Input } from '@/components/common/Input';
 import { formatDate } from '@/utils/formatters';
+import { businessDate } from '@/utils/operations';
 import { Plus, Search, Calendar, CalendarDays } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 
-const applyLeaveSchema = z.object({
-  leaveType: z.enum([
-    'CASUAL_LEAVE',
-    'SICK_LEAVE',
-    'EARNED_LEAVE',
-    'MATERNITY_LEAVE',
-    'PATERNITY_LEAVE',
-    'LOSS_OF_PAY',
-  ]),
-  startDate: z.string().min(1, 'Start date required'),
-  endDate: z.string().min(1, 'End date required'),
-  reason: z.string().min(5, 'Reason required'),
-});
+const applyLeaveSchema = z
+  .object({
+    leaveType: z.enum([
+      'CASUAL_LEAVE',
+      'SICK_LEAVE',
+      'EARNED_LEAVE',
+      'MATERNITY_LEAVE',
+      'PATERNITY_LEAVE',
+      'LOSS_OF_PAY',
+    ]),
+    startDate: z.string().min(1, 'Start date required'),
+    endDate: z.string().min(1, 'End date required'),
+    reason: z.string().min(5, 'Reason required'),
+  })
+  .refine((data) => data.endDate >= data.startDate, {
+    message: 'End date cannot be earlier than start date',
+    path: ['endDate'],
+  });
 
 type ApplyLeaveFormValues = z.infer<typeof applyLeaveSchema>;
 
 export const MyLeaves: React.FC = () => {
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
-  const employeeId = user?.id || 'emp-003';
+  const employeeId = user?.id || '';
+  const [searchParams] = useSearchParams();
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [balances, setBalances] = useState<LeaveBalance | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
+  const [isApplyModalOpen, setIsApplyModalOpen] = useState(() => searchParams.get('apply') === 'true');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
+  const todayIst = businessDate();
   const {
     register,
     handleSubmit,
@@ -48,8 +57,8 @@ export const MyLeaves: React.FC = () => {
     resolver: zodResolver(applyLeaveSchema),
     defaultValues: {
       leaveType: 'CASUAL_LEAVE',
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date().toISOString().split('T')[0],
+      startDate: todayIst,
+      endDate: todayIst,
       reason: '',
     },
   });
@@ -66,7 +75,11 @@ export const MyLeaves: React.FC = () => {
     return Math.max(1, diffDays);
   }, [startDateWatch, endDateWatch]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    if (!employeeId) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
       const [list, bal] = await Promise.all([
@@ -78,11 +91,11 @@ export const MyLeaves: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [employeeId]);
 
   useEffect(() => {
     void loadData();
-  }, []);
+  }, [loadData]);
 
   const onApplySubmit = async (values: ApplyLeaveFormValues) => {
     try {
@@ -117,7 +130,7 @@ export const MyLeaves: React.FC = () => {
       (balances.sickLeave?.remaining ?? 0) +
       (balances.earnedLeave?.remaining ?? 0) +
       (balances.compOff?.remaining ?? 0)
-    : 42;
+    : null;
 
   const counts = useMemo(() => {
     return {
@@ -157,7 +170,7 @@ export const MyLeaves: React.FC = () => {
           <div>
             <div className="flex items-baseline gap-1.5">
               <span className="text-xl font-bold text-slate-900 tabular-nums">
-                {totalRemaining}
+                {totalRemaining !== null ? totalRemaining : '—'}
               </span>
               <span className="text-xs font-semibold text-slate-600">days available</span>
             </div>

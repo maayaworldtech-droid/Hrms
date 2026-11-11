@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { api } from '@/services/api';
-import { Employee, Department } from '@/types';
+import { AttendanceRecord, Employee, Department, LeaveRequest } from '@/types';
 import { Card, CardHeader, CardContent } from '@/components/common/Card';
 import { StatCard } from '@/components/common/StatCard';
 import { Button } from '@/components/common/Button';
 import { Badge } from '@/components/common/Badge';
 import { formatINR, exportToCSV } from '@/utils/formatters';
+import { businessDate } from '@/utils/operations';
 import {
   Download,
   Users,
@@ -24,6 +25,8 @@ export const ReportsAnalytics: React.FC = () => {
   const dispatch = useAppDispatch();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [selectedVenue, setSelectedVenue] = useState<string>('all');
   const [selectedPeriod, setSelectedPeriod] = useState<string>('current_quarter');
 
@@ -31,19 +34,104 @@ export const ReportsAnalytics: React.FC = () => {
     Promise.all([
       api.employees.getAll(),
       api.departments.getAll(),
-    ]).then(([e, d]) => {
-      setEmployees(e);
-      setDepartments(d);
-    });
-  }, []);
+      api.attendance.getAll().catch(() => []),
+      api.leaves.getAll().catch(() => []),
+    ])
+      .then(([e, d, a, l]) => {
+        setEmployees(Array.isArray(e) ? e : []);
+        setDepartments(Array.isArray(d) ? d : []);
+        setAttendance(Array.isArray(a) ? a : []);
+        setLeaves(Array.isArray(l) ? l : []);
+      })
+      .catch(() => {
+        dispatch(addToast({ type: 'error', title: 'Could not load analytics data' }));
+      });
+  }, [dispatch]);
 
   // Filtered employees based on location
   const filteredEmployees = useMemo(() => {
-    if (selectedVenue === 'all') return employees;
-    return employees.filter(
+    const active = employees.filter((e) => e.status !== 'TERMINATED');
+    if (selectedVenue === 'all') return active;
+    return active.filter(
       (e) => e.location?.toLowerCase().includes(selectedVenue.toLowerCase())
     );
   }, [employees, selectedVenue]);
+
+  const periodRange = useMemo(() => {
+    const today = businessDate();
+    const [yStr, mStr] = today.split('-');
+    const year = Number(yStr);
+    const month = Number(mStr);
+    if (selectedPeriod === 'current_month') {
+      return { start: `${yStr}-${mStr}-01`, end: today };
+    }
+    if (selectedPeriod === 'current_quarter') {
+      const qStartMonth = Math.floor((month - 1) / 3) * 3 + 1;
+      return { start: `${year}-${String(qStartMonth).padStart(2, '0')}-01`, end: today };
+    }
+    const fyStartYear = month >= 4 ? year : year - 1;
+    return { start: `${fyStartYear}-04-01`, end: today };
+  }, [selectedPeriod]);
+
+  const scopedEmployeeIds = useMemo(() => new Set(filteredEmployees.map((e) => e.id)), [filteredEmployees]);
+
+  const scopedAttendance = useMemo(
+    () =>
+      attendance.filter(
+        (r) =>
+          scopedEmployeeIds.has(r.employeeId) &&
+          r.date >= periodRange.start &&
+          r.date <= periodRange.end
+      ),
+    [attendance, scopedEmployeeIds, periodRange]
+  );
+
+  const scopedLeaves = useMemo(
+    () =>
+      leaves.filter(
+        (l) =>
+          scopedEmployeeIds.has(l.employeeId) &&
+          l.status === 'APPROVED' &&
+          l.endDate >= periodRange.start &&
+          l.startDate <= periodRange.end
+      ),
+    [leaves, scopedEmployeeIds, periodRange]
+  );
+
+  const attendanceMetrics = useMemo(() => {
+    const totalAtt = scopedAttendance.length;
+    const onTimeCount = scopedAttendance.filter((r) => r.status === 'PRESENT' || r.status === 'ON_DUTY').length;
+    const morningPresent = scopedAttendance.filter(
+      (r) => (r.shift || 'MORNING') === 'MORNING' && (r.status === 'PRESENT' || r.status === 'ON_DUTY')
+    ).length;
+    const eveningPresent = scopedAttendance.filter(
+      (r) => r.shift === 'EVENING' && (r.status === 'PRESENT' || r.status === 'ON_DUTY')
+    ).length;
+    const absentOrLate = scopedAttendance.filter((r) => r.status === 'ABSENT' || r.status === 'LATE').length;
+    const leaveDays = scopedLeaves.reduce((sum, l) => sum + (l.days || 1), 0);
+    const denom = totalAtt + leaveDays;
+
+    const adherenceRate = totalAtt > 0 ? ((onTimeCount / totalAtt) * 100).toFixed(1) + '%' : '—';
+    const pct = (val: number) => (denom > 0 ? Number(((val / denom) * 100).toFixed(1)) : 0);
+
+    const bankUanComplete = filteredEmployees.filter(
+      (e) => e.bankDetails?.accountNumber && e.bankDetails?.panNumber && e.bankDetails?.uanNumber
+    ).length;
+    const complianceScore =
+      filteredEmployees.length > 0
+        ? Math.round((bankUanComplete / filteredEmployees.length) * 100) + '%'
+        : '—';
+
+    return {
+      adherenceRate,
+      complianceScore,
+      morningPct: pct(morningPresent),
+      eveningPct: pct(eveningPresent),
+      leavePct: pct(leaveDays),
+      absentLatePct: pct(absentOrLate),
+      biometricVerifiedCount: scopedAttendance.filter((r) => r.isBiometricVerified).length,
+    };
+  }, [scopedAttendance, scopedLeaves, filteredEmployees]);
 
   const totalHeadcount = filteredEmployees.length;
   const totalPayroll = filteredEmployees.reduce((acc, emp) => {
@@ -104,27 +192,49 @@ export const ReportsAnalytics: React.FC = () => {
       ]);
     } else if (type === 'attendance') {
       filename = 'attendance_adherence_summary_2026';
-      headers = ['Employee Code', 'Full Name', 'Location', 'Scheduled Days', 'Present Days', 'Adherence %'];
-      rows = filteredEmployees.map((e) => [
-        e.employeeCode,
-        e.fullName,
-        e.location,
-        '26',
-        '25',
-        '96.1%',
-      ]);
+      headers = ['Employee Code', 'Full Name', 'Location', 'Logged Days', 'On-Time Days', 'Late/Absent Days', 'Adherence %'];
+      rows = filteredEmployees.map((e) => {
+        const empAtt = scopedAttendance.filter((r) => r.employeeId === e.id);
+        const onTime = empAtt.filter((r) => r.status === 'PRESENT' || r.status === 'ON_DUTY').length;
+        const issues = empAtt.filter((r) => r.status === 'LATE' || r.status === 'ABSENT').length;
+        const rate = empAtt.length > 0 ? `${((onTime / empAtt.length) * 100).toFixed(1)}%` : 'N/A';
+        return [
+          e.employeeCode,
+          e.fullName,
+          e.location,
+          empAtt.length,
+          onTime,
+          issues,
+          rate,
+        ];
+      });
     } else {
       filename = 'payroll_disbursement_breakdown_2026';
       headers = ['Employee Code', 'Full Name', 'Basic Pay', 'HRA', 'Allowances', 'Gross Monthly'];
       rows = filteredEmployees.map((e) => {
         const gross = e.monthlySalary || 35000;
+        let basic = Math.round(gross * 0.5);
+        let hra = Math.round(gross * 0.3);
+        let allowances = Math.round(gross * 0.1) + 1600 + 1250;
+        if (e.salaryStructureJson) {
+          try {
+            const comps: any[] = JSON.parse(e.salaryStructureJson);
+            const earnings = comps.filter((c) => c.type !== 'DEDUCTION');
+            if (earnings.length > 0) {
+              basic = earnings.filter((c) => /BASIC/i.test(c.code || c.name)).reduce((s, c) => s + (Number(c.amount) || 0), 0);
+              hra = earnings.filter((c) => /HRA|RENT/i.test(c.code || c.name)).reduce((s, c) => s + (Number(c.amount) || 0), 0);
+              const totalEarn = earnings.reduce((s, c) => s + (Number(c.amount) || 0), 0);
+              allowances = Math.max(0, totalEarn - basic - hra);
+            }
+          } catch { /* fallback to standard */ }
+        }
         return [
           e.employeeCode,
           e.fullName,
-          formatINR(Math.round(gross * 0.5)),
-          formatINR(Math.round(gross * 0.3)),
-          formatINR(Math.round(gross * 0.2)),
-          formatINR(gross),
+          formatINR(basic),
+          formatINR(hra),
+          formatINR(allowances),
+          formatINR(basic + hra + allowances),
         ];
       });
     }
@@ -213,15 +323,14 @@ export const ReportsAnalytics: React.FC = () => {
         />
         <StatCard
           title="Attendance Adherence"
-          value="96.8%"
-          subtitle="On-time biometric rate"
+          value={attendanceMetrics.adherenceRate}
+          subtitle={`${scopedAttendance.length} logged punches in period`}
           icon={<Clock className="w-5 h-5 text-[#3B68F5]" />}
-          trend={{ value: 1.4, label: 'vs last month' }}
         />
         <StatCard
           title="Compliance Score"
-          value="100%"
-          subtitle="Statutory PF & ESI audit"
+          value={attendanceMetrics.complianceScore}
+          subtitle="PAN, UAN & Bank KYC coverage"
           icon={<TrendingUp className="w-5 h-5 text-[#12B76A]" />}
         />
       </div>
@@ -296,49 +405,49 @@ export const ReportsAnalytics: React.FC = () => {
             <div className="space-y-1.5">
               <div className="flex justify-between text-xs font-medium text-[#344054]">
                 <span>On-Premise Morning Shift</span>
-                <span className="font-semibold text-[#101828] tabular-nums">76.5%</span>
+                <span className="font-semibold text-[#101828] tabular-nums">{attendanceMetrics.morningPct}%</span>
               </div>
               <div className="w-full h-2 rounded-full bg-[#F0F2F5] overflow-hidden">
-                <div className="h-full bg-[#12B76A] rounded-full" style={{ width: '76.5%' }} />
+                <div className="h-full bg-[#12B76A] rounded-full" style={{ width: `${attendanceMetrics.morningPct}%` }} />
               </div>
             </div>
 
             <div className="space-y-1.5">
               <div className="flex justify-between text-xs font-medium text-[#344054]">
                 <span>Evening / Closing Shift</span>
-                <span className="font-semibold text-[#101828] tabular-nums">18.5%</span>
+                <span className="font-semibold text-[#101828] tabular-nums">{attendanceMetrics.eveningPct}%</span>
               </div>
               <div className="w-full h-2 rounded-full bg-[#F0F2F5] overflow-hidden">
-                <div className="h-full bg-[#3B68F5] rounded-full" style={{ width: '18.5%' }} />
+                <div className="h-full bg-[#3B68F5] rounded-full" style={{ width: `${attendanceMetrics.eveningPct}%` }} />
               </div>
             </div>
 
             <div className="space-y-1.5">
               <div className="flex justify-between text-xs font-medium text-[#344054]">
                 <span>Approved Paid Leaves</span>
-                <span className="font-semibold text-[#101828] tabular-nums">3.8%</span>
+                <span className="font-semibold text-[#101828] tabular-nums">{attendanceMetrics.leavePct}%</span>
               </div>
               <div className="w-full h-2 rounded-full bg-[#F0F2F5] overflow-hidden">
-                <div className="h-full bg-[#F79009] rounded-full" style={{ width: '3.8%' }} />
+                <div className="h-full bg-[#F79009] rounded-full" style={{ width: `${attendanceMetrics.leavePct}%` }} />
               </div>
             </div>
 
             <div className="space-y-1.5">
               <div className="flex justify-between text-xs font-medium text-[#344054]">
-                <span>Unexcused Absences</span>
-                <span className="font-semibold text-[#101828] tabular-nums">1.2%</span>
+                <span>Late / Absent Exceptions</span>
+                <span className="font-semibold text-[#101828] tabular-nums">{attendanceMetrics.absentLatePct}%</span>
               </div>
               <div className="w-full h-2 rounded-full bg-[#F0F2F5] overflow-hidden">
-                <div className="h-full bg-[#F04438] rounded-full" style={{ width: '1.2%' }} />
+                <div className="h-full bg-[#F04438] rounded-full" style={{ width: `${attendanceMetrics.absentLatePct}%` }} />
               </div>
             </div>
 
             <div className="pt-3 border-t border-[#E4E7EC] flex items-center justify-between text-xs text-[#667085]">
               <span className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-[#12B76A]" />
-                Audited biometric records
+                Biometric-verified punches
               </span>
-              <span className="font-semibold text-[#027A48]">Fully Compliant</span>
+              <span className="font-semibold text-[#027A48] tabular-nums">{attendanceMetrics.biometricVerifiedCount} records</span>
             </div>
           </CardContent>
         </Card>

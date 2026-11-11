@@ -12,7 +12,14 @@ interface AuthState {
 function loadInitialUser(): User | null {
   try {
     const raw = localStorage.getItem('maaya_current_user');
-    if (!raw) return null;
+    const token = localStorage.getItem('maaya_token');
+    if (!raw || !token || !token.includes('.')) {
+      if (raw && (!token || !token.includes('.'))) {
+        localStorage.removeItem('maaya_current_user');
+        localStorage.removeItem('maaya_token');
+      }
+      return null;
+    }
     const u = JSON.parse(raw);
     return {
       id: String(u.id || '1'),

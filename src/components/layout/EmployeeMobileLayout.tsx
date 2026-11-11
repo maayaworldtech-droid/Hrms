@@ -3,16 +3,13 @@ import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { logout } from '@/store/slices/authSlice';
 import { markAllNotificationsAsRead } from '@/store/slices/uiSlice';
-import { ToastContainer } from '@/components/common/ToastContainer';
 import maayaLogo from '@/assets/logo-new.png';
-import { Home, Clock, CalendarDays, FileText, User, Bell, X, ChevronRight, LogOut } from 'lucide-react';
+import { Home, CalendarDays, User, Bell, X, ChevronRight, LogOut } from 'lucide-react';
 import './employee.css';
 
 const destinations = [
+  { label: 'Attendance', path: 'attendance', icon: CalendarDays },
   { label: 'Home', path: 'dashboard', icon: Home },
-  { label: 'Attendance', path: 'attendance', icon: Clock },
-  { label: 'Leave', path: 'leaves', icon: CalendarDays },
-  { label: 'Payslips', path: 'salary', icon: FileText },
   { label: 'Profile', path: 'profile', icon: User },
 ];
 
@@ -47,7 +44,8 @@ export const EmployeeMobileLayout: React.FC = () => {
         <header className="employee-header">
           <NavLink to="/employee/dashboard" aria-label="Maaya World home" className="employee-brand">
             <img src={maayaLogo} alt="Maaya World" />
-            <span>Employee Portal</span>
+            <span className="h-4 w-px bg-slate-200" aria-hidden="true" />
+            <span className="text-xs font-medium text-slate-600 tracking-wide">HRMS</span>
           </NavLink>
 
           <div className="flex items-center gap-2">
@@ -59,11 +57,9 @@ export const EmployeeMobileLayout: React.FC = () => {
                 dispatch(markAllNotificationsAsRead());
               }}
             >
-              <Bell size={19} strokeWidth={1.8} />
+              <Bell size={20} strokeWidth={1.6} />
               {unread > 0 && (
-                <span className="absolute top-1.5 right-1.5 min-w-[14px] h-3.5 px-0.5 bg-[var(--accent-500)] text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
-                  {unread}
-                </span>
+                <span className="absolute top-2 right-2 w-2 h-2 bg-[var(--brand-500)] rounded-full ring-2 ring-white" />
               )}
             </button>
 
@@ -193,8 +189,6 @@ export const EmployeeMobileLayout: React.FC = () => {
           )}
         </dialog>
       )}
-
-      <ToastContainer />
     </div>
   );
 };

@@ -6,12 +6,13 @@ import { formatDate, formatTime } from '@/utils/formatters';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 import { BiometricAttendanceModal } from '@/components/attendance/BiometricAttendanceModal';
-import { Search, Clock, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { businessDate } from '@/utils/operations';
+import { Search, Clock, ShieldCheck } from 'lucide-react';
 
 export const MyAttendance: React.FC = () => {
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
-  const employeeId = user?.id || 'emp-003';
+  const employeeId = user?.id || '';
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
@@ -38,7 +39,7 @@ export const MyAttendance: React.FC = () => {
     void loadData();
   }, [loadData]);
 
-  const [today] = useState(() => new Date().toISOString().split('T')[0]);
+  const [today] = useState(() => businessDate());
   const [todayFormatted] = useState(() =>
     new Date().toLocaleDateString('en-IN', {
       weekday: 'short',
@@ -262,11 +263,13 @@ export const MyAttendance: React.FC = () => {
                         />
                         <span>Face verified (view photo)</span>
                       </button>
-                    ) : (
+                    ) : record.isBiometricVerified ? (
                       <>
                         <ShieldCheck size={13} className="text-emerald-600" />
                         <span>Face & GPS verified</span>
                       </>
+                    ) : (
+                      <span>Recorded attendance</span>
                     )}
                   </div>
 
@@ -346,8 +349,8 @@ export const MyAttendance: React.FC = () => {
         mode={biometricMode}
         employee={{
           id: String(user?.id || employeeId).replace('emp-', ''),
-          fullName: user?.name || 'Yadla Syam Sundar Mani Krishna',
-          employeeCode: user?.employeeId || 'MW-1000',
+          fullName: user?.name || 'Employee',
+          employeeCode: user?.employeeId || '',
           location: user?.location || 'Hyderabad',
           shift: user?.shift || 'MORNING',
           enrolledFacePhoto: user?.enrolledFacePhoto,

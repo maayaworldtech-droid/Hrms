@@ -131,6 +131,7 @@ export const EmployeeDetailsPanel = ({
           ['Status', employee.status],
           ['Reports to', getReportingManager(employee).name],
           ['Portal role', employee.role],
+          ['EPFO UAN', employee.bankDetails?.uanNumber || 'Not applicable (No PF)'],
         ])}
 
       {section === 'Payroll' && (
@@ -143,7 +144,6 @@ export const EmployeeDetailsPanel = ({
             ['Account number', employee.bankDetails?.accountNumber],
             ['IFSC', employee.bankDetails?.ifscCode],
             ['PAN', employee.bankDetails?.panNumber],
-            ['UAN', employee.bankDetails?.uanNumber],
           ])}
 
           {employee.salaryStructureJson && (() => {

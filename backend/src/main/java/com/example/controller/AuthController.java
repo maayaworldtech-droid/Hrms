@@ -1,15 +1,16 @@
 package com.example.controller;
 
+import com.example.security.AuthFilter;
 import com.example.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
 import java.util.Map;
 
-@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -31,11 +32,23 @@ public class AuthController {
     }
 
     @PostMapping("/change-password")
-    public ResponseEntity<Map<String, Object>> changePassword(@RequestBody Map<String, String> payload) {
-        String email = payload.get("email");
+    public ResponseEntity<Map<String, Object>> changePassword(
+            @RequestBody Map<String, String> payload,
+            HttpServletRequest request
+    ) {
+        String authEmail = (String) request.getAttribute(AuthFilter.ATTR_EMAIL);
+        String authRole = (String) request.getAttribute(AuthFilter.ATTR_ROLE);
+        String requestedEmail = payload.get("email");
+        String targetEmail = (requestedEmail != null && !requestedEmail.isBlank()) ? requestedEmail.trim() : authEmail;
+
+        if (!"ADMIN".equals(authRole) && (authEmail == null || !authEmail.equalsIgnoreCase(targetEmail))) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("success", false, "message", "You can only change your own password."));
+        }
+
         String oldPassword = payload.get("oldPassword");
         String newPassword = payload.get("newPassword");
-        Map<String, Object> result = authService.changePassword(email, oldPassword, newPassword);
+        Map<String, Object> result = authService.changePassword(targetEmail, oldPassword, newPassword);
 
         if (Boolean.TRUE.equals(result.get("success"))) {
             return ResponseEntity.ok(result);

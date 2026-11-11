@@ -21,19 +21,26 @@ export const CompanySettings: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    Promise.all([api.settings.get(), api.audit.getLogs()]).then(([s, logs]) => {
-      setSettings(s);
-      setAuditLogs(logs);
-      setIsLoading(false);
-    });
-  }, []);
+    Promise.all([api.settings.get(), api.audit.getLogs().catch(() => [])])
+      .then(([s, logs]) => {
+        setSettings(s);
+        setAuditLogs(Array.isArray(logs) ? logs : []);
+      })
+      .catch(() => {
+        dispatch(addToast({ type: 'error', title: 'Could not load company settings' }));
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, [dispatch]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!settings) return;
     setIsSaving(true);
     try {
-      await api.settings.update(settings);
+      const updated = await api.settings.update(settings);
+      setSettings(updated);
       dispatch(
         addToast({
           type: 'success',
@@ -41,8 +48,16 @@ export const CompanySettings: React.FC = () => {
           message: 'Company configuration and statutory parameters updated.',
         })
       );
-      const updatedLogs = await api.audit.getLogs();
-      setAuditLogs(updatedLogs);
+      const updatedLogs = await api.audit.getLogs().catch(() => []);
+      setAuditLogs(Array.isArray(updatedLogs) ? updatedLogs : []);
+    } catch (err: any) {
+      dispatch(
+        addToast({
+          type: 'error',
+          title: 'Save Failed',
+          message: err?.message || 'Unable to update company settings.',
+        })
+      );
     } finally {
       setIsSaving(false);
     }

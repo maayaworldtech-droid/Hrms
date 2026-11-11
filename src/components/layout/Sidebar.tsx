@@ -101,7 +101,6 @@ export const Sidebar: React.FC = () => {
         { label: 'Team Attendance', path: '/manager/attendance', icon: Clock },
         { label: 'Team Leave Approvals', path: '/manager/leaves', icon: CalendarDays },
         { label: 'Team On Duty Approvals', path: '/manager/on-duty', icon: Briefcase },
-        { label: 'Payroll & Compensation', path: '/manager/payroll', icon: Banknote },
       ],
     },
     {

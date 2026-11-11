@@ -1,25 +1,37 @@
 package com.example.controller;
 
+import com.example.entity.AuditLog;
 import com.example.entity.CompanySettings;
 import com.example.entity.Department;
+import com.example.repository.AuditLogRepository;
 import com.example.repository.CompanySettingsRepository;
 import com.example.repository.DepartmentRepository;
+import com.example.security.AuthFilter;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api")
 public class SettingsController {
+
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Kolkata");
+    private static final DateTimeFormatter TS_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Autowired
     private CompanySettingsRepository settingsRepository;
 
     @Autowired
     private DepartmentRepository departmentRepository;
+
+    @Autowired
+    private AuditLogRepository auditLogRepository;
 
     @GetMapping("/settings")
     public ResponseEntity<CompanySettings> getSettings() {
@@ -31,7 +43,10 @@ public class SettingsController {
     }
 
     @PutMapping("/settings")
-    public ResponseEntity<CompanySettings> updateSettings(@RequestBody CompanySettings settings) {
+    public ResponseEntity<CompanySettings> updateSettings(
+            @RequestBody CompanySettings settings,
+            HttpServletRequest request
+    ) {
         List<CompanySettings> list = settingsRepository.findAll();
         CompanySettings current = list.isEmpty() ? new CompanySettings() : list.get(0);
 
@@ -43,9 +58,30 @@ public class SettingsController {
         if (settings.getRegisteredAddress() != null) current.setRegisteredAddress(settings.getRegisteredAddress());
         if (settings.getContactEmail() != null) current.setContactEmail(settings.getContactEmail());
         if (settings.getContactPhone() != null) current.setContactPhone(settings.getContactPhone());
+        if (settings.getStandardWorkHoursPerDay() > 0) current.setStandardWorkHoursPerDay(settings.getStandardWorkHoursPerDay());
+        if (settings.getWorkDaysPerWeek() > 0) current.setWorkDaysPerWeek(settings.getWorkDaysPerWeek());
+        if (settings.getFiscalYearStartMonth() != null) current.setFiscalYearStartMonth(settings.getFiscalYearStartMonth());
+        if (settings.getCurrencySymbol() != null) current.setCurrencySymbol(settings.getCurrencySymbol());
+        if (settings.getAutoApproveRegularizationWithinDays() >= 0) {
+            current.setAutoApproveRegularizationWithinDays(settings.getAutoApproveRegularizationWithinDays());
+        }
         current.setEnableGeoFencingAttendance(settings.isEnableGeoFencingAttendance());
 
-        return ResponseEntity.ok(settingsRepository.save(current));
+        CompanySettings saved = settingsRepository.save(current);
+
+        AuditLog log = new AuditLog();
+        log.setAction("SETTINGS_UPDATED");
+        log.setModule("SETTINGS");
+        log.setDetails("Updated corporate settings, work hours (" + saved.getStandardWorkHoursPerDay() + "h/day), and geofence policy (" + saved.isEnableGeoFencingAttendance() + ")");
+        String email = request != null ? (String) request.getAttribute(AuthFilter.ATTR_EMAIL) : null;
+        String role = request != null ? (String) request.getAttribute(AuthFilter.ATTR_ROLE) : null;
+        log.setActorName(email != null ? email : "Administrator");
+        log.setActorRole(role != null ? role : "ADMIN");
+        log.setTimestamp(LocalDateTime.now(BUSINESS_ZONE).format(TS_FORMATTER));
+        log.setIpAddress(request != null && request.getRemoteAddr() != null ? request.getRemoteAddr() : "127.0.0.1");
+        auditLogRepository.save(log);
+
+        return ResponseEntity.ok(saved);
     }
 
     @GetMapping("/departments")
@@ -70,12 +106,8 @@ public class SettingsController {
     }
 
     @GetMapping("/audit-logs")
-    public ResponseEntity<List<Map<String, Object>>> getAuditLogs() {
-        List<Map<String, Object>> logs = new ArrayList<>();
-        logs.add(createLog("1", "ADMIN_SIGN_IN", "AUTH", "Administrator signed in securely", "Shyam Sundar Yedla", "ADMIN", "2026-10-16 10:15:20"));
-        logs.add(createLog("2", "PAYROLL_DISBURSED", "PAYROLL", "Processed monthly payroll disburals", "System Engine", "ADMIN", "2026-10-15 18:30:00"));
-        logs.add(createLog("3", "EMPLOYEE_ONBOARDED", "EMPLOYEE", "Onboarded staff and dispatched ZeptoMail credentials", "Shyam Sundar Yedla", "ADMIN", "2026-10-14 11:20:00"));
-        return ResponseEntity.ok(logs);
+    public ResponseEntity<List<AuditLog>> getAuditLogs() {
+        return ResponseEntity.ok(auditLogRepository.findAllByOrderByIdDesc());
     }
 
     private Map<String, Object> createHoliday(String id, String name, String date, String day, String type, boolean mandatory) {
@@ -86,19 +118,6 @@ public class SettingsController {
         m.put("dayOfWeek", day);
         m.put("type", type);
         m.put("isMandatory", mandatory);
-        return m;
-    }
-
-    private Map<String, Object> createLog(String id, String action, String module, String details, String actor, String role, String timestamp) {
-        Map<String, Object> m = new HashMap<>();
-        m.put("id", id);
-        m.put("action", action);
-        m.put("module", module);
-        m.put("details", details);
-        m.put("actorName", actor);
-        m.put("actorRole", role);
-        m.put("timestamp", timestamp);
-        m.put("ipAddress", "127.0.0.1");
         return m;
     }
 }

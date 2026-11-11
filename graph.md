@@ -1,6 +1,6 @@
 # Maaya World HRMS — Codebase Graph
 
-_Last updated: 2026-10-21 · Maintained by: Antigravity coding agent_
+_Last updated: 2026-11-11 · Maintained by: Antigravity coding agent_
 
 ## Overview
 
@@ -32,13 +32,14 @@ d:\Hrms/
 │   ├── mvnw / mvnw.cmd                — Maven wrappers
 │   └── src/main/
 │       ├── java/com/example/
-│       │   ├── controller/            — Spring REST Controllers (Auth, Employee, Attendance, Leave, Payroll, Settings)
+│       │   ├── controller/            — Spring REST Controllers (Auth, Employee, Attendance, Leave, OnDuty, Payroll, Settings)
 │       │   ├── demo/                  — Main class (EmployeeApplication) & seed data (DataInitializer)
-│       │   ├── entity/                — JPA Hibernate Entities (Employee, AttendanceRecord, LeaveRequest, Payslip, etc.)
+│       │   ├── entity/                — JPA Hibernate Entities (Employee, AttendanceRecord, LeaveRequest, OnDutyRequest, Payslip, AuditLog, etc.)
 │       │   ├── repository/            — Spring Data JPA Repositories
+│       │   ├── security/              — AuthFilter (Bearer RBAC), AuthTokenService (HMAC-SHA256), PasswordHasher (PBKDF2)
 │       │   └── service/               — Business logic (EmployeeServiceImpl, AuthService, ZeptoMailService)
 │       └── resources/
-│           └── application.properties — DB URL (PostgreSQL 5432/hrms_db), port 8083, ZeptoMail API keys
+│           └── application.properties — DB URL (PostgreSQL 5432/hrms_db), port 8083, env-backed ZeptoMail & auth secrets
 │
 └── src/                               — React TypeScript Single Page Application
     ├── main.tsx                       — React 19 entry point
@@ -46,7 +47,7 @@ d:\Hrms/
     ├── index.css                      — Global Tailwind CSS styles and reset
     ├── assets/                        — Logos, brand vectors, and media
     ├── components/
-    │   ├── attendance/                — Biometric webcam scan & 250m geofence check modal (BiometricAttendanceModal.tsx)
+    │   ├── attendance/                — Biometric webcam/geofence modal & 1-month paginated history modal (BiometricAttendanceModal.tsx, EmployeeAttendanceHistoryModal.tsx)
     │   ├── common/                    — Shared UI: Button, Input, Modal, DataTable, OperationsDashboard, StatCard, etc.
     │   └── layout/                    — Shells: AppLayout (Desktop Admin/Manager), EmployeeMobileLayout (Mobile-First Shell), Sidebar, Header
     ├── features/
@@ -61,7 +62,7 @@ d:\Hrms/
     ├── store/                         — Redux Toolkit store setup
     │   └── slices/                    — authSlice (session & roles), uiSlice (toasts & mobile/sidebar toggles)
     ├── types/                         — Domain TypeScript interfaces and types
-    └── utils/                         — Helpers: formatters (INR, dates), geolocation (Haversine formula), salaryCalculator, shiftUtils
+    └── utils/                         — Helpers: faceBiometrics, formatters (INR, dates), geolocation (Haversine formula), operations, salaryCalculator, shiftUtils
 ```
 
 ---
@@ -92,7 +93,7 @@ d:\Hrms/
 - **Key Fields**: `employeeCode` (e.g., `MW-1001`), `firstName`, `lastName`, `email` (unique), `phone`, `jobTitle` / `designation`, `department`, `location` (Hyderabad, Vizag, Bhubaneswar), `shift` (`MORNING`, `EVENING`), `monthlySalary`, `ctcAnnual`, `dateOfJoining`, `employmentType` (`FULL_TIME`, `PART_TIME`), `role` (`ADMIN`, `MANAGER`, `EMPLOYEE`), `status` (`ACTIVE`, `PROBATION`, `TERMINATED`).
 - **Statutory & Banking Details**: `accountNumber`, `ifscCode`, `bankName`, `panNumber`, `uanNumber`.
 - **Emergency Contact**: `emergencyContactName`, `emergencyContactPhone`, `emergencyContactRelationship`.
-- **Security**: `password`, `mustChangePassword`.
+- **Security**: `password` (write-only PBKDF2 hash), `temporaryPassword` (transient onboarding-only), `mustChangePassword`, `enrolledFacePhoto`, `enrolledFaceBiometrics`.
 
 ### 2. `AttendanceRecord` (`com.example.entity.AttendanceRecord` / `src/types/index.ts`)
 - **Fields**: `id`, `employeeId`, `employeeName`, `departmentName`, `location`, `shift`, `date` (`YYYY-MM-DD`), `checkIn` (`HH:mm:ss`), `checkOut` (`HH:mm:ss`), `status` (`PRESENT`, `ABSENT`, `HALF_DAY`, `ON_LEAVE`, `LATE`), `workHours` (double), `regularizationStatus` (`NONE`, `PENDING`, `APPROVED`, `REJECTED`), `regularizationReason`, `notes`.
@@ -128,7 +129,9 @@ d:\Hrms/
 | `DELETE`| `/api/employees/{id}` | Remove employee record | `EmployeeController` |
 | `POST` | `/api/employees/{id}/resend-email` | Resend credentials welcome email | `EmployeeController` |
 | `GET` | `/api/attendance` | Full attendance ledger (sorted descending by date) | `AttendanceController` |
+| `GET` | `/api/attendance/paged` | Filtered, paginated attendance register with SQL status summary counts | `AttendanceController` |
 | `GET` | `/api/attendance/employee/{id}` | Attendance records for a specific employee | `AttendanceController` |
+| `GET` | `/api/attendance/employee/{id}/history` | Date-windowed (default 1 month), paginated employee attendance history | `AttendanceController` |
 | `POST` | `/api/attendance/check-in` | Punch In with timestamp and shift metadata | `AttendanceController` |
 | `POST` | `/api/attendance/check-out` | Punch Out and calculate hours worked | `AttendanceController` |
 | `POST` | `/api/attendance/regularize` | Submit attendance correction request with reason | `AttendanceController` |
@@ -163,8 +166,9 @@ d:\Hrms/
    - Access to `/employee/*`: Mobile-first shell, Attendance punch in/out (biometric camera & geofence), Leave quota requests, Payslip viewer, Profile.
 
 ### Session Persistence:
-- Frontend persists user profile in `localStorage.getItem('maaya_current_user')` and token in `maaya_token`.
-- Redux `authSlice` synchronizes authenticated state, active role, and temporary password flags (`mustChangePassword`).
+- `AuthFilter` enforces HMAC-SHA256 `Bearer` token authentication and role-based access control across `/api/**` routes (excluding `/api/auth/login`, `/api/auth/forgot-password`, `/api/auth/reset-password`).
+- Frontend persists user profile in `localStorage.getItem('maaya_current_user')` and signed token in `maaya_token`, attached automatically by `fetchJSON`.
+- Passwords are hashed with `PBKDF2WithHmacSHA256` (`PasswordHasher`) and legacy plaintext DB rows upgrade transparently on login.
 - Default seeded admin: `shyamsundaryedla1@gmail.com` (`Admin@12345`).
 
 ---
@@ -194,12 +198,11 @@ Employee Clicks "Punch In" (EmployeeDashboard / MyAttendance)
   │
   ▼
 BiometricAttendanceModal Opens
-  ├── 1. Requests WebRTC Camera stream & displays face scanner overlay
-  ├── 2. Acquires Geolocation (or venue preset) & calculates Haversine distance
-  │      to Venue Center (Hyderabad, Vizag, or Bhubaneswar). Allowed radius: <= 250m.
-  ├── 3. Runs simulated biometric verification progress (0% -> 100%)
-  └── 4. On confirmation, invokes api.attendance.checkIn()
-        └── POST /api/attendance/check-in -> Saves timestamped record in PostgreSQL
+  ├── 1. Requests WebRTC Camera stream & analyzes frames via faceBiometrics.ts
+  ├── 2. Loads enableGeoFencingAttendance policy & queries device GPS (250m Haversine radius)
+  ├── 3. Detects face centering + liveness & runs compareFaceBiometrics() vs enrolled descriptor
+  └── 4. On confirmation, invokes api.attendance.checkIn() with IST businessDate()
+        └── POST /api/attendance/check-in -> Evaluates shift LATE/PRESENT status & saves in PostgreSQL
 ```
 
 ### 3. Leave Application & Approval Workflow
@@ -234,6 +237,7 @@ Admin initiates cycle (PayrollProcessing.tsx)
 
 ## Shared Utilities & Design System
 
+- **`src/utils/faceBiometrics.ts`**: Browser-native canvas face localization, 64-D spatial intensity & geometric ratio descriptors, liveness tracking, and HUD renderer.
 - **`src/utils/geolocation.ts`**: Haversine distance calculator, venue geofence definitions for Hyderabad, Vizag, Bhubaneswar (250m radius), and developer test presets.
 - **`src/utils/formatters.ts`**: Indian currency format (`formatINR` with Lakhs/Crores), date/time formatters, number-to-words for Indian payslips (`numberToIndianWords`), CSV exporter.
 - **`src/utils/shiftUtils.ts`**: Shift schedule definitions (`MORNING`: 9:00 AM – 1:00 PM, `EVENING`: 1:00 PM – 9:00 PM).
@@ -245,8 +249,8 @@ Admin initiates cycle (PayrollProcessing.tsx)
 
 ## Known Gaps & Unmapped Areas
 
-- **Cryptographic JWT Interceptor**: Current backend uses session tokens (`mw_sess_...`); a full Spring Security JWT filter chain with Bearer token validation can be added for strict enterprise compliance.
-- **Frontend Automated Test Suite**: Vitest/Jest unit test coverage on frontend components is currently minimal; business logic is validated via TypeScript compile and manual verification.
+- **Client-Side Face Recognition**: Biometric matching runs in-browser via pixel/luminance heuristics rather than neural face embeddings or server-side verification.
+- **Automated Test Suite**: Backend has only Spring `contextLoads` smoke test and frontend has minimal unit tests; verification relies on `oxlint`, `tsc -b`, `vite build`, and `mvnw test-compile`.
 
 ---
 
@@ -259,3 +263,13 @@ Admin initiates cycle (PayrollProcessing.tsx)
 **Files created:** `graph.md`
 
 **What & why:** Mapped the full dual-stack application architecture (React 19 + TypeScript frontend with Spring Boot 3.5.6 + PostgreSQL backend), documenting all 20+ screens, 3 operational roles, 7 backend REST controllers, 9 JPA entities, database relationships, Zoho ZeptoMail integration, geofencing engine, and Indian statutory payroll calculations.
+
+### 2026-11-11 — Full-Stack Bug Audit, Login/Seed Fix, Attendance Pagination & Onboarding Updates
+
+**Request:** Analyze face verification, fix codebase bugs, fix login issues, remove Regularization/All-dates UI, add 1-month paginated employee attendance history with Load More, convert onboarding salary to annual, prune salary components, gate UAN on PF in Work & Compensation, and add bank account confirmation.
+
+**Files changed:** `backend/.../security/{PasswordHasher,AuthTokenService,AuthFilter}.java` (new), `backend/.../entity/{AuditLog,Employee,PayrollRun}.java`, `backend/.../repository/{AuditLog,Attendance,Employee,Location,PayrollRun,Payslip}Repository.java`, `backend/.../service/{AuthService,EmployeeService,EmployeeServiceImpl,ZeptoMailService}.java`, `backend/.../controller/{Auth,Employee,Attendance,Leave,OnDuty,Payroll,Settings,Home}Controller.java`, `backend/.../demo/DataInitializer.java`, `backend/src/main/resources/application.properties`, `src/utils/{faceBiometrics,operations}.ts`, `src/components/attendance/{BiometricAttendanceModal,EmployeeAttendanceHistoryModal}.tsx`, `src/services/api.ts`, `src/store/slices/{authSlice,uiSlice}.ts`, `src/App.tsx`, `src/components/layout/{AppLayout,EmployeeMobileLayout,Sidebar}.tsx`, `src/components/common/{CommandPalette,DataTable,EmployeeDetailsPanel,OperationsDashboard,OperationsFilters,PayrollReview}.tsx`, `src/hooks/useRouteBackGuard.ts`, `src/features/auth/Login.tsx`, `src/features/admin/{AttendanceManagement,CompanySettings,EmployeeManagement,OnDutyManagement,PayrollProcessing,ReportsAnalytics}.tsx`, `src/features/employee/{EmployeeDashboard,EmployeeProfile,MyAttendance,MyLeaves,MyOnDuty,MySalary}.tsx`, `src/features/manager/{TeamAttendance,TeamLeaves,TeamOnDuty}.tsx`
+
+**What & why:** Replaced plaintext passwords and open endpoints with PBKDF2 hashing, HMAC-SHA256 Bearer tokens, and `AuthFilter` RBAC; moved ZeptoMail API token to `ZEPTOMAIL_TOKEN`; fixed password reset links/OTP binding and case-insensitive email handling; made `DataInitializer` avoid `employee_code` unique-key collisions (`resolveAvailableCode`); mounted `ToastContainer` globally in `App.tsx` and added inline error feedback on `Login.tsx`; added `/api/attendance/paged`, `/api/attendance/employee/{id}/history`, `EmployeeAttendanceHistoryModal`, and "Load More" pagination across Admin/Manager attendance views (removing Regularization column and All-dates filter button); updated `EmployeeManagement.tsx` and `EmployeeDetailsPanel.tsx` to use annual salary on onboarding, remove HRA/Special/Conveyance/ESI/Gratuity components, move UAN to Work & Compensation (activated only when PF is added), and require bank account number confirmation; repaired payroll, leaves, biometrics, analytics, and settings issues.
+
+**Follow-ups/risks:** Set `ZEPTOMAIL_TOKEN` in the environment (and rotate the previously committed key) before expecting live ZeptoMail delivery. Existing browser sessions using legacy `mw_sess_...` tokens will be prompted to sign in again.

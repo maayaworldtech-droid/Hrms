@@ -7,6 +7,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { EmployeeMobileLayout } from '@/components/layout/EmployeeMobileLayout';
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
+import { ToastContainer } from '@/components/common/ToastContainer';
 
 // Auth Feature Screens
 import { Login } from '@/features/auth/Login';
@@ -121,7 +122,7 @@ export const AppContent: React.FC = () => {
             <Route
               path="/admin/payroll"
               element={
-                <ProtectedRoute allowedRoles={['ADMIN', 'MANAGER']}>
+                <ProtectedRoute allowedRoles={['ADMIN']}>
                   <PayrollProcessing />
                 </ProtectedRoute>
               }
@@ -176,14 +177,6 @@ export const AppContent: React.FC = () => {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/manager/payroll"
-              element={
-                <ProtectedRoute allowedRoles={['MANAGER', 'ADMIN']}>
-                  <PayrollProcessing />
-                </ProtectedRoute>
-              }
-            />
           </Route>
 
           {/* Dedicated Mobile-First Employee Portal Shell */}
@@ -206,6 +199,7 @@ export const AppContent: React.FC = () => {
           {/* Catch-all Fallback */}
           <Route path="*" element={<RoleRootRedirect />} />
         </Routes>
+        <ToastContainer />
       </ErrorBoundary>
     </BrowserRouter>
   );

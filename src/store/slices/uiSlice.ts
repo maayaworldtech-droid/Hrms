@@ -25,35 +25,7 @@ interface UiState {
   notifications: AppNotification[];
 }
 
-const initialNotifications: AppNotification[] = [
-  {
-    id: 'notif-1',
-    title: 'Payroll Disbursed',
-    message: 'September 2026 payroll has been successfully credited via NEFT.',
-    type: 'success',
-    timestamp: '2 hours ago',
-    read: false,
-    actionUrl: '/employee/salary',
-  },
-  {
-    id: 'notif-2',
-    title: 'Leave Approved',
-    message: 'Your Sick Leave for Sep 15 has been approved by Rajesh Kumar.',
-    type: 'info',
-    timestamp: '1 day ago',
-    read: false,
-    actionUrl: '/employee/leaves',
-  },
-  {
-    id: 'notif-3',
-    title: 'Upcoming National Holiday',
-    message: 'Dussehra / Vijayadashami holiday on October 20, 2026.',
-    type: 'info',
-    timestamp: '3 days ago',
-    read: true,
-    actionUrl: '/admin/holidays',
-  },
-];
+const initialNotifications: AppNotification[] = [];
 
 const initialState: UiState = {
   sidebarCollapsed: false,

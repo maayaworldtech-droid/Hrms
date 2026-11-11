@@ -2,72 +2,98 @@ import { useOperationsFilters } from '@/hooks/useOperationsFilters';
 import { OperationsFilters } from '@/components/common/OperationsFilters';
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/services/api';
-import  { AttendanceRecord } from '@/types';
+import { AttendanceRecord } from '@/types';
 import { DataTable, Column } from '@/components/common/DataTable';
-import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
+import { Badge } from '@/components/common/Badge';
 import { Modal } from '@/components/common/Modal';
+import { EmployeeAttendanceHistoryModal } from '@/components/attendance/EmployeeAttendanceHistoryModal';
 import { formatDate, formatTime } from '@/utils/formatters';
-import { Check, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
+
+const PAGE_SIZE = 20;
 
 export const AttendanceManagement: React.FC = () => {
   const dispatch = useAppDispatch();
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
-  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalElements, setTotalElements] = useState(0);
+  const [summary, setSummary] = useState({ present: 0, onDuty: 0, late: 0, onLeave: 0 });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [historyEmployee, setHistoryEmployee] = useState<{
+    employeeId: string;
+    employeeName: string;
+    location?: string;
+    shift?: string;
+  } | null>(null);
+  const [previewPhotoRecord, setPreviewPhotoRecord] = useState<AttendanceRecord | null>(null);
+
   const filters = useOperationsFilters(true);
   const statusFilter = filters.status;
   const shiftFilter = filters.shift;
-  const setStatusFilter = (value: string) => filters.set('status',value);
+  const setStatusFilter = (value: string) => filters.set('status', value);
 
-  const loadData = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const data = await api.attendance.getAll();
-      setAttendance(data);
-    } catch { dispatch(addToast({ type: 'error', title: 'Could not load attendance' })); } finally {
-      setIsLoading(false);
-    }
-  }, [dispatch]);
+  const loadPage = useCallback(
+    async (targetPage: number, append: boolean) => {
+      if (append) {
+        setIsLoadingMore(true);
+      } else {
+        setIsLoading(true);
+      }
+      try {
+        const res = await api.attendance.getPaged({
+          date: filters.date,
+          location: filters.venue,
+          shift: shiftFilter,
+          status: statusFilter,
+          search: searchQuery,
+          page: targetPage,
+          size: PAGE_SIZE,
+        });
+        const items = Array.isArray(res.items) ? res.items : [];
+        setAttendance((prev) => {
+          if (!append) return items;
+          const merged = new Map<string, AttendanceRecord>();
+          prev.forEach((r) => merged.set(String(r.id), r));
+          items.forEach((r) => merged.set(String(r.id), r));
+          return Array.from(merged.values());
+        });
+        setPage(res.page ?? targetPage);
+        setHasMore(Boolean(res.hasMore));
+        setTotalElements(res.totalElements ?? items.length);
+        if (res.summary) {
+          setSummary(res.summary);
+        }
+      } catch {
+        dispatch(addToast({ type: 'error', title: 'Could not load attendance' }));
+      } finally {
+        setIsLoading(false);
+        setIsLoadingMore(false);
+      }
+    },
+    [dispatch, filters.date, filters.venue, shiftFilter, statusFilter, searchQuery]
+  );
 
-  useEffect(() => { void loadData(); }, [loadData]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void loadPage(0, false);
+    }, searchQuery ? 250 : 0);
+    return () => clearTimeout(timer);
+  }, [loadPage, searchQuery]);
 
-  const handleApproveRegularization = async (recordId: string) => {
-    try {
-      await api.attendance.approveRegularization(recordId);
-      dispatch(
-        addToast({
-          type: 'success',
-          title: 'Regularization Approved',
-          message: 'The attendance record has been marked as Present.',
-        })
-      );
-      setIsReviewModalOpen(false);
-      loadData();
-    } catch {
-      dispatch(addToast({ type: 'error', title: 'Action failed' }));
-    }
+  const openEmployeeHistory = (row: AttendanceRecord) => {
+    setHistoryEmployee({
+      employeeId: row.employeeId,
+      employeeName: row.employeeName,
+      location: row.location,
+      shift: row.shift,
+    });
   };
-
-  const contextRecords = attendance.filter(record => (!filters.date || record.date === filters.date) && (filters.venue === 'ALL' || record.location === filters.venue) && (shiftFilter === 'ALL' || (record.shift || 'MORNING') === shiftFilter));
-  const filteredAttendance = contextRecords.filter((item) => {
-    const matchShift = shiftFilter === 'ALL' || (item.shift || 'MORNING') === shiftFilter;
-    if (!matchShift) return false;
-    if (statusFilter === 'ALL') return true;
-    if (statusFilter === 'ISSUES') return item.status === 'ABSENT' || item.status === 'LATE' || item.regularizationStatus === 'PENDING';
-    if (statusFilter === 'REGULARIZATION_PENDING') return item.regularizationStatus === 'PENDING';
-    return item.status === statusFilter;
-  });
-
-  const presentCount = contextRecords.filter((a) => a.status === 'PRESENT').length;
-  const onDutyCount = contextRecords.filter((a) => a.status === 'ON_DUTY').length;
-  const lateCount = contextRecords.filter((a) => a.status === 'LATE').length;
-  const onLeaveCount = contextRecords.filter((a) => a.status === 'ON_LEAVE').length;
-
-  const [previewPhotoRecord, setPreviewPhotoRecord] = useState<AttendanceRecord | null>(null);
 
   const columns: Column<AttendanceRecord>[] = [
     {
@@ -79,7 +105,10 @@ export const AttendanceManagement: React.FC = () => {
           {row.facePhoto ? (
             <button
               type="button"
-              onClick={() => setPreviewPhotoRecord(row)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setPreviewPhotoRecord(row);
+              }}
               className="relative group cursor-pointer"
               title="Click to view real face biometric photo"
             >
@@ -96,7 +125,7 @@ export const AttendanceManagement: React.FC = () => {
             </div>
           )}
           <div>
-            <div className="font-semibold text-slate-900 flex items-center gap-1.5">
+            <div className="font-semibold text-slate-900 hover:text-indigo-700 flex items-center gap-1.5">
               <span>{row.employeeName}</span>
               {row.isBiometricVerified && (
                 <span title="Face Biometric Verified">
@@ -174,31 +203,6 @@ export const AttendanceManagement: React.FC = () => {
         </Badge>
       ),
     },
-    {
-      key: 'regularizationStatus',
-      header: 'Regularization',
-      render: (row) => {
-        if (row.regularizationStatus === 'PENDING') {
-          return (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setSelectedRecord(row);
-                setIsReviewModalOpen(true);
-              }}
-              className="!py-1 !px-2.5 text-xs text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-300"
-            >
-              Review Request
-            </Button>
-          );
-        }
-        if (row.regularizationStatus === 'APPROVED') {
-          return <Badge variant="success" size="sm">Regularized</Badge>;
-        }
-        return <span className="text-slate-400 text-xs">Regular</span>;
-      },
-    },
   ];
 
   return (
@@ -207,6 +211,9 @@ export const AttendanceManagement: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Attendance Register</h1>
+          <p className="text-xs text-slate-500 mt-1">
+            Click any employee row to view their previous 1-month attendance records.
+          </p>
         </div>
       </div>
 
@@ -215,118 +222,90 @@ export const AttendanceManagement: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <button
           onClick={() => setStatusFilter(statusFilter === 'PRESENT' ? 'ALL' : 'PRESENT')}
-          className={`p-3.5 rounded-xl border text-left transition-all ${
+          className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
             statusFilter === 'PRESENT'
               ? 'border-emerald-500 bg-emerald-50/40 shadow-xs'
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
           <span className="text-[11px] font-semibold text-emerald-600 uppercase">Present</span>
-          <p className="text-xl font-bold text-slate-900 mt-1">{presentCount}</p>
+          <p className="text-xl font-bold text-slate-900 mt-1">{summary.present}</p>
         </button>
 
         <button
           onClick={() => setStatusFilter(statusFilter === 'ON_DUTY' ? 'ALL' : 'ON_DUTY')}
-          className={`p-3.5 rounded-xl border text-left transition-all ${
+          className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
             statusFilter === 'ON_DUTY'
               ? 'border-sky-500 bg-sky-50/40 shadow-xs'
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
           <span className="text-[11px] font-semibold text-sky-600 uppercase">On Duty</span>
-          <p className="text-xl font-bold text-slate-900 mt-1">{onDutyCount}</p>
+          <p className="text-xl font-bold text-slate-900 mt-1">{summary.onDuty}</p>
         </button>
 
         <button
           onClick={() => setStatusFilter(statusFilter === 'LATE' ? 'ALL' : 'LATE')}
-          className={`p-3.5 rounded-xl border text-left transition-all ${
+          className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
             statusFilter === 'LATE'
               ? 'border-amber-500 bg-amber-50/40 shadow-xs'
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
           <span className="text-[11px] font-semibold text-amber-600 uppercase">Late Check-in</span>
-          <p className="text-xl font-bold text-slate-900 mt-1">{lateCount}</p>
+          <p className="text-xl font-bold text-slate-900 mt-1">{summary.late}</p>
         </button>
 
         <button
           onClick={() => setStatusFilter(statusFilter === 'ON_LEAVE' ? 'ALL' : 'ON_LEAVE')}
-          className={`p-3.5 rounded-xl border text-left transition-all ${
+          className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
             statusFilter === 'ON_LEAVE'
               ? 'border-indigo-500 bg-indigo-50/40 shadow-xs'
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
           <span className="text-[11px] font-semibold text-indigo-600 uppercase">On Leave</span>
-          <p className="text-xl font-bold text-slate-900 mt-1">{onLeaveCount}</p>
+          <p className="text-xl font-bold text-slate-900 mt-1">{summary.onLeave}</p>
         </button>
       </div>
 
       {/* Main Table */}
       <DataTable
-        key={[filters.date,filters.venue,filters.shift,filters.status].join(':')}
-        data={filteredAttendance}
+        data={attendance}
         columns={columns}
         searchPlaceholder="Search attendance by employee name..."
+        onSearchChange={setSearchQuery}
+        onRowClick={openEmployeeHistory}
         exportFileName="maaya_attendance_register"
         isLoading={isLoading}
+        hidePagination
       />
 
-      {/* Review Regularization Modal */}
-      {selectedRecord && (
-        <Modal
-          isOpen={isReviewModalOpen}
-          onClose={() => setIsReviewModalOpen(false)}
-          title="Review attendance correction"
-          subtitle={`Submission by ${selectedRecord.employeeName}`}
-          size="md"
-        >
-          <div className="space-y-4 text-xs">
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Date:</span>
-                <span className="font-semibold text-slate-900">{formatDate(selectedRecord.date)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Recorded Punch:</span>
-                <span className="font-mono text-slate-800">
-                  {selectedRecord.checkIn ? formatTime(selectedRecord.checkIn) : 'None'} -{' '}
-                  {selectedRecord.checkOut ? formatTime(selectedRecord.checkOut) : 'None'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Logged Status:</span>
-                <Badge variant="warning" size="sm">{selectedRecord.status}</Badge>
-              </div>
-            </div>
-
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">Reason Provided by Employee</label>
-              <div className="p-3 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs leading-relaxed">
-                {selectedRecord.regularizationReason || 'No specific reason attached to this request.'}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsReviewModalOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="success"
-                size="sm"
-                onClick={() => handleApproveRegularization(selectedRecord.id)}
-                leftIcon={<Check className="w-4 h-4" />}
-              >
-                Approve & Mark Present
-              </Button>
-            </div>
-          </div>
-        </Modal>
+      {/* Incremental Server Load More Bar */}
+      {!isLoading && attendance.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-600">
+          <span className="tabular-nums">
+            Showing <strong className="text-slate-900">{attendance.length}</strong> of{' '}
+            <strong className="text-slate-900">{totalElements}</strong> records
+          </span>
+          {hasMore && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void loadPage(page + 1, true)}
+              isLoading={isLoadingMore}
+            >
+              Load More
+            </Button>
+          )}
+        </div>
       )}
+
+      {/* Employee 1-Month History Modal */}
+      <EmployeeAttendanceHistoryModal
+        employee={historyEmployee}
+        onClose={() => setHistoryEmployee(null)}
+      />
 
       {/* Biometric Face Photo Verification Modal */}
       {previewPhotoRecord && (
@@ -345,10 +324,12 @@ export const AttendanceManagement: React.FC = () => {
                   alt={`Captured face of ${previewPhotoRecord.employeeName}`}
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute top-2.5 left-2.5 bg-emerald-950/80 backdrop-blur-xs border border-emerald-500/40 px-2 py-1 rounded-md text-[10px] text-emerald-300 font-semibold flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                  <span>Real Face Verified</span>
-                </div>
+                {previewPhotoRecord.isBiometricVerified && (
+                  <div className="absolute top-2.5 left-2.5 bg-emerald-950/80 backdrop-blur-xs border border-emerald-500/40 px-2 py-1 rounded-md text-[10px] text-emerald-300 font-semibold flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                    <span>Real Face Verified</span>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="p-6 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
@@ -372,7 +353,9 @@ export const AttendanceManagement: React.FC = () => {
               <div className="flex justify-between">
                 <span className="text-slate-500">Biometric Match:</span>
                 <span className="font-mono font-semibold text-emerald-700">
-                  {previewPhotoRecord.biometricScore ? `${previewPhotoRecord.biometricScore.toFixed(1)}%` : '98.4%'}
+                  {previewPhotoRecord.biometricScore != null
+                    ? `${previewPhotoRecord.biometricScore.toFixed(1)}%`
+                    : 'Not recorded'}
                 </span>
               </div>
               {previewPhotoRecord.notes && (

@@ -3,18 +3,24 @@ package com.example.controller;
 import com.example.entity.OnDutyRequest;
 import com.example.repository.EmployeeRepository;
 import com.example.repository.OnDutyRequestRepository;
+import com.example.security.AuthFilter;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
-@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/on-duty")
 public class OnDutyController {
+
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Kolkata");
 
     @Autowired
     private OnDutyRequestRepository onDutyRequestRepository;
@@ -33,11 +39,36 @@ public class OnDutyController {
     }
 
     @PostMapping("/apply")
-    public ResponseEntity<OnDutyRequest> apply(@RequestBody OnDutyRequest request) {
-        if (request.getDutyDate() == null || request.getDutyDate().trim().isEmpty()) {
-            request.setDutyDate(LocalDate.now().toString());
+    public ResponseEntity<?> apply(@RequestBody OnDutyRequest request, HttpServletRequest httpRequest) {
+        String role = (String) httpRequest.getAttribute(AuthFilter.ATTR_ROLE);
+        Long authId = (Long) httpRequest.getAttribute(AuthFilter.ATTR_EMPLOYEE_ID);
+        boolean isPrivileged = "ADMIN".equals(role) || "MANAGER".equals(role);
+
+        if (!isPrivileged) {
+            if (request.getEmployeeId() == null) {
+                request.setEmployeeId(authId);
+            } else if (authId == null || !authId.equals(request.getEmployeeId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("message", "You can only submit On Duty requests for yourself."));
+            }
+            request.setStatus("PENDING");
+            request.setReviewedBy(null);
+            request.setReviewedOn(null);
+        } else {
+            // Allow Admin/Manager direct assignment with APPROVED status
+            if (!"APPROVED".equalsIgnoreCase(request.getStatus())) {
+                request.setStatus("PENDING");
+            } else {
+                request.setStatus("APPROVED");
+                if (request.getReviewedOn() == null) {
+                    request.setReviewedOn(LocalDate.now(BUSINESS_ZONE).toString());
+                }
+            }
         }
-        request.setStatus("PENDING");
+
+        if (request.getDutyDate() == null || request.getDutyDate().trim().isEmpty()) {
+            request.setDutyDate(LocalDate.now(BUSINESS_ZONE).toString());
+        }
 
         if (request.getEmployeeId() != null) {
             employeeRepository.findById(request.getEmployeeId()).ifPresent(emp -> {
@@ -69,7 +100,7 @@ public class OnDutyController {
 
         return onDutyRequestRepository.findById(id).map(req -> {
             if (status != null) req.setStatus(status);
-            req.setReviewedOn(LocalDate.now().toString());
+            req.setReviewedOn(LocalDate.now(BUSINESS_ZONE).toString());
             if (reviewer != null) req.setReviewedBy(reviewer);
             if (reviewerComments != null) req.setReviewerComments(reviewerComments);
 
@@ -79,31 +110,49 @@ public class OnDutyController {
     }
 
     @PostMapping("/{id}/claim-expense")
-    public ResponseEntity<OnDutyRequest> claimExpense(
+    public ResponseEntity<?> claimExpense(
             @PathVariable Long id,
-            @RequestBody Map<String, Object> payload
+            @RequestBody Map<String, Object> payload,
+            HttpServletRequest httpRequest
     ) {
-        return onDutyRequestRepository.findById(id).map(req -> {
-            req.setHasExpense(true);
+        Optional<OnDutyRequest> opt = onDutyRequestRepository.findById(id);
+        if (opt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
 
-            if (payload.get("expenseAmount") != null) {
-                try {
-                    req.setExpenseAmount(Double.valueOf(payload.get("expenseAmount").toString()));
-                } catch (Exception ignored) {}
-            }
+        OnDutyRequest req = opt.get();
+        String role = (String) httpRequest.getAttribute(AuthFilter.ATTR_ROLE);
+        Long authId = (Long) httpRequest.getAttribute(AuthFilter.ATTR_EMPLOYEE_ID);
+        if (!"ADMIN".equals(role) && !"MANAGER".equals(role)
+                && (authId == null || !authId.equals(req.getEmployeeId()))) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("message", "You can only claim expenses on your own On Duty request."));
+        }
 
-            if (payload.get("expenseDescription") != null) {
-                req.setExpenseDescription(payload.get("expenseDescription").toString());
-            }
+        double amount = 0.0;
+        if (payload.get("expenseAmount") != null) {
+            try {
+                amount = Double.parseDouble(payload.get("expenseAmount").toString());
+            } catch (Exception ignored) {}
+        }
+        if (amount <= 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Expense amount must be greater than zero."));
+        }
 
-            if (payload.get("billPhoto") != null) {
-                req.setBillPhoto(payload.get("billPhoto").toString());
-            }
+        req.setHasExpense(true);
+        req.setExpenseAmount(amount);
 
-            req.setReimbursementStatus("PENDING");
-            OnDutyRequest updated = onDutyRequestRepository.save(req);
-            return ResponseEntity.ok(updated);
-        }).orElseGet(() -> ResponseEntity.notFound().build());
+        if (payload.get("expenseDescription") != null) {
+            req.setExpenseDescription(payload.get("expenseDescription").toString());
+        }
+
+        if (payload.get("billPhoto") != null) {
+            req.setBillPhoto(payload.get("billPhoto").toString());
+        }
+
+        req.setReimbursementStatus("PENDING");
+        OnDutyRequest updated = onDutyRequestRepository.save(req);
+        return ResponseEntity.ok(updated);
     }
 
     @PutMapping("/{id}/reimburse")
@@ -117,7 +166,7 @@ public class OnDutyController {
 
         return onDutyRequestRepository.findById(id).map(req -> {
             if (status != null) req.setReimbursementStatus(status);
-            req.setReimbursedOn(LocalDate.now().toString());
+            req.setReimbursedOn(LocalDate.now(BUSINESS_ZONE).toString());
             if (reviewer != null) req.setReimbursedBy(reviewer);
             if (reviewerComments != null) req.setReimbursementComments(reviewerComments);
 

@@ -10,4 +10,5 @@ import java.util.List;
 public interface PayslipRepository extends JpaRepository<Payslip, Long> {
     List<Payslip> findByEmployeeIdOrderByYearDescMonthDesc(Long employeeId);
     List<Payslip> findByPayrollRunId(Long payrollRunId);
+    void deleteByPayrollRunId(Long payrollRunId);
 }

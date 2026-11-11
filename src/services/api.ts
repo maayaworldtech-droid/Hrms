@@ -16,10 +16,15 @@ import {
 const API_BASE = '/api';
 
 async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
+  const token = localStorage.getItem('maaya_token');
+  const authHeaders: Record<string, string> =
+    token && token.includes('.') ? { Authorization: `Bearer ${token}` } : {};
+
   const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      ...authHeaders,
       ...options?.headers,
     },
     ...options,
@@ -32,6 +37,13 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
       if (errData?.message) errorMsg = errData.message;
     } catch {
       // ignore json parse error
+    }
+    if (response.status === 401 && !url.includes('/auth/login')) {
+      localStorage.removeItem('maaya_current_user');
+      localStorage.removeItem('maaya_token');
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.assign('/login');
+      }
     }
     throw new Error(errorMsg);
   }
@@ -61,6 +73,9 @@ const normalizePayslip = (slip: any): Payslip => {
       specialAllowance: Number(comp.specialAllowance ?? slip?.specialAllowance ?? 0),
       conveyanceAllowance: Number(comp.conveyanceAllowance ?? slip?.conveyanceAllowance ?? 0),
       medicalAllowance: Number(comp.medicalAllowance ?? slip?.medicalAllowance ?? 0),
+      bonus: Number(comp.bonus ?? slip?.bonus ?? 0),
+      incentives: Number(comp.incentives ?? slip?.incentives ?? 0),
+      adjustmentNotes: String(comp.adjustmentNotes ?? slip?.adjustmentNotes ?? ''),
       grossMonthly: Number(comp.grossMonthly ?? slip?.grossMonthly ?? 0),
       epfEmployee: Number(comp.epfEmployee ?? slip?.epfEmployee ?? 0),
       epfEmployer: Number(comp.epfEmployer ?? slip?.epfEmployer ?? 0),
@@ -74,6 +89,85 @@ const normalizePayslip = (slip: any): Payslip => {
     paymentStatus: slip?.paymentStatus || 'PAID',
     paymentMode: slip?.paymentMode || 'NEFT',
   };
+};
+
+const parseNumericId = (raw?: string | number | null): number | undefined => {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  const numeric = Number(String(raw).replace(/\D+/g, ''));
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : undefined;
+};
+
+const mapEmployee = (emp: any, fallbackId?: string): Employee => {
+  const storageKeyId = fallbackId || emp.id;
+  return {
+    id: String(emp.id),
+    employeeCode: emp.employeeCode || `MW-${emp.id}`,
+    firstName: emp.firstName || '',
+    lastName: emp.lastName || '',
+    fullName: emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+    email: emp.email,
+    phone: emp.phone || '',
+    address: emp.address || '',
+    designation: emp.jobTitle || emp.designation || 'Specialist',
+    location: emp.location || 'Hyderabad',
+    shift: emp.shift || 'MORNING',
+    managerId: emp.managerId != null ? String(emp.managerId) : undefined,
+    managerName: emp.managerName || undefined,
+    monthlySalary: emp.monthlySalary || 35000,
+    ctcAnnual: emp.ctcAnnual || ((emp.monthlySalary || 35000) * 12),
+    joiningDate: emp.dateOfJoining || emp.joiningDate || '2024-01-15',
+    employmentType: emp.employmentType || 'FULL_TIME',
+    role: emp.role || 'EMPLOYEE',
+    mustChangePassword: emp.mustChangePassword,
+    departmentName: emp.department || 'Engineering',
+    status: emp.status || 'ACTIVE',
+    bankDetails: emp.bankDetails || {
+      accountNumber: emp.accountNumber || '918273645281',
+      ifscCode: emp.ifscCode || 'HDFC0001234',
+      bankName: emp.bankName || 'HDFC Bank',
+      panNumber: emp.panNumber || 'ABCPS1234F',
+      uanNumber: emp.uanNumber || '100928374699',
+    },
+    emergencyContact: emp.emergencyContact || {
+      name: emp.emergencyContactName || 'Ramesh Sharma',
+      relationship: emp.emergencyContactRelationship || 'Spouse',
+      phone: emp.emergencyContactPhone || '+91 98765 00000',
+    },
+    bloodGroup: emp.bloodGroup || '',
+    emergencyContactName: emp.emergencyContactName || emp.emergencyContact?.name || '',
+    emergencyContactPhone: emp.emergencyContactPhone || emp.emergencyContact?.phone || '',
+    emergencyContactRelationship: emp.emergencyContactRelationship || emp.emergencyContact?.relationship || '',
+    salaryStructureJson: emp.salaryStructureJson || '',
+    enrolledFacePhoto: emp.enrolledFacePhoto || localStorage.getItem(`maaya_face_photo_${storageKeyId}`) || undefined,
+    enrolledFaceBiometrics: emp.enrolledFaceBiometrics || localStorage.getItem(`maaya_face_bio_${storageKeyId}`) || undefined,
+  };
+};
+
+const buildEmployeePayload = (employeeData: Partial<Employee>): Record<string, any> => {
+  const empData = employeeData as any;
+  const payload: Record<string, any> = {
+    ...employeeData,
+    jobTitle: empData.designation || empData.jobTitle,
+    department: empData.departmentName || empData.department,
+    dateOfJoining: empData.joiningDate || empData.dateOfJoining,
+    managerId: parseNumericId(empData.managerId),
+  };
+
+  if (employeeData.bankDetails) {
+    payload.accountNumber = employeeData.bankDetails.accountNumber;
+    payload.ifscCode = employeeData.bankDetails.ifscCode;
+    payload.bankName = employeeData.bankDetails.bankName;
+    payload.panNumber = employeeData.bankDetails.panNumber;
+    payload.uanNumber = employeeData.bankDetails.uanNumber;
+  }
+
+  if (employeeData.emergencyContact) {
+    payload.emergencyContactName = employeeData.emergencyContact.name;
+    payload.emergencyContactPhone = employeeData.emergencyContact.phone;
+    payload.emergencyContactRelationship = employeeData.emergencyContact.relationship;
+  }
+
+  return payload;
 };
 
 export const api = {
@@ -171,131 +265,31 @@ export const api = {
   employees: {
     getAll: async (): Promise<Employee[]> => {
       const data = await fetchJSON<any[]>(`${API_BASE}/employees`);
-      return data.map((emp) => ({
-        id: String(emp.id),
-        employeeCode: emp.employeeCode || `MW-${emp.id}`,
-        firstName: emp.firstName || '',
-        lastName: emp.lastName || '',
-        fullName: emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
-        email: emp.email,
-        phone: emp.phone || '',
-        address: emp.address || '',
-        designation: emp.jobTitle || emp.designation || 'Specialist',
-        location: emp.location || 'Hyderabad',
-        shift: emp.shift || 'MORNING',
-        monthlySalary: emp.monthlySalary || 35000,
-        ctcAnnual: emp.ctcAnnual || ((emp.monthlySalary || 35000) * 12),
-        joiningDate: emp.dateOfJoining || emp.joiningDate || '2024-01-15',
-        employmentType: emp.employmentType || 'FULL_TIME',
-        role: emp.role || 'EMPLOYEE',
-        mustChangePassword: emp.mustChangePassword,
-        departmentName: emp.department || 'Engineering',
-        status: emp.status || 'ACTIVE',
-        bankDetails: emp.bankDetails || {
-          accountNumber: emp.accountNumber || '918273645281',
-          ifscCode: emp.ifscCode || 'HDFC0001234',
-          bankName: emp.bankName || 'HDFC Bank',
-          panNumber: emp.panNumber || 'ABCPS1234F',
-          uanNumber: emp.uanNumber || '100928374699',
-        },
-        emergencyContact: emp.emergencyContact || {
-          name: emp.emergencyContactName || 'Ramesh Sharma',
-          relationship: emp.emergencyContactRelationship || 'Spouse',
-          phone: emp.emergencyContactPhone || '+91 98765 00000',
-        },
-        bloodGroup: emp.bloodGroup || '',
-        emergencyContactName: emp.emergencyContactName || emp.emergencyContact?.name || '',
-        emergencyContactPhone: emp.emergencyContactPhone || emp.emergencyContact?.phone || '',
-        emergencyContactRelationship: emp.emergencyContactRelationship || emp.emergencyContact?.relationship || '',
-        salaryStructureJson: emp.salaryStructureJson || '',
-        enrolledFacePhoto: emp.enrolledFacePhoto || localStorage.getItem(`maaya_face_photo_${emp.id}`) || undefined,
-        enrolledFaceBiometrics: emp.enrolledFaceBiometrics || localStorage.getItem(`maaya_face_bio_${emp.id}`) || undefined,
-      }));
+      return data.map((emp) => mapEmployee(emp));
     },
 
     getById: async (id: string | number): Promise<Employee | null> => {
       const cleanId = String(id).replace('emp-', '');
       try {
         const emp = await fetchJSON<any>(`${API_BASE}/employees/${cleanId}`);
-        return {
-          id: String(emp.id),
-          employeeCode: emp.employeeCode || `MW-${emp.id}`,
-          firstName: emp.firstName || '',
-          lastName: emp.lastName || '',
-          fullName: emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
-          email: emp.email,
-          phone: emp.phone || '',
-          address: emp.address || '',
-          designation: emp.jobTitle || emp.designation || 'Specialist',
-          location: emp.location || 'Hyderabad',
-          shift: emp.shift || 'MORNING',
-          monthlySalary: emp.monthlySalary || 35000,
-          ctcAnnual: emp.ctcAnnual || ((emp.monthlySalary || 35000) * 12),
-          joiningDate: emp.dateOfJoining || emp.joiningDate || '2024-01-15',
-          employmentType: emp.employmentType || 'FULL_TIME',
-          role: emp.role || 'EMPLOYEE',
-          mustChangePassword: emp.mustChangePassword,
-          departmentName: emp.department || 'Engineering',
-          status: emp.status || 'ACTIVE',
-          bankDetails: emp.bankDetails || {
-            accountNumber: emp.accountNumber || '918273645281',
-            ifscCode: emp.ifscCode || 'HDFC0001234',
-            bankName: emp.bankName || 'HDFC Bank',
-            panNumber: emp.panNumber || 'ABCPS1234F',
-            uanNumber: emp.uanNumber || '100928374699',
-          },
-          emergencyContact: emp.emergencyContact || {
-            name: emp.emergencyContactName || 'Ramesh Sharma',
-            relationship: emp.emergencyContactRelationship || 'Spouse',
-            phone: emp.emergencyContactPhone || '+91 98765 00000',
-          },
-          bloodGroup: emp.bloodGroup || '',
-          emergencyContactName: emp.emergencyContactName || emp.emergencyContact?.name || '',
-          emergencyContactPhone: emp.emergencyContactPhone || emp.emergencyContact?.phone || '',
-          emergencyContactRelationship: emp.emergencyContactRelationship || emp.emergencyContact?.relationship || '',
-          salaryStructureJson: emp.salaryStructureJson || '',
-          enrolledFacePhoto: emp.enrolledFacePhoto || localStorage.getItem(`maaya_face_photo_${cleanId}`) || undefined,
-          enrolledFaceBiometrics: emp.enrolledFaceBiometrics || localStorage.getItem(`maaya_face_bio_${cleanId}`) || undefined,
-        };
+        return mapEmployee(emp, cleanId);
       } catch {
-        // If query by numeric ID fails, try get all and match
-        const all = await api.employees.getAll();
-        return all.find((e) => e.id === cleanId || e.employeeCode === id) || all[0] || null;
+        return null;
       }
     },
 
     onboard: async (employeeData: Partial<Employee>): Promise<Employee> => {
-      const empData = employeeData as any;
-      const payload: any = {
-        ...employeeData,
-        jobTitle: empData.designation || empData.jobTitle,
-        department: empData.departmentName || empData.department,
-        dateOfJoining: empData.joiningDate || empData.dateOfJoining,
-      };
-
-      if (employeeData.bankDetails) {
-        payload.accountNumber = employeeData.bankDetails.accountNumber;
-        payload.ifscCode = employeeData.bankDetails.ifscCode;
-        payload.bankName = employeeData.bankDetails.bankName;
-        payload.panNumber = employeeData.bankDetails.panNumber;
-        payload.uanNumber = employeeData.bankDetails.uanNumber;
-      }
-
-      if (employeeData.emergencyContact) {
-        payload.emergencyContactName = employeeData.emergencyContact.name;
-        payload.emergencyContactPhone = employeeData.emergencyContact.phone;
-        payload.emergencyContactRelationship = employeeData.emergencyContact.relationship;
-      }
-
+      const payload = buildEmployeePayload(employeeData);
       const res = await fetchJSON<any>(`${API_BASE}/employees/onboard`, {
         method: 'POST',
         body: JSON.stringify(payload),
       });
 
-      return {
-        ...res,
-        id: String(res.id),
-      };
+      const mapped = mapEmployee(res);
+      if (res.temporaryPassword) {
+        (mapped as any).temporaryPassword = res.temporaryPassword;
+      }
+      return mapped;
     },
 
     create: async (employeeData: Partial<Employee>): Promise<Employee> => {
@@ -304,37 +298,13 @@ export const api = {
 
     update: async (id: string | number, employeeData: Partial<Employee>): Promise<Employee> => {
       const cleanId = String(id).replace('emp-', '');
-      const empData = employeeData as any;
-      const payload: any = {
-        ...employeeData,
-        jobTitle: empData.designation || empData.jobTitle,
-        department: empData.departmentName || empData.department,
-        dateOfJoining: empData.joiningDate || empData.dateOfJoining,
-      };
-
-      if (employeeData.bankDetails) {
-        payload.accountNumber = employeeData.bankDetails.accountNumber;
-        payload.ifscCode = employeeData.bankDetails.ifscCode;
-        payload.bankName = employeeData.bankDetails.bankName;
-        payload.panNumber = employeeData.bankDetails.panNumber;
-        payload.uanNumber = employeeData.bankDetails.uanNumber;
-      }
-
-      if (employeeData.emergencyContact) {
-        payload.emergencyContactName = employeeData.emergencyContact.name;
-        payload.emergencyContactPhone = employeeData.emergencyContact.phone;
-        payload.emergencyContactRelationship = employeeData.emergencyContact.relationship;
-      }
-
+      const payload = buildEmployeePayload(employeeData);
       const res = await fetchJSON<any>(`${API_BASE}/employees/${cleanId}`, {
         method: 'PUT',
         body: JSON.stringify(payload),
       });
 
-      return {
-        ...res,
-        id: String(res.id),
-      };
+      return mapEmployee(res, cleanId);
     },
 
     delete: async (id: string | number): Promise<boolean> => {
@@ -361,20 +331,27 @@ export const api = {
       enrolledFaceBiometrics: string
     ): Promise<{ success: boolean; message: string; enrolledFacePhoto?: string }> => {
       const cleanId = String(id).replace('emp-', '');
+      const res = await fetchJSON<{ success: boolean; message: string; enrolledFacePhoto?: string }>(
+        `${API_BASE}/employees/${cleanId}/enroll-face`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ enrolledFacePhoto, enrolledFaceBiometrics }),
+        }
+      );
+      localStorage.setItem(`maaya_face_photo_${cleanId}`, enrolledFacePhoto);
+      localStorage.setItem(`maaya_face_bio_${cleanId}`, enrolledFaceBiometrics);
       try {
-        localStorage.setItem(`maaya_face_photo_${cleanId}`, enrolledFacePhoto);
-        localStorage.setItem(`maaya_face_bio_${cleanId}`, enrolledFaceBiometrics);
-        const res = await fetchJSON<{ success: boolean; message: string; enrolledFacePhoto?: string }>(
-          `${API_BASE}/employees/${cleanId}/enroll-face`,
-          {
-            method: 'POST',
-            body: JSON.stringify({ enrolledFacePhoto, enrolledFaceBiometrics }),
+        const rawUser = localStorage.getItem('maaya_current_user');
+        if (rawUser) {
+          const parsed = JSON.parse(rawUser);
+          if (String(parsed.id) === cleanId) {
+            parsed.enrolledFacePhoto = enrolledFacePhoto;
+            parsed.enrolledFaceBiometrics = enrolledFaceBiometrics;
+            localStorage.setItem('maaya_current_user', JSON.stringify(parsed));
           }
-        );
-        return res;
-      } catch {
-        return { success: true, message: 'Enrolled in local profile', enrolledFacePhoto };
-      }
+        }
+      } catch { /* ignore storage sync error */ }
+      return res;
     },
   },
 
@@ -384,9 +361,68 @@ export const api = {
       return fetchJSON<AttendanceRecord[]>(`${API_BASE}/attendance`);
     },
 
+    getPaged: async (params: {
+      date?: string;
+      fromDate?: string;
+      toDate?: string;
+      location?: string;
+      shift?: string;
+      status?: string;
+      search?: string;
+      employeeIds?: (string | number)[];
+      page?: number;
+      size?: number;
+    }): Promise<{
+      items: AttendanceRecord[];
+      page: number;
+      size: number;
+      hasMore: boolean;
+      totalElements: number;
+      summary?: { present: number; onDuty: number; late: number; onLeave: number };
+    }> => {
+      const qs = new URLSearchParams();
+      if (params.date) qs.set('date', params.date);
+      if (params.fromDate) qs.set('fromDate', params.fromDate);
+      if (params.toDate) qs.set('toDate', params.toDate);
+      if (params.location && params.location !== 'ALL') qs.set('location', params.location);
+      if (params.shift && params.shift !== 'ALL') qs.set('shift', params.shift);
+      if (params.status && params.status !== 'ALL') qs.set('status', params.status);
+      if (params.search && params.search.trim()) qs.set('search', params.search.trim());
+      if (params.employeeIds && params.employeeIds.length > 0) {
+        params.employeeIds.forEach((id) => {
+          const clean = String(id).replace('emp-', '').trim();
+          if (/^\d+$/.test(clean)) qs.append('employeeIds', clean);
+        });
+      }
+      qs.set('page', String(params.page ?? 0));
+      qs.set('size', String(params.size ?? 20));
+      return fetchJSON(`${API_BASE}/attendance/paged?${qs.toString()}`);
+    },
+
     getByEmployee: async (employeeId: string | number): Promise<AttendanceRecord[]> => {
       const cleanId = String(employeeId).replace('emp-', '');
       return fetchJSON<AttendanceRecord[]>(`${API_BASE}/attendance/employee/${cleanId}`);
+    },
+
+    getEmployeeHistory: async (
+      employeeId: string | number,
+      params?: { fromDate?: string; toDate?: string; page?: number; size?: number }
+    ): Promise<{
+      items: AttendanceRecord[];
+      fromDate: string;
+      toDate: string;
+      page: number;
+      size: number;
+      hasMore: boolean;
+      hasOlderRecords: boolean;
+    }> => {
+      const cleanId = String(employeeId).replace('emp-', '');
+      const qs = new URLSearchParams();
+      if (params?.fromDate) qs.set('fromDate', params.fromDate);
+      if (params?.toDate) qs.set('toDate', params.toDate);
+      qs.set('page', String(params?.page ?? 0));
+      qs.set('size', String(params?.size ?? 10));
+      return fetchJSON(`${API_BASE}/attendance/employee/${cleanId}/history?${qs.toString()}`);
     },
 
     checkIn: async (

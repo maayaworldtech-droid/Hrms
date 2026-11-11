@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/services/api';
-import { AttendanceRecord, LeaveBalance, Employee } from '@/types';
+import { AttendanceRecord, Employee } from '@/types';
 import { useAppSelector } from '@/store';
 import { formatTime } from '@/utils/formatters';
 import { getShiftDefinition } from '@/utils/shiftUtils';
@@ -10,11 +10,34 @@ import {
   ScanFace,
   CheckCircle2,
   Clock,
-  ChevronRight,
   FileText,
   ShieldCheck,
   Briefcase,
+  UserCheck,
+  CalendarDays,
+  CalendarPlus,
+  Receipt,
 } from 'lucide-react';
+
+function getDayParts(dateStr: string): { dayNum: string; weekday: string } {
+  const parts = dateStr.split('-').map(Number);
+  if (parts.length === 3 && !parts.some(isNaN)) {
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    return {
+      dayNum: String(parts[2]).padStart(2, '0'),
+      weekday: d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
+    };
+  }
+  return { dayNum: '--', weekday: '---' };
+}
+
+function getAttendanceStatusLabel(rec: AttendanceRecord): string {
+  if (rec.status === 'LATE') return 'Late';
+  if (rec.status === 'HALF_DAY') return 'Half Day';
+  if (rec.status === 'ABSENT') return 'Absent';
+  if (rec.status === 'ON_LEAVE') return 'On Leave';
+  return rec.checkOut ? 'Present' : 'Checked In';
+}
 
 export const EmployeeDashboard: React.FC = () => {
   const user = useAppSelector((state) => state.auth.user);
@@ -22,7 +45,7 @@ export const EmployeeDashboard: React.FC = () => {
 
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [attendance, setAttendance] = useState<AttendanceRecord | null>(null);
-  const [balance, setBalance] = useState<LeaveBalance | null>(null);
+  const [recentRecords, setRecentRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
@@ -31,33 +54,21 @@ export const EmployeeDashboard: React.FC = () => {
     setLoading(true);
     setError(false);
     try {
-      let [person, records, leaves] = await Promise.all([
+      const [person, records] = await Promise.all([
         api.employees.getById(employeeId),
         api.attendance.getByEmployee(employeeId).catch(() => []),
-        api.leaves.getBalances(employeeId).catch(() => ({
-          casualLeave: { total: 12, used: 0, remaining: 12 },
-          sickLeave: { total: 10, used: 0, remaining: 10 },
-          earnedLeave: { total: 18, used: 0, remaining: 18 },
-          compOff: { total: 2, used: 0, remaining: 2 },
-        })),
       ]);
-
-      if (!person) {
-        const all = await api.employees.getAll();
-        person = all[0] || null;
-      }
 
       if (!person) throw new Error('Employee record could not be loaded');
 
+      const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const sorted = Array.isArray(records)
+        ? [...records].sort((a, b) => b.date.localeCompare(a.date))
+        : [];
+
       setEmployee(person);
-      setAttendance(
-        records.find(
-          (record) =>
-            record.date ===
-            new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
-        ) || null
-      );
-      setBalance(leaves);
+      setAttendance(sorted.find((record) => record.date === todayStr) || null);
+      setRecentRecords(sorted.slice(0, 4));
     } catch (err) {
       console.error('Failed to load employee details:', err);
       setError(true);
@@ -73,9 +84,9 @@ export const EmployeeDashboard: React.FC = () => {
   if (loading) {
     return (
       <div className="employee-skeleton-group py-2" role="status">
-        <div className="employee-skeleton" style={{ height: '70px' }} />
-        <div className="employee-skeleton" style={{ height: '180px' }} />
-        <div className="employee-skeleton" style={{ height: '70px' }} />
+        <div className="employee-skeleton" style={{ height: '56px' }} />
+        <div className="employee-skeleton" style={{ height: '160px' }} />
+        <div className="employee-skeleton" style={{ height: '90px' }} />
       </div>
     );
   }
@@ -94,148 +105,204 @@ export const EmployeeDashboard: React.FC = () => {
   }
 
   const shift = getShiftDefinition(employee.shift || 'MORNING');
-
   const completed = !!attendance?.checkOut;
   const working = !!attendance?.checkIn && !completed;
 
   const currentHour = new Date().getHours();
-  const greeting = currentHour < 12 ? 'Good morning' : currentHour < 17 ? 'Good afternoon' : 'Good evening';
+  const greeting =
+    currentHour < 12 ? 'Good Morning' : currentHour < 17 ? 'Good Afternoon' : 'Good Evening';
+
+  const statusLine = completed
+    ? `Shift completed · ${attendance.workHours ? `${attendance.workHours}h logged` : 'Punched out'}`
+    : working
+    ? `Clocked in at ${formatTime(attendance!.checkIn!)}`
+    : `${shift.name} · ${shift.timing}`;
 
   return (
-    <div className="space-y-3 pb-2">
-      {/* High-Contrast Executive Greeting Header */}
-      <div className="flex items-start justify-between pt-1">
-        <div>
-          <span className="text-xs text-slate-500 font-medium">{greeting},</span>
-          <h1 className="text-lg font-bold text-slate-900 leading-tight">
-            {employee.firstName || employee.fullName}
-          </h1>
-          <p className="text-xs text-slate-600 mt-0.5">
-            {employee.departmentName || 'Executive'} — {employee.employeeCode}
-          </p>
-        </div>
-        <span className="employee-badge badge-brand">
-          {shift.name}
-        </span>
+    <div className="space-y-5 pb-3">
+      {/* Clean Typographic Greeting Header */}
+      <div className="pt-1">
+        <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+          {greeting}, {employee.firstName || employee.fullName}
+        </h1>
       </div>
 
-      {/* Primary Shift & Punch Card */}
-      <section className="employee-card space-y-3">
-        <div className="flex items-center justify-between text-xs pt-0.5">
-          <div>
-            <span className="text-[10px] text-slate-500 block uppercase font-semibold">Today's Shift</span>
-            <span className="font-semibold text-slate-900 text-sm">{shift.timing}</span>
-          </div>
-          {/* Status badge with NO dot */}
-          <span
-            className={`employee-badge ${
-              completed
-                ? 'badge-brand'
-                : working
-                ? 'badge-success'
-                : 'badge-neutral'
-            }`}
-          >
-            {completed ? 'Shift complete' : working ? 'Checked in' : 'Not checked in'}
+      {/* Compact Biometric Punch Action Bar (Flat, single CTA) */}
+      <section className="bg-white border border-slate-200 rounded-xl px-4 py-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <span className="text-xs font-medium text-slate-500 block">
+            {employee.departmentName || 'Operations'} · {employee.employeeCode}
           </span>
+          <p className="text-sm font-semibold text-slate-900 truncate mt-0.5">{statusLine}</p>
         </div>
-
-        {/* 3 Structured Telemetry Tiles */}
-        <div className="employee-metric-grid">
-          <div className="employee-metric-tile">
-            <span className="metric-label">In</span>
-            <strong className="metric-value">
-              {attendance?.checkIn ? formatTime(attendance.checkIn) : '—'}
-            </strong>
-          </div>
-          <div className="employee-metric-tile">
-            <span className="metric-label">Out</span>
-            <strong className="metric-value">
-              {attendance?.checkOut ? formatTime(attendance.checkOut) : '—'}
-            </strong>
-          </div>
-          <div className="employee-metric-tile">
-            <span className="metric-label">Hours</span>
-            <strong className="metric-value">
-              {attendance?.workHours ? `${attendance.workHours}h` : working ? 'Live' : '—'}
-            </strong>
-          </div>
-        </div>
-
-        {/* Primary Biometric CTA */}
         <button
-          className="employee-primary-btn"
+          type="button"
           disabled={completed}
           onClick={() => setScanOpen(true)}
+          className="px-4 py-2.5 rounded-lg bg-[var(--brand-500)] hover:bg-[var(--brand-600)] disabled:bg-slate-100 disabled:text-slate-500 text-white text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer disabled:cursor-default shadow-xs"
         >
           {completed ? (
             <>
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Shift completed for today</span>
+              <span>Done</span>
             </>
           ) : working ? (
             <>
               <Clock className="w-4 h-4" />
-              <span>Check out</span>
+              <span>Check Out</span>
             </>
           ) : (
             <>
               <ScanFace className="w-4 h-4" />
-              <span>Check in with Face Biometrics</span>
+              <span>Check In</span>
             </>
           )}
         </button>
       </section>
 
-      {/* On Duty & Errand Claims Touch Target */}
-      <Link
-        to="/employee/on-duty"
-        className="employee-card flex items-center justify-between hover:border-slate-300 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200">
-            <Briefcase className="w-4 h-4" />
-          </div>
-          <div>
-            <span className="text-sm font-bold text-slate-900 block leading-tight">
-              On Duty (OD) & Errand Claims
-            </span>
-            <span className="text-[11px] text-slate-500">Bank runs, official tasks & bill reimbursement</span>
-          </div>
-        </div>
-        <span className="text-xs text-[var(--brand-600)] font-semibold flex items-center gap-1">
-          Apply <ChevronRight className="w-3.5 h-3.5" />
-        </span>
-      </Link>
-
-      {/* Quick Navigation Rows */}
-      <div className="grid grid-cols-2 gap-2.5">
+      {/* Primary 2x2 Feature Grid */}
+      <section className="grid grid-cols-2 gap-3" aria-label="Primary actions">
         <Link
           to="/employee/attendance"
-          className="employee-card flex flex-col justify-between p-3.5 mb-0 hover:border-slate-300 transition-colors"
+          className="bg-white border border-slate-200 rounded-xl py-4 px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col items-center justify-center gap-2.5 hover:border-[var(--brand-300)] transition-colors"
         >
-          <div className="w-7 h-7 rounded-md bg-slate-100 text-slate-700 flex items-center justify-center mb-2">
-            <Clock className="w-4 h-4" />
-          </div>
-          <div>
-            <span className="text-xs font-semibold text-slate-900 block">Attendance</span>
-            <span className="text-[10px] text-slate-500">View punch history</span>
-          </div>
+          <span className="w-10 h-10 rounded-xl bg-[var(--brand-50)] text-[var(--brand-600)] flex items-center justify-center">
+            <UserCheck className="w-5 h-5" strokeWidth={1.75} />
+          </span>
+          <span className="text-sm font-semibold text-slate-800">Attendance</span>
         </Link>
 
         <Link
           to="/employee/salary"
-          className="employee-card flex flex-col justify-between p-3.5 mb-0 hover:border-slate-300 transition-colors"
+          className="bg-white border border-slate-200 rounded-xl py-4 px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col items-center justify-center gap-2.5 hover:border-[var(--brand-300)] transition-colors"
         >
-          <div className="w-7 h-7 rounded-md bg-slate-100 text-slate-700 flex items-center justify-center mb-2">
-            <FileText className="w-4 h-4" />
-          </div>
-          <div>
-            <span className="text-xs font-semibold text-slate-900 block">Payslips</span>
-            <span className="text-[10px] text-slate-500">View salary slips</span>
-          </div>
+          <span className="w-10 h-10 rounded-xl bg-[var(--brand-50)] text-[var(--brand-600)] flex items-center justify-center">
+            <FileText className="w-5 h-5" strokeWidth={1.75} />
+          </span>
+          <span className="text-sm font-semibold text-slate-800">Payslips</span>
         </Link>
-      </div>
+
+        <Link
+          to="/employee/on-duty"
+          className="bg-white border border-slate-200 rounded-xl py-4 px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col items-center justify-center gap-2.5 hover:border-[var(--brand-300)] transition-colors"
+        >
+          <span className="w-10 h-10 rounded-xl bg-[var(--brand-50)] text-[var(--brand-600)] flex items-center justify-center">
+            <Briefcase className="w-5 h-5" strokeWidth={1.75} />
+          </span>
+          <span className="text-sm font-semibold text-slate-800">On Duty (OD)</span>
+        </Link>
+
+        <Link
+          to="/employee/leaves"
+          className="bg-white border border-slate-200 rounded-xl py-4 px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col items-center justify-center gap-2.5 hover:border-[var(--brand-300)] transition-colors"
+        >
+          <span className="w-10 h-10 rounded-xl bg-[var(--brand-50)] text-[var(--brand-600)] flex items-center justify-center">
+            <CalendarDays className="w-5 h-5" strokeWidth={1.75} />
+          </span>
+          <span className="text-sm font-semibold text-slate-800">Leave History</span>
+        </Link>
+      </section>
+
+      {/* More Action Section */}
+      <section className="space-y-2.5">
+        <h2 className="text-sm font-bold text-slate-900">More Action</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <Link
+            to="/employee/leaves?apply=true"
+            className="bg-slate-200/70 border border-slate-300/70 rounded-xl py-4 px-3 flex flex-col items-center justify-center gap-2 hover:bg-slate-200 hover:border-slate-300 transition-colors"
+          >
+            <CalendarPlus className="w-6 h-6 text-slate-700" strokeWidth={1.75} />
+            <span className="text-sm font-semibold text-slate-800">Apply Leaves</span>
+          </Link>
+
+          <Link
+            to="/employee/on-duty?tab=EXPENSES"
+            className="bg-slate-200/70 border border-slate-300/70 rounded-xl py-4 px-3 flex flex-col items-center justify-center gap-2 hover:bg-slate-200 hover:border-slate-300 transition-colors"
+          >
+            <Receipt className="w-6 h-6 text-slate-700" strokeWidth={1.75} />
+            <span className="text-sm font-semibold text-slate-800">Errand Claims</span>
+          </Link>
+        </div>
+      </section>
+
+      {/* Attendance Summary Section */}
+      <section className="space-y-2.5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-slate-900">Attendance Summary</h2>
+          <Link
+            to="/employee/attendance"
+            className="text-xs font-semibold text-[var(--brand-600)] hover:text-[var(--brand-700)]"
+          >
+            View all
+          </Link>
+        </div>
+
+        {recentRecords.length === 0 ? (
+          <div className="bg-white border border-slate-200 rounded-xl px-4 py-5 text-center">
+            <p className="text-xs text-slate-600">
+              No attendance logs yet. Use Check In above to record today&apos;s shift.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {recentRecords.map((rec, idx) => {
+              const { dayNum, weekday } = getDayParts(rec.date);
+              const label = getAttendanceStatusLabel(rec);
+              const isLatest = idx === 0;
+              const isWarning = rec.status === 'LATE' || rec.status === 'HALF_DAY';
+              const isDanger = rec.status === 'ABSENT';
+
+              const pillStyle = isDanger
+                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                : isWarning
+                ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                : isLatest
+                ? 'bg-[var(--brand-500)] text-white'
+                : 'bg-[var(--brand-50)] text-[var(--brand-600)] border border-[var(--brand-200)]';
+
+              return (
+                <div
+                  key={rec.id || rec.date}
+                  className={`rounded-xl px-3.5 py-3 flex items-center justify-between gap-2.5 border transition-colors ${
+                    isLatest
+                      ? 'bg-[var(--brand-50)] border-[var(--brand-300)]'
+                      : 'bg-white border-slate-200'
+                  }`}
+                >
+                  <div className="w-10 shrink-0 text-center pr-2.5 border-r border-slate-200">
+                    <span className="block text-sm font-bold text-slate-900 leading-tight">
+                      {dayNum}
+                    </span>
+                    <span className="block text-xs font-medium text-slate-500 uppercase leading-tight">
+                      {weekday}
+                    </span>
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <span className="block text-xs text-slate-500">Punch In</span>
+                    <span className="block text-xs font-bold text-slate-900 tabular-nums">
+                      {rec.checkIn ? formatTime(rec.checkIn) : '--:--'}
+                    </span>
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <span className="block text-xs text-slate-500">Punch Out</span>
+                    <span className="block text-xs font-bold text-slate-900 tabular-nums">
+                      {rec.checkOut ? formatTime(rec.checkOut) : '--:--'}
+                    </span>
+                  </div>
+
+                  <span
+                    className={`rounded-md px-2.5 py-1 text-xs font-semibold shrink-0 ${pillStyle}`}
+                  >
+                    {label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       {/* Biometric Attendance Modal */}
       <BiometricAttendanceModal

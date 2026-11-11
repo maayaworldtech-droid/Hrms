@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppDispatch } from '@/store';
-import { addToast } from '@/store/slices/uiSlice';
+import { useAppSelector } from '@/store';
 import { api } from '@/services/api';
 import { Employee } from '@/types';
 import {
@@ -15,7 +14,6 @@ import {
   Settings,
   User as UserIcon,
   CreditCard,
-  ShieldCheck,
 } from 'lucide-react';
 
 interface CommandPaletteProps {
@@ -25,7 +23,7 @@ interface CommandPaletteProps {
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
+  const activeRole = useAppSelector((state) => state.auth.activeRole);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -34,12 +32,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
   useEffect(() => {
     if (isOpen) {
       inputRef.current?.focus();
-      api.employees.getAll().then(setEmployees);
+      if (activeRole === 'ADMIN' || activeRole === 'MANAGER') {
+        api.employees.getAll().then(setEmployees).catch(() => setEmployees([]));
+      } else {
+        setEmployees([]);
+      }
     } else {
       setQuery('');
       setSelectedIndex(0);
     }
-  }, [isOpen]);
+  }, [isOpen, activeRole]);
 
   // All actionable commands
   const allCommands = useMemo(() => {
@@ -161,18 +163,23 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
       },
     ];
 
-    const employeeMatches = employees.map((emp) => ({
-      id: `emp-${emp.id}`,
-      title: `${emp.fullName} (${emp.employeeCode}) — ${emp.location} Center`,
-      category: 'Employees Directory',
-      icon: Users,
-      action: () => {
-        navigate('/admin/employees');
-      },
-    }));
+    const authorizedNav = navItems.filter((item) => !item.role || item.role.includes(activeRole));
 
-    return [...navItems, ...employeeMatches];
-  }, [navigate, employees]);
+    const employeeMatches =
+      activeRole === 'ADMIN'
+        ? employees.map((emp) => ({
+            id: `emp-${emp.id}`,
+            title: `${emp.fullName} (${emp.employeeCode}) — ${emp.location} Center`,
+            category: 'Employees Directory',
+            icon: Users,
+            action: () => {
+              navigate('/admin/employees');
+            },
+          }))
+        : [];
+
+    return [...authorizedNav, ...employeeMatches];
+  }, [navigate, employees, activeRole]);
 
   // Filter commands
   const filteredCommands = useMemo(() => {

@@ -6,7 +6,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 @Entity
 @Data
@@ -26,10 +28,13 @@ public class PayrollRun {
     private Double totalDeductions = 0.0;
     private Double totalNetPay = 0.0;
 
-    private String status = "DISBURSED"; // DRAFT, APPROVED, DISBURSED
+    private String status = "DRAFT"; // DRAFT, APPROVED, DISBURSED
     private String processedAt; // YYYY-MM-DD
     private String disbursedAt; // YYYY-MM-DD
     private String disbursedBy;
+
+    @Transient
+    private List<Payslip> payslips = new ArrayList<>();
 
     @CreationTimestamp
     @Temporal(TemporalType.TIMESTAMP)

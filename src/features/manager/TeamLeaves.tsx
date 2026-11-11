@@ -53,8 +53,8 @@ export const TeamLeaves: React.FC = () => {
       await api.leaves.updateStatus(
         selectedLeave.id,
         status,
-        user?.name || 'Venue manager',
-        comments || (status === 'APPROVED' ? 'Approved by Team Lead' : 'Declined for venue staffing requirements')
+        comments.trim() || (status === 'APPROVED' ? 'Approved by Team Lead' : 'Declined for venue staffing requirements'),
+        user?.name || 'Venue manager'
       );
       dispatch(
         addToast({
