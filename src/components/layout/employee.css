@@ -1,51 +1,43 @@
 /* ==========================================================================
-   MAAYA WORLD HRMS — EMPLOYEE MOBILE SHELL & PORTAL STYLING
-   Executive Mobile-First Design System (Sky Blue #4A9BD9 & Slate Neutrals)
-   Adhering strictly to clean-web-design principles & project rules:
-     - No nested cards (flat card hierarchy)
-     - No emojis (Lucide outline SVG icons only)
-     - Max 3 font sizes per view
-     - High contrast text (WCAG AAA/AA)
-     - Direct total leave quota display
+   EMPLOYEE MOBILE SHELL
+   Shell chrome only: frame, header, bottom navigation, sheet and a few list
+   helpers that need media queries. Page content is styled with Tailwind
+   utilities and the shared primitives (Button, Badge, Input, EmptyState).
+   Type scale inside the shell: 18px title, 14px body, 12px caption.
    ========================================================================== */
 
 .employee-app {
-  --employee-brand: var(--brand-600);
-  --employee-brand-hover: var(--brand-600);
-  --employee-brand-subtle: var(--brand-50);
-  --employee-brand-text: var(--brand-700);
   min-height: 100dvh;
   background-color: var(--bg-canvas);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: var(--text-sm);
+  font-size: 0.875rem;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
-/* --- Mobile Shell Container --- */
+/* --- Phone frame, centred on wide screens --- */
 .employee-shell {
   max-width: 480px;
   min-height: 100dvh;
   margin: 0 auto;
-  background-color: #F1F5F9;
+  background-color: var(--gray-100);
   border-left: 1px solid var(--border-default);
   border-right: 1px solid var(--border-default);
   display: flex;
   flex-direction: column;
   position: relative;
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.03);
 }
 
-/* --- Top Header --- */
+/* --- Top header --- */
 .employee-header {
   position: sticky;
   top: 0;
   z-index: 30;
   height: 56px;
   padding: 0 16px;
-  background: #ffffff;
-  border-bottom: 1px solid #E2E8F0;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -64,59 +56,53 @@
   object-fit: contain;
 }
 
-.employee-brand-tag {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--brand-700);
-  background: var(--brand-50);
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--brand-200);
-  letter-spacing: 0.01em;
-}
-
 .employee-icon-button,
 .employee-avatar {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   position: relative;
   border-radius: 50%;
   flex-shrink: 0;
-  transition: all var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
   cursor: pointer;
+}
+
+.employee-icon-button:focus-visible,
+.employee-avatar:focus-visible,
+.employee-nav a:focus-visible,
+.employee-filter-pill:focus-visible {
+  outline: 2px solid var(--brand-400);
+  outline-offset: 2px;
 }
 
 .employee-avatar {
   background: var(--brand-600);
   color: #ffffff;
   font-weight: 600;
-  font-size: 12px;
+  font-size: 0.8125rem;
   letter-spacing: 0.02em;
-  border: 1px solid #E2E8F0;
 }
 
 .employee-icon-button {
-  color: #334155;
+  color: var(--gray-700);
   background: transparent;
-  border: 1px solid transparent;
 }
 
 .employee-icon-button:hover {
-  background: #F1F5F9;
-  color: #0F172A;
+  background: var(--gray-100);
+  color: var(--gray-900);
 }
 
-/* --- Scrollable Body Content --- */
+/* --- Scrollable body --- */
 .employee-content {
   flex: 1;
-  background-color: #F1F5F9;
   padding: 16px 16px calc(84px + env(safe-area-inset-bottom));
 }
 
-/* --- Fixed Bottom Navigation Bar --- */
+/* --- Pinned bottom navigation --- */
 .employee-nav {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -128,8 +114,8 @@
   width: 100%;
   max-width: 480px;
   padding: 6px 8px calc(8px + env(safe-area-inset-bottom));
-  background: #ffffff;
-  border-top: 1px solid #E2E8F0;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-default);
 }
 
 .employee-nav a {
@@ -140,152 +126,28 @@
   align-items: center;
   justify-content: center;
   gap: 3px;
-  color: #64748B;
-  font-size: 12px;
+  color: var(--gray-600);
+  font-size: 0.75rem;
   font-weight: 500;
-  position: relative;
   border-radius: 8px;
   text-decoration: none;
   transition: color var(--dur-fast) var(--ease);
 }
 
 .employee-nav a:hover {
-  color: #0F172A;
+  color: var(--gray-900);
 }
 
 .employee-nav a.is-active {
-  color: var(--brand-600);
+  color: var(--brand-700);
   font-weight: 600;
 }
 
 .employee-nav a.is-active svg {
-  color: var(--brand-600);
   stroke-width: 2.2px;
 }
 
-/* ==========================================================================
-   CARDS, PANELS & SURFACES
-   ========================================================================== */
-
-.employee-card {
-  background: #ffffff;
-  border: 1px solid #E2E8F0;
-  border-radius: 14px;
-  padding: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
-  margin-bottom: 12px;
-  transition: border-color var(--dur-fast) var(--ease);
-}
-
-
-
-/* ==========================================================================
-   TELEMETRY METRIC TILES
-   ========================================================================== */
-
-.employee-metric-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin: 12px 0;
-}
-
-.employee-metric-grid.cols-2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.employee-metric-tile {
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 10px;
-  padding: 9px 8px;
-  text-align: center;
-}
-
-.employee-metric-tile .metric-label {
-  display: block;
-  font-size: 10px;
-  font-weight: 600;
-  color: #64748B;
-  letter-spacing: 0.03em;
-  margin-bottom: 2px;
-}
-
-.employee-metric-tile .metric-value {
-  font-size: 14px;
-  font-weight: 700;
-  color: #0F172A;
-  font-variant-numeric: tabular-nums;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.2;
-}
-
-/* ==========================================================================
-   BUTTONS & TOUCH TARGETS
-   ========================================================================== */
-
-.employee-primary-btn {
-  width: 100%;
-  min-height: 46px;
-  border-radius: 11px;
-  background: var(--brand-600);
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-  transition: all var(--dur-fast) var(--ease);
-  box-shadow: 0 1px 2px rgba(49, 130, 200, 0.25);
-}
-
-.employee-primary-btn:hover:not(:disabled) {
-  background: var(--brand-600);
-}
-
-.employee-primary-btn:active:not(:disabled) {
-  background: var(--brand-700);
-  transform: scale(0.99);
-}
-
-.employee-primary-btn:disabled {
-  background: #F1F5F9;
-  color: #94A3B8;
-  border: 1px solid #E2E8F0;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-.employee-secondary-btn {
-  height: 36px;
-  padding: 0 14px;
-  border-radius: 9px;
-  background: #ffffff;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 600;
-  border: 1px solid #CBD5E1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  cursor: pointer;
-  transition: all var(--dur-fast) var(--ease);
-}
-
-.employee-secondary-btn:hover {
-  background: #F8FAFC;
-  color: #0F172A;
-  border-color: #94A3B8;
-}
-
-/* ==========================================================================
-   FILTER BAR & PILLS
-   ========================================================================== */
-
+/* --- Horizontal filter row (hides its scrollbar) --- */
 .employee-filter-bar {
   display: flex;
   align-items: center;
@@ -301,28 +163,28 @@
 }
 
 .employee-filter-pill {
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 9999px;
-  font-size: 12px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.875rem;
   font-weight: 500;
-  border: 1px solid #E2E8F0;
-  background: #ffffff;
-  color: #475569;
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  color: var(--gray-700);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 6px;
   white-space: nowrap;
   cursor: pointer;
   flex-shrink: 0;
-  transition: all 0.15s ease;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
 .employee-filter-pill:hover {
-  background: #F8FAFC;
-  color: #0F172A;
-  border-color: #CBD5E1;
+  background: var(--gray-50);
+  color: var(--gray-900);
+  border-color: var(--border-strong);
 }
 
 .employee-filter-pill.is-active {
@@ -333,12 +195,13 @@
 }
 
 .employee-filter-pill .pill-count {
-  font-size: 10px;
+  font-size: 0.75rem;
   font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 9999px;
-  background: #F1F5F9;
-  color: #475569;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  background: var(--gray-100);
+  color: var(--gray-700);
+  font-variant-numeric: tabular-nums;
 }
 
 .employee-filter-pill.is-active .pill-count {
@@ -346,114 +209,7 @@
   color: #ffffff;
 }
 
-/* ==========================================================================
-   STATUS BADGES (Semantic & accessible)
-   ========================================================================== */
-
-.employee-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 9px;
-  border-radius: 9999px;
-  line-height: 1.2;
-}
-
-.employee-badge.badge-success {
-  background: #ECFDF5;
-  color: #065F46;
-  border: 1px solid #A7F3D0;
-}
-
-.employee-badge.badge-warning {
-  background: #FFFBEB;
-  color: #92400E;
-  border: 1px solid #FDE68A;
-}
-
-.employee-badge.badge-danger {
-  background: #FEF2F2;
-  color: #991B1B;
-  border: 1px solid #FECACA;
-}
-
-.employee-badge.badge-neutral {
-  background: #F1F5F9;
-  color: #475569;
-  border: 1px solid #E2E8F0;
-}
-
-.employee-badge.badge-brand {
-  background: var(--brand-50);
-  color: var(--brand-700);
-  border: 1px solid var(--brand-200);
-}
-
-/* ==========================================================================
-   SEARCH BAR
-   ========================================================================== */
-
-.employee-search-box {
-  position: relative;
-  width: 100%;
-}
-
-.employee-search-box input {
-  width: 100%;
-  height: 38px;
-  padding-left: 34px;
-  padding-right: 12px;
-  font-size: 12px;
-  border-radius: 10px;
-  border: 1px solid #E2E8F0;
-  background: #ffffff;
-  color: #0F172A;
-  outline: none;
-  transition: all var(--dur-fast) var(--ease);
-}
-
-.employee-search-box input::placeholder {
-  color: #94A3B8;
-}
-
-.employee-search-box input:focus {
-  border-color: var(--brand-400);
-  box-shadow: 0 0 0 3px rgba(74, 155, 217, 0.15);
-}
-
-.employee-search-box svg {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #94A3B8;
-  pointer-events: none;
-}
-
-/* ==========================================================================
-   RECORD ITEMS & LISTS
-   ========================================================================== */
-
-.employee-record-card {
-  background: #ffffff;
-  border: 1px solid #E2E8F0;
-  border-radius: 12px;
-  padding: 13px 14px;
-  margin-bottom: 9px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
-  transition: border-color var(--dur-fast) var(--ease);
-}
-
-.employee-record-card:hover {
-  border-color: #CBD5E1;
-}
-
-/* ==========================================================================
-   SKELETON & EMPTY STATES
-   ========================================================================== */
-
+/* --- Loading placeholders --- */
 .employee-skeleton-group {
   display: flex;
   flex-direction: column;
@@ -461,105 +217,43 @@
 }
 
 .employee-skeleton {
-  background: linear-gradient(90deg, #F1F5F9 0%, #E2E8F0 50%, #F1F5F9 100%);
-  background-size: 200% 100%;
-  animation: employeeShimmer 1.5s infinite;
-  border-radius: 12px;
+  background: var(--gray-200);
+  animation: employeePulse 1.4s ease-in-out infinite;
+  border-radius: var(--radius-lg);
   height: 72px;
   width: 100%;
-  border: 1px solid #E2E8F0;
 }
 
-@keyframes employeeShimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+@keyframes employeePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 
-.employee-empty {
-  padding: 36px 16px;
-  text-align: center;
-  background: #ffffff;
-  border: 1px solid #E2E8F0;
-  border-radius: 14px;
-}
-
-.employee-empty svg {
-  margin: 0 auto;
-  color: #94A3B8;
-  stroke-width: 1.5;
-}
-
-.employee-empty h3 {
-  font-size: 13px;
-  font-weight: 600;
-  color: #334155;
-  margin: 8px 0 2px;
-}
-
-.employee-empty p {
-  font-size: 12px;
-  color: #64748B;
-  margin: 0;
-}
-
-/* ==========================================================================
-   SHEETS & MODALS
-   ========================================================================== */
-
+/* --- Account and notification sheet (native dialog) --- */
 .employee-sheet {
-  margin: auto;
-  padding: 20px;
-  width: calc(100% - 32px);
-  max-width: 440px;
+  margin: auto 0 0;
+  padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+  width: 100%;
+  max-width: 480px;
   max-height: 85dvh;
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-xl);
+  border-bottom: none;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   color: var(--text-primary);
-  background: #ffffff;
+  background: var(--bg-surface);
   box-shadow: var(--shadow-xl);
 }
 
+@media (min-width: 640px) {
+  .employee-sheet {
+    margin: auto;
+    width: calc(100% - 32px);
+    max-width: 440px;
+    border-bottom: 1px solid var(--border-default);
+    border-radius: var(--radius-xl);
+  }
+}
+
 .employee-sheet::backdrop {
-  background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(4px);
-}
-
-.employee-notice {
-  padding: 12px;
-  border-radius: 10px;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  margin-bottom: 8px;
-}
-
-.employee-notice h3 {
-  font-size: 13px;
-  font-weight: 600;
-  color: #0F172A;
-  margin: 0 0 2px;
-}
-
-.employee-notice p {
-  font-size: 12px;
-  color: #475569;
-  margin: 0 0 4px;
-}
-
-.employee-notice small {
-  font-size: 11px;
-  color: #94A3B8;
-}
-
-.employee-text-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--brand-600);
-  font-size: 12px;
-  font-weight: 600;
-  background: transparent;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  margin-top: 6px;
+  background: var(--scrim);
 }

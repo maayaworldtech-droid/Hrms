@@ -8,6 +8,7 @@ import { formatDate, formatTime, formatLabel } from '@/utils/formatters';
 import { businessDate, subtractMonthsFromDate, previousDayIso } from '@/utils/operations';
 import { ShieldCheck, AlertCircle, CalendarDays } from 'lucide-react';
 import { getShiftLabel } from '@/utils/shiftUtils';
+import { attendanceStatusVariant } from '@/utils/status';
 
 interface EmployeeAttendanceHistoryModalProps {
   employee: {
@@ -116,28 +117,22 @@ export const EmployeeAttendanceHistoryModal: React.FC<EmployeeAttendanceHistoryM
 
   if (!employee) return null;
 
-  const statusVariant = (status: string) => {
-    if (status === 'PRESENT') return 'success';
-    if (status === 'ON_DUTY') return 'info';
-    if (status === 'LATE') return 'warning';
-    return 'error';
-  };
 
   return (
     <Modal
       isOpen={Boolean(employee)}
       onClose={onClose}
-      title={`${employee.employeeName} — Attendance History`}
+      title={`Attendance · ${employee.employeeName}`}
       subtitle={`${employee.location || 'No center assigned'} · ${
         getShiftLabel(employee.shift)
       }`}
       size="lg"
     >
-      <div className="space-y-4 text-xs">
+      <div className="space-y-4 text-sm">
         {/* Active range bar */}
         <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200 text-slate-600">
           <div className="flex items-center gap-1.5">
-            <CalendarDays className="w-3.5 h-3.5 text-slate-500" />
+            <CalendarDays className="w-3.5 h-3.5 text-slate-600" />
             <span>
               Range:{' '}
               <strong className="text-slate-900">
@@ -149,7 +144,7 @@ export const EmployeeAttendanceHistoryModal: React.FC<EmployeeAttendanceHistoryM
               </strong>
             </span>
           </div>
-          <span className="text-slate-500 tabular-nums">
+          <span className="text-slate-600 tabular-nums">
             {records.length} {records.length === 1 ? 'record' : 'records'} loaded
           </span>
         </div>
@@ -184,10 +179,10 @@ export const EmployeeAttendanceHistoryModal: React.FC<EmployeeAttendanceHistoryM
         ) : records.length === 0 ? (
           <div className="py-10 text-center space-y-2">
             <p className="font-semibold text-slate-900">
-              No attendance records in this 1-month window
+              No attendance in this period
             </p>
-            <p className="text-slate-500">
-              No punches found between {fromDate ? formatDate(fromDate) : '--'} and{' '}
+            <p className="text-slate-600">
+              No check-ins between {fromDate ? formatDate(fromDate) : '--'} and{' '}
               {toDate ? formatDate(toDate) : '--'}.
             </p>
             {hasOlderRecords && (
@@ -206,12 +201,12 @@ export const EmployeeAttendanceHistoryModal: React.FC<EmployeeAttendanceHistoryM
         ) : (
           <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
             <div className="max-h-[380px] overflow-y-auto overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-700">
-                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold sticky top-0">
+              <table className="w-full text-left text-sm text-slate-700">
+                <thead className="sticky top-0 border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-600">
                   <tr>
                     <th className="py-2.5 px-3">Date</th>
-                    <th className="py-2.5 px-3">Punch in</th>
-                    <th className="py-2.5 px-3">Punch out</th>
+                    <th className="py-2.5 px-3">Check in</th>
+                    <th className="py-2.5 px-3">Check out</th>
                     <th className="py-2.5 px-3">Hours</th>
                     <th className="py-2.5 px-3">Status</th>
                   </tr>
@@ -223,7 +218,7 @@ export const EmployeeAttendanceHistoryModal: React.FC<EmployeeAttendanceHistoryM
                         <div className="flex items-center gap-1.5">
                           <span>{formatDate(rec.date)}</span>
                           {rec.isBiometricVerified && (
-                            <span title="Face Biometric Verified">
+                            <span title="Face checked">
                               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                             </span>
                           )}
@@ -236,10 +231,10 @@ export const EmployeeAttendanceHistoryModal: React.FC<EmployeeAttendanceHistoryM
                         {rec.checkOut ? formatTime(rec.checkOut) : '--:--'}
                       </td>
                       <td className="py-2.5 px-3 tabular-nums text-slate-800 whitespace-nowrap">
-                        {rec.workHours ? `${rec.workHours} hrs` : '--'}
+                        {rec.workHours ? `${rec.workHours} h` : '--'}
                       </td>
                       <td className="py-2.5 px-3 whitespace-nowrap">
-                        <Badge variant={statusVariant(rec.status)} size="sm">
+                        <Badge variant={attendanceStatusVariant(rec.status)} size="sm" dot>
                           {formatLabel(rec.status)}
                         </Badge>
                       </td>

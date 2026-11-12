@@ -4,78 +4,69 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { api } from '@/services/api';
-import { OnDutyRequest, OnDutyType } from '@/types';
+import { OnDutyRequest } from '@/types';
 import { Modal } from '@/components/common/Modal';
 import { Input } from '@/components/common/Input';
-import { formatDate } from '@/utils/formatters';
+import { Select } from '@/components/common/Select';
+import { Textarea } from '@/components/common/Textarea';
+import { Button } from '@/components/common/Button';
+import { Badge } from '@/components/common/Badge';
+import { EmptyState } from '@/components/common/EmptyState';
+import { FilterPills, MobileSearch, MobileSkeleton, MobileTitle } from '@/components/employee/MobilePrimitives';
+import { formatDate, formatINR } from '@/utils/formatters';
+import { onDutyStatusVariant, reimbursementStatusLabel, reimbursementStatusVariant } from '@/utils/status';
 import { businessDate } from '@/utils/operations';
-import {
-  Plus,
-  Search,
-  Briefcase,
-  Clock,
-  Calendar,
-  Receipt,
-  Upload,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  Eye,
-  FileText,
-  Building,
-  DollarSign,
-  ArrowRight,
-} from 'lucide-react';
+import { Plus, Briefcase, Receipt, Paperclip } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 import { DUTY_TYPES, dutyTypeLabel } from '@/utils/dutyTypes';
 
-
-const applyOnDutySchema = z.object({
-  dutyDate: z.string().min(1, 'Duty date is required'),
-  startTime: z.string().min(1, 'Start time is required'),
-  endTime: z.string().min(1, 'End time is required'),
-  dutyType: z.enum([
-    'BANK_DEPOSIT',
-    'PROCUREMENT',
-    'CLIENT_VISIT',
-    'DELIVERY',
-    'OFFICIAL_ERRAND',
-    'OTHER',
-  ]),
-  reason: z.string().min(5, 'Please provide a clear reason (minimum 5 characters)'),
-  hasExpense: z.boolean(),
-  expenseAmount: z.number().optional(),
-  expenseDescription: z.string().optional(),
-});
+const applyOnDutySchema = z
+  .object({
+    dutyDate: z.string().min(1, 'Duty date is required'),
+    startTime: z.string().min(1, 'Start time is required'),
+    endTime: z.string().min(1, 'End time is required'),
+    dutyType: z.enum(['BANK_DEPOSIT', 'PROCUREMENT', 'CLIENT_VISIT', 'DELIVERY', 'OFFICIAL_ERRAND', 'OTHER']),
+    reason: z.string().trim().min(5, 'Describe the duty and destination (at least 5 characters)'),
+    hasExpense: z.boolean(),
+    expenseAmount: z.coerce.number().min(0).optional(),
+    expenseDescription: z.string().optional(),
+  })
+  .refine((data) => data.endTime > data.startTime, { message: 'End time must be after the start time', path: ['endTime'] })
+  .refine((data) => !data.hasExpense || (data.expenseAmount ?? 0) > 0, { message: 'Enter the amount spent', path: ['expenseAmount'] });
 
 type ApplyOnDutyFormValues = z.infer<typeof applyOnDutySchema>;
+type Filter = 'ALL' | 'PENDING' | 'APPROVED' | 'EXPENSES';
+
+const readFileAsDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 
 export const MyOnDuty: React.FC = () => {
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
   const employeeId = user?.id || '';
-
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [requests, setRequests] = useState<OnDutyRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'EXPENSES'>(() =>
-    searchParams.get('tab') === 'EXPENSES' ? 'EXPENSES' : 'ALL'
-  );
+  const [isApplyModalOpen, setIsApplyModalOpen] = useState(() => searchParams.get('apply') === 'true');
+  const [statusFilter, setStatusFilter] = useState<Filter>(() => (searchParams.get('tab') === 'EXPENSES' ? 'EXPENSES' : 'ALL'));
   const [searchQuery, setSearchQuery] = useState('');
-
-  // Bill preview state
   const [previewBillUrl, setPreviewBillUrl] = useState<string | null>(null);
 
-  // Post-duty expense claim modal state
+  // Claim raised after an approved duty
   const [claimTarget, setClaimTarget] = useState<OnDutyRequest | null>(null);
-  const [claimAmount, setClaimAmount] = useState<string>('');
-  const [claimDesc, setClaimDesc] = useState<string>('');
+  const [claimAmount, setClaimAmount] = useState('');
+  const [claimDesc, setClaimDesc] = useState('');
   const [claimBillPhoto, setClaimBillPhoto] = useState<string | null>(null);
+  const [claimErrors, setClaimErrors] = useState<{ amount?: string; desc?: string; bill?: string }>({});
   const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
 
-  // Upfront form bill upload
+  // Bill attached while applying
   const [formBillPhoto, setFormBillPhoto] = useState<string | null>(null);
 
   const {
@@ -83,7 +74,6 @@ export const MyOnDuty: React.FC = () => {
     handleSubmit,
     reset,
     watch,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm<ApplyOnDutyFormValues>({
     resolver: zodResolver(applyOnDutySchema),
@@ -98,7 +88,6 @@ export const MyOnDuty: React.FC = () => {
       expenseDescription: '',
     },
   });
-
   const hasExpenseWatch = watch('hasExpense');
 
   const loadData = useCallback(async () => {
@@ -109,7 +98,7 @@ export const MyOnDuty: React.FC = () => {
     setIsLoading(true);
     try {
       const list = await api.onDuty.getByEmployee(employeeId).catch(() => []);
-      setRequests(Array.isArray(list) ? list : []);
+      setRequests(Array.isArray(list) ? [...list].sort((a, b) => b.dutyDate.localeCompare(a.dutyDate)) : []);
     } finally {
       setIsLoading(false);
     }
@@ -119,25 +108,36 @@ export const MyOnDuty: React.FC = () => {
     void loadData();
   }, [loadData]);
 
-  const handleBillUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'FORM' | 'CLAIM') => {
+  const handleBillUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'FORM' | 'CLAIM') => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
-      dispatch(addToast({ type: 'error', title: 'Invalid File', message: 'Please upload an image or receipt file.' }));
+      dispatch(addToast({ type: 'error', title: 'Unsupported file', message: 'Attach a photo or PDF of the bill.' }));
+      e.target.value = '';
       return;
     }
+    if (file.size > 5 * 1024 * 1024) {
+      dispatch(addToast({ type: 'error', title: 'File too large', message: 'Bills must be under 5 MB.' }));
+      e.target.value = '';
+      return;
+    }
+    const dataUrl = await readFileAsDataUrl(file);
+    if (target === 'FORM') setFormBillPhoto(dataUrl);
+    else {
+      setClaimBillPhoto(dataUrl);
+      setClaimErrors((prev) => ({ ...prev, bill: undefined }));
+    }
+  };
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (target === 'FORM') {
-        setFormBillPhoto(dataUrl);
-      } else {
-        setClaimBillPhoto(dataUrl);
-      }
-    };
-    reader.readAsDataURL(file);
+  const closeApply = () => {
+    setIsApplyModalOpen(false);
+    reset();
+    setFormBillPhoto(null);
+    if (searchParams.has('apply')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('apply');
+      setSearchParams(next, { replace: true });
+    }
   };
 
   const onApplySubmit = async (values: ApplyOnDutyFormValues) => {
@@ -156,570 +156,297 @@ export const MyOnDuty: React.FC = () => {
         expenseDescription: values.hasExpense ? values.expenseDescription : '',
         billPhoto: values.hasExpense ? formBillPhoto || undefined : undefined,
       });
-
-      dispatch(
-        addToast({
-          type: 'success',
-          title: 'On Duty Request Submitted',
-          message: 'Your outdoor duty request was submitted for manager review.',
-        })
-      );
-
-      reset();
-      setFormBillPhoto(null);
-      setIsApplyModalOpen(false);
+      dispatch(addToast({ type: 'success', title: 'On Duty request submitted', message: 'Sent to your manager for approval.' }));
+      closeApply();
       void loadData();
     } catch (err: any) {
-      dispatch(
-        addToast({
-          type: 'error',
-          title: 'Submission Failed',
-          message: err?.message || 'Could not submit On Duty request.',
-        })
-      );
+      dispatch(addToast({ type: 'error', title: 'Submission failed', message: err?.message || 'Could not submit the request.' }));
     }
   };
 
-  const handlePostDutyClaimSubmit = async () => {
+  const closeClaim = () => {
+    setClaimTarget(null);
+    setClaimAmount('');
+    setClaimDesc('');
+    setClaimBillPhoto(null);
+    setClaimErrors({});
+  };
+
+  const handlePostDutyClaimSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!claimTarget) return;
     const amountNum = parseFloat(claimAmount);
-    if (isNaN(amountNum) || amountNum <= 0) {
-      dispatch(addToast({ type: 'error', title: 'Invalid Amount', message: 'Please enter a valid expense amount.' }));
-      return;
-    }
-    if (!claimDesc.trim()) {
-      dispatch(addToast({ type: 'error', title: 'Description Required', message: 'Please state what the expense was for.' }));
-      return;
-    }
-    if (!claimBillPhoto) {
-      dispatch(addToast({ type: 'error', title: 'Bill Required', message: 'Please attach a photo or scan of your receipt/bill.' }));
-      return;
-    }
+    const nextErrors: typeof claimErrors = {};
+    if (Number.isNaN(amountNum) || amountNum <= 0) nextErrors.amount = 'Enter the amount spent';
+    if (!claimDesc.trim()) nextErrors.desc = 'Say what the expense was for';
+    if (!claimBillPhoto) nextErrors.bill = 'Attach the bill or receipt';
+    setClaimErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
 
     setIsSubmittingClaim(true);
     try {
-      await api.onDuty.claimExpense(claimTarget.id, {
-        expenseAmount: amountNum,
-        expenseDescription: claimDesc.trim(),
-        billPhoto: claimBillPhoto,
-      });
-
-      dispatch(
-        addToast({
-          type: 'success',
-          title: 'Expense Claim Submitted',
-          message: 'Your bill receipt and reimbursement request have been forwarded to your manager.',
-        })
-      );
-
-      setClaimTarget(null);
-      setClaimAmount('');
-      setClaimDesc('');
-      setClaimBillPhoto(null);
+      await api.onDuty.claimExpense(claimTarget.id, { expenseAmount: amountNum, expenseDescription: claimDesc.trim(), billPhoto: claimBillPhoto! });
+      dispatch(addToast({ type: 'success', title: 'Expense claim submitted', message: 'Your manager will review the bill.' }));
+      closeClaim();
       void loadData();
     } catch (err: any) {
-      dispatch(
-        addToast({
-          type: 'error',
-          title: 'Claim Failed',
-          message: err?.message || 'Could not submit reimbursement claim.',
-        })
-      );
+      dispatch(addToast({ type: 'error', title: 'Claim failed', message: err?.message || 'Could not submit the claim.' }));
     } finally {
       setIsSubmittingClaim(false);
     }
   };
 
+  const counts = useMemo(
+    () => ({
+      ALL: requests.length,
+      PENDING: requests.filter((r) => r.status === 'PENDING').length,
+      APPROVED: requests.filter((r) => r.status === 'APPROVED').length,
+      EXPENSES: requests.filter((r) => r.hasExpense && r.reimbursementStatus !== 'NONE').length,
+    }),
+    [requests]
+  );
+
   const filteredRequests = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     return requests.filter((req) => {
       if (statusFilter === 'PENDING' && req.status !== 'PENDING') return false;
       if (statusFilter === 'APPROVED' && req.status !== 'APPROVED') return false;
       if (statusFilter === 'EXPENSES' && (!req.hasExpense || req.reimbursementStatus === 'NONE')) return false;
-
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesReason = req.reason?.toLowerCase().includes(q);
-        const matchesType = req.dutyType?.toLowerCase().includes(q);
-        const matchesDesc = req.expenseDescription?.toLowerCase().includes(q);
-        if (!matchesReason && !matchesType && !matchesDesc) return false;
-      }
-
-      return true;
+      if (!q) return true;
+      return (
+        req.reason?.toLowerCase().includes(q) ||
+        dutyTypeLabel(req.dutyType).toLowerCase().includes(q) ||
+        req.expenseDescription?.toLowerCase().includes(q) ||
+        formatDate(req.dutyDate).toLowerCase().includes(q)
+      );
     });
   }, [requests, statusFilter, searchQuery]);
 
-  const formatDutyType = (type: OnDutyType) => {
-    return dutyTypeLabel(type);
-  };
+  const billField = (target: 'FORM' | 'CLAIM', attached: string | null, error?: string) => (
+    <div>
+      <label htmlFor={`bill-${target}`} className="block text-sm font-medium text-slate-800 mb-1.5">
+        Bill or receipt {target === 'CLAIM' && <span className="text-rose-600">*</span>}
+      </label>
+      <input
+        id={`bill-${target}`}
+        type="file"
+        accept="image/*,application/pdf"
+        onChange={(e) => void handleBillUpload(e, target)}
+        className="block w-full text-sm text-slate-700 file:mr-3 file:h-10 file:rounded-lg file:border file:border-slate-300 file:bg-white file:px-3 file:text-sm file:font-medium file:text-slate-800 hover:file:bg-slate-50"
+      />
+      {attached ? (
+        <p className="mt-1.5 inline-flex items-center gap-1.5 text-sm text-emerald-700">
+          <Paperclip className="h-3.5 w-3.5" aria-hidden="true" /> Attached
+        </p>
+      ) : error ? (
+        <p className="mt-1.5 text-xs font-medium text-rose-700">{error}</p>
+      ) : (
+        <p className="mt-1.5 text-xs text-slate-600">Photo or PDF, up to 5 MB.</p>
+      )}
+    </div>
+  );
 
   return (
-    <div className="space-y-4 max-w-2xl mx-auto pb-6">
-      {/* Header Banner */}
-      <div className="flex items-center justify-between pt-1">
-        <div>
-          <h1 className="text-base font-bold text-slate-900 leading-tight">On Duty (OD)</h1>
-          <p className="text-xs text-slate-500">Official outdoor work & expense reimbursements</p>
-        </div>
-        <button
-          onClick={() => setIsApplyModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-2 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition-colors cursor-pointer shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Apply OD</span>
-        </button>
-      </div>
+    <div className="space-y-4 pb-6">
+      <MobileTitle
+        title="On Duty"
+        subtitle="Outdoor work and expense claims"
+        action={
+          <Button onClick={() => setIsApplyModalOpen(true)} leftIcon={<Plus className="h-4 w-4" />}>
+            Apply
+          </Button>
+        }
+      />
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2 text-xs overflow-x-auto">
-        {(['ALL', 'PENDING', 'APPROVED', 'EXPENSES'] as const).map((filter) => (
-          <button
-            key={filter}
-            onClick={() => setStatusFilter(filter)}
-            className={`px-3 py-1.5 rounded-lg font-medium transition-colors shrink-0 cursor-pointer ${
-              statusFilter === filter
-                ? 'bg-brand-600 text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-            }`}
-          >
-            {filter === 'ALL' && 'All Requests'}
-            {filter === 'PENDING' && 'Pending'}
-            {filter === 'APPROVED' && 'Approved'}
-            {filter === 'EXPENSES' && 'Expense Claims'}
-          </button>
-        ))}
-      </div>
-
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-        <input
-          type="text"
-          placeholder="Search by reason, type, or expense…"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs placeholder:text-slate-400 focus:outline-none focus:border-slate-400"
+      <div className="space-y-2">
+        <MobileSearch value={searchQuery} onChange={setSearchQuery} label="Search On Duty requests" placeholder="Search by reason, type or date" />
+        <FilterPills<Filter>
+          label="Filter On Duty requests"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { key: 'ALL', label: 'All', count: counts.ALL },
+            { key: 'PENDING', label: 'Pending', count: counts.PENDING },
+            { key: 'APPROVED', label: 'Approved', count: counts.APPROVED },
+            { key: 'EXPENSES', label: 'Expense claims', count: counts.EXPENSES },
+          ]}
         />
       </div>
 
-      {/* List of Requests */}
       {isLoading ? (
-        <div className="p-8 text-center text-xs text-slate-500 bg-white border border-slate-200 rounded-xl">
-          Loading On Duty records…
-        </div>
+        <MobileSkeleton />
       ) : filteredRequests.length === 0 ? (
-        <div className="p-8 text-center bg-white border border-slate-200 rounded-xl space-y-2">
-          <Briefcase className="w-8 h-8 text-slate-300 mx-auto" />
-          <p className="text-xs font-semibold text-slate-800">No On Duty requests found</p>
-          <p className="text-xs text-slate-500 max-w-xs mx-auto">
-            Need to deposit money, run an official errand, or purchase supplies? Apply above.
-          </p>
-        </div>
+        <EmptyState
+          icon={Briefcase}
+          title={requests.length === 0 ? 'No On Duty requests yet' : 'Nothing matches this filter'}
+          description={requests.length === 0 ? 'Bank deposits, purchases and official errands outside the center are recorded here.' : undefined}
+          actionLabel={requests.length === 0 ? 'Apply On Duty' : undefined}
+          onAction={requests.length === 0 ? () => setIsApplyModalOpen(true) : undefined}
+        />
       ) : (
-        <div className="space-y-3">
-          {filteredRequests.map((req) => (
-            <div
-              key={req.id}
-              className="p-4 bg-white border border-slate-200 rounded-xl space-y-3 hover:border-slate-300 transition-colors"
-            >
-              {/* Row 1: Badges & Date */}
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-800">
-                    {formatDutyType(req.dutyType)}
-                  </span>
-                  <span className="text-xs font-medium text-slate-500 flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5" />
-                    {formatDate(req.dutyDate)}
-                  </span>
+        <ul className="space-y-2.5">
+          {filteredRequests.map((req) => {
+            const hasClaim = req.hasExpense && (req.expenseAmount ?? 0) > 0;
+            return (
+              <li key={req.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold text-slate-900">{dutyTypeLabel(req.dutyType)}</span>
+                  <Badge variant={onDutyStatusVariant(req.status)} size="sm" dot>
+                    {req.status === 'PENDING' ? 'Pending approval' : req.status[0] + req.status.slice(1).toLowerCase()}
+                  </Badge>
                 </div>
-
-                {/* Status Badge */}
-                {req.status === 'PENDING' && (
-                  <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                    Pending approval
-                  </span>
-                )}
-                {req.status === 'APPROVED' && (
-                  <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    Approved
-                  </span>
-                )}
-                {req.status === 'REJECTED' && (
-                  <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                    Rejected
-                  </span>
-                )}
-              </div>
-
-              {/* Row 2: Time Window & Reason */}
-              <div className="space-y-1">
-                <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
-                  <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                  <span>{req.startTime} – {req.endTime}</span>
-                </div>
-                <p className="text-xs text-slate-800 font-normal leading-relaxed">
-                  {req.reason}
+                <p className="mt-1 text-sm text-slate-700">
+                  {formatDate(req.dutyDate)} <span className="text-slate-600">· {req.startTime} to {req.endTime}</span>
                 </p>
-              </div>
+                <p className="mt-1.5 text-sm text-slate-600 line-clamp-2">{req.reason}</p>
 
-              {/* Row 3: Manager Review Notes (if any) */}
-              {req.reviewerComments && (
-                <div className="p-2.5 bg-slate-50 border border-slate-100 rounded-lg text-xs space-y-0.5">
-                  <span className="text-slate-500 font-medium">Manager Feedback ({req.reviewedBy || 'Reviewer'}):</span>
-                  <p className="text-slate-700">{req.reviewerComments}</p>
-                </div>
-              )}
+                {req.reviewerComments && (
+                  <p className="mt-2 border-t border-slate-100 pt-2 text-sm text-slate-700">
+                    <span className="font-medium text-slate-900">{req.reviewedBy || 'Manager'}: </span>
+                    {req.reviewerComments}
+                  </p>
+                )}
 
-              {/* Row 4: Expense & Reimbursement Box */}
-              {req.hasExpense && req.expenseAmount && req.expenseAmount > 0 ? (
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-1.5 font-semibold text-slate-900">
-                      <Receipt className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Spent: ₹{req.expenseAmount.toLocaleString('en-IN')}</span>
-                      {req.reimbursementStatus === 'PENDING' && (
-                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                          Reimbursement pending
-                        </span>
-                      )}
-                      {req.reimbursementStatus === 'REIMBURSED' && (
-                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          Reimbursed
-                        </span>
-                      )}
-                      {req.reimbursementStatus === 'REJECTED' && (
-                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">
-                          Claim rejected
-                        </span>
-                      )}
-                    </div>
-                    {req.expenseDescription && (
-                      <p className="text-xs text-slate-500 line-clamp-1">
-                        {req.expenseDescription}
+                {hasClaim ? (
+                  <div className="mt-2 flex items-center justify-between gap-3 border-t border-slate-100 pt-2">
+                    <div className="min-w-0 text-sm">
+                      <p className="font-medium tabular-nums text-slate-900">
+                        Spent {formatINR(req.expenseAmount!)}
+                        {req.expenseDescription ? <span className="font-normal text-slate-600"> · {req.expenseDescription}</span> : null}
                       </p>
+                      <Badge variant={reimbursementStatusVariant(req.reimbursementStatus)} size="sm" className="mt-1">
+                        {reimbursementStatusLabel(req.reimbursementStatus)}
+                      </Badge>
+                    </div>
+                    {req.billPhoto && (
+                      <Button variant="ghost" size="sm" onClick={() => setPreviewBillUrl(req.billPhoto || null)}>
+                        View bill
+                      </Button>
                     )}
                   </div>
-
-                  {req.billPhoto && (
-                    <button
-                      onClick={() => setPreviewBillUrl(req.billPhoto || null)}
-                      className="flex items-center gap-1 px-2.5 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded text-xs font-medium text-slate-700 cursor-pointer transition-colors"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>View bill</span>
-                    </button>
-                  )}
-                </div>
-              ) : (
-                /* No expense yet: Offer Claim button if OD is approved */
-                req.status === 'APPROVED' && (
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-xs text-slate-500">Spent money during this duty?</span>
-                    <button
-                      onClick={() => {
-                        setClaimTarget(req);
-                        setClaimAmount('');
-                        setClaimDesc('');
-                        setClaimBillPhoto(null);
-                      }}
-                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-brand-600 hover:bg-brand-50 rounded transition-colors cursor-pointer"
-                    >
-                      <Receipt className="w-3.5 h-3.5" />
-                      <span>Upload bill & claim</span>
-                    </button>
-                  </div>
-                )
-              )}
-            </div>
-          ))}
-        </div>
+                ) : (
+                  req.status === 'APPROVED' && (
+                    <div className="mt-2 flex items-center justify-between gap-3 border-t border-slate-100 pt-2">
+                      <span className="text-sm text-slate-600">Spent money on this duty?</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        leftIcon={<Receipt className="h-3.5 w-3.5" />}
+                        onClick={() => {
+                          closeClaim();
+                          setClaimTarget(req);
+                        }}
+                      >
+                        Claim expense
+                      </Button>
+                    </div>
+                  )
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
 
-      {/* Apply On Duty Modal */}
-      <Modal
-        isOpen={isApplyModalOpen}
-        onClose={() => {
-          setIsApplyModalOpen(false);
-          reset();
-          setFormBillPhoto(null);
-        }}
-        title="Apply for On Duty"
-        subtitle="Submit outdoor company assignment or errand for manager approval"
-      >
-        <form onSubmit={handleSubmit(onApplySubmit)} className="space-y-4 text-xs">
-          {/* Duty Date */}
-          <div>
-            <label className="block font-semibold text-slate-700 mb-1">
-              Duty date <span className="text-rose-500">*</span>
-            </label>
-            <input
-              type="date"
-              {...register('dutyDate')}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs text-slate-800 focus:outline-none focus:border-slate-400"
-            />
-            {errors.dutyDate && (
-              <p className="text-xs text-rose-500 mt-1">{errors.dutyDate.message}</p>
-            )}
-          </div>
-
-          {/* Time Window */}
+      <Modal isOpen={isApplyModalOpen} onClose={closeApply} title="Apply for On Duty" subtitle="Outdoor work needs your manager's approval" size="md">
+        <form onSubmit={handleSubmit(onApplySubmit)} className="space-y-4">
+          <Input label="Duty date" type="date" required error={errors.dutyDate?.message} {...register('dutyDate')} />
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                Start time <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="time"
-                {...register('startTime')}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs text-slate-800 focus:outline-none focus:border-slate-400"
-              />
-              {errors.startTime && (
-                <p className="text-xs text-rose-500 mt-1">{errors.startTime.message}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                End time <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="time"
-                {...register('endTime')}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs text-slate-800 focus:outline-none focus:border-slate-400"
-              />
-              {errors.endTime && (
-                <p className="text-xs text-rose-500 mt-1">{errors.endTime.message}</p>
-              )}
-            </div>
+            <Input label="Start time" type="time" required error={errors.startTime?.message} {...register('startTime')} />
+            <Input label="End time" type="time" required error={errors.endTime?.message} {...register('endTime')} />
           </div>
+          <Select label="Duty type" options={DUTY_TYPES.map((t) => ({ value: t.value, label: t.label }))} {...register('dutyType')} />
+          <Textarea
+            label="Reason and destination"
+            required
+            rows={3}
+            placeholder="For example: depositing yesterday's ticket cash at the bank"
+            error={errors.reason?.message}
+            {...register('reason')}
+          />
 
-          {/* Work / Assignment Type */}
-          <div>
-            <label className="block font-semibold text-slate-700 mb-1">
-              Duty category <span className="text-rose-500">*</span>
+          <div className="border-t border-slate-200 pt-4">
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium text-slate-800">
+              <input type="checkbox" className="h-4 w-4 rounded border-slate-300 accent-brand-600" {...register('hasExpense')} />
+              I spent money on this duty and want to claim it
             </label>
-            <select
-              {...register('dutyType')}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs text-slate-800 focus:outline-none focus:border-slate-400"
-            >
-              {DUTY_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Reason / Purpose */}
-          <div>
-            <label className="block font-semibold text-slate-700 mb-1">
-              Reason & destination details <span className="text-rose-500">*</span>
-            </label>
-            <textarea
-              rows={3}
-              placeholder="e.g. Depositing yesterday's ticket cash at the bank"
-              {...register('reason')}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs text-slate-800 focus:outline-none focus:border-slate-400 resize-none"
-            />
-            {errors.reason && (
-              <p className="text-xs text-rose-500 mt-1">{errors.reason.message}</p>
-            )}
-          </div>
-
-          {/* Expense Reimbursement Section */}
-          <div className="pt-2 border-t border-slate-100 space-y-3">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                {...register('hasExpense')}
-                className="w-4 h-4 rounded text-brand-600 border-slate-300 focus:ring-0"
-              />
-              <span className="font-semibold text-slate-800">
-                Incurred an expense? (Attach bill for reimbursement)
-              </span>
-            </label>
-
             {hasExpenseWatch && (
-              <div className="space-y-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">
-                    Amount (₹) <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="e.g., 450"
-                    onChange={(e) => setValue('expenseAmount', parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs text-slate-800 focus:outline-none focus:border-slate-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">
-                    Expense purpose
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Auto fare, courier charge, or stationery purchase"
-                    {...register('expenseDescription')}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs text-slate-800 focus:outline-none focus:border-slate-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">
-                    Upload Bill / Receipt Photo <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="file"
-                    accept="image/*,application/pdf"
-                    onChange={(e) => handleBillUpload(e, 'FORM')}
-                    className="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-slate-200 file:text-slate-700 hover:file:bg-slate-300 cursor-pointer"
-                  />
-
-                  {formBillPhoto && (
-                    <div className="mt-2 flex items-center gap-2 p-2 bg-white border border-slate-200 rounded">
-                      <img src={formBillPhoto} alt="Bill preview" className="w-10 h-10 object-cover rounded" />
-                      <span className="text-xs text-emerald-700 font-medium">Receipt attached successfully</span>
-                    </div>
-                  )}
-                </div>
+              <div className="mt-3 space-y-4">
+                <Input
+                  label="Amount spent"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  placeholder="0"
+                  leftIcon={<span className="text-sm">&#8377;</span>}
+                  error={errors.expenseAmount?.message}
+                  {...register('expenseAmount')}
+                />
+                <Input label="What was it for?" placeholder="Auto fare, courier charge, stationery" {...register('expenseDescription')} />
+                {billField('FORM', formBillPhoto)}
               </div>
             )}
           </div>
 
-          {/* Modal Actions */}
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => {
-                setIsApplyModalOpen(false);
-                reset();
-                setFormBillPhoto(null);
-              }}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
-            >
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={closeApply}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50"
-            >
-              {isSubmitting ? 'Submitting…' : 'Submit On Duty'}
-            </button>
+            </Button>
+            <Button type="submit" isLoading={isSubmitting}>
+              Submit request
+            </Button>
           </div>
         </form>
       </Modal>
 
-      {/* Post-Duty Expense Claim Modal */}
-      {claimTarget && (
-        <Modal
-          isOpen={!!claimTarget}
-          onClose={() => {
-            setClaimTarget(null);
-            setClaimAmount('');
-            setClaimDesc('');
-            setClaimBillPhoto(null);
-          }}
-          title="Claim Expense & Upload Bill"
-          subtitle={`Duty: ${formatDutyType(claimTarget.dutyType)} on ${formatDate(claimTarget.dutyDate)}`}
-        >
-          <div className="space-y-4 text-xs">
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                Expense Amount (₹) <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="e.g., 350.00"
-                value={claimAmount}
-                onChange={(e) => setClaimAmount(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs text-slate-800 focus:outline-none focus:border-slate-400"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                Expense description <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                placeholder="e.g., Cab travel fare to bank & parking fee"
-                value={claimDesc}
-                onChange={(e) => setClaimDesc(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs text-slate-800 focus:outline-none focus:border-slate-400"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                Upload Bill / Receipt Photo <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="file"
-                accept="image/*,application/pdf"
-                onChange={(e) => handleBillUpload(e, 'CLAIM')}
-                className="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-slate-200 file:text-slate-700 hover:file:bg-slate-300 cursor-pointer"
-              />
-
-              {claimBillPhoto && (
-                <div className="mt-2 flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded">
-                  <img src={claimBillPhoto} alt="Bill receipt" className="w-12 h-12 object-cover rounded" />
-                  <span className="text-xs text-emerald-700 font-medium">Receipt ready for upload</span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setClaimTarget(null)}
-                className="px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isSubmittingClaim}
-                onClick={handlePostDutyClaimSubmit}
-                className="px-4 py-2 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                {isSubmittingClaim ? 'Submitting…' : 'Submit Claim'}
-              </button>
-            </div>
+      <Modal
+        isOpen={Boolean(claimTarget)}
+        onClose={closeClaim}
+        title="Claim an expense"
+        subtitle={claimTarget ? `${dutyTypeLabel(claimTarget.dutyType)} on ${formatDate(claimTarget.dutyDate)}` : undefined}
+        size="md"
+      >
+        <form onSubmit={handlePostDutyClaimSubmit} className="space-y-4">
+          <Input
+            label="Amount spent"
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            min="0"
+            required
+            value={claimAmount}
+            onChange={(e) => setClaimAmount(e.target.value)}
+            leftIcon={<span className="text-sm">&#8377;</span>}
+            error={claimErrors.amount}
+          />
+          <Input
+            label="What was it for?"
+            required
+            placeholder="Cab fare to the bank and parking"
+            value={claimDesc}
+            onChange={(e) => setClaimDesc(e.target.value)}
+            error={claimErrors.desc}
+          />
+          {billField('CLAIM', claimBillPhoto, claimErrors.bill)}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={closeClaim}>
+              Cancel
+            </Button>
+            <Button type="submit" isLoading={isSubmittingClaim}>
+              Submit claim
+            </Button>
           </div>
-        </Modal>
-      )}
+        </form>
+      </Modal>
 
-      {/* Bill Preview Modal */}
-      {previewBillUrl && (
-        <Modal
-          isOpen={!!previewBillUrl}
-          onClose={() => setPreviewBillUrl(null)}
-          title="Bill Receipt Preview"
-          subtitle="Attached expense document"
-        >
-          <div className="space-y-3">
-            <div className="max-h-[70vh] overflow-auto flex items-center justify-center p-2 bg-slate-950 rounded-lg">
-              <img
-                src={previewBillUrl}
-                alt="Uploaded receipt"
-                className="max-w-full max-h-[65vh] object-contain rounded"
-              />
-            </div>
-            <div className="flex justify-end">
-              <button
-                onClick={() => setPreviewBillUrl(null)}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded cursor-pointer"
-              >
-                Close preview
-              </button>
-            </div>
+      <Modal isOpen={Boolean(previewBillUrl)} onClose={() => setPreviewBillUrl(null)} title="Bill" size="md">
+        {previewBillUrl && (
+          <div className="flex max-h-[65vh] items-center justify-center overflow-auto rounded-lg bg-slate-950 p-2">
+            <img src={previewBillUrl} alt="Uploaded bill" className="max-h-[60vh] max-w-full rounded object-contain" />
           </div>
-        </Modal>
-      )}
+        )}
+      </Modal>
     </div>
   );
 };

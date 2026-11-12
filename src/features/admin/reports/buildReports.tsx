@@ -1,4 +1,5 @@
 import { AttendanceRecord, Center, Employee, LeaveRequest, OnDutyRequest, PayrollRun, Payslip } from '@/types';
+import { accessLabel } from '@/utils/access';
 import { formatDate, formatINR } from '@/utils/formatters';
 import { AttentionItem, CenterBar, ReportData } from './ReportView';
 import { MonthRange, centerNameOf, daysWithinMonth, idKey, plural, sum, titleCase } from './reportUtils';
@@ -165,7 +166,6 @@ export const buildSalaryReport = (ctx: ReportContext): ReportData => {
       columns: [
         { key: 'name', header: 'Name' },
         { key: 'center', header: 'Center' },
-        { key: 'designation', header: 'Role' },
         { key: 'gross', header: 'Salary cost', align: 'right' },
         { key: 'deductions', header: 'Deductions', align: 'right' },
         { key: 'net', header: 'Take-home', align: 'right' },
@@ -178,7 +178,6 @@ export const buildSalaryReport = (ctx: ReportContext): ReportData => {
         cells: {
           name: s.employeeName,
           center: slipCenter(s),
-          designation: s.designation || '—',
           gross: formatINR(s.components.grossMonthly),
           deductions: formatINR(s.components.totalDeductions),
           net: formatINR(s.components.netMonthly),
@@ -189,14 +188,14 @@ export const buildSalaryReport = (ctx: ReportContext): ReportData => {
       csv: {
         filename: `salary-${range.key}-${scopeSuffix(ctx)}`,
         headers: [
-          'Employee code', 'Name', 'Center', 'Role', 'Basic', 'HRA', 'Other allowances', 'Bonus and incentives',
+          'Employee code', 'Name', 'Center', 'Basic', 'HRA', 'Other allowances', 'Bonus and incentives',
           'Salary cost (gross)', 'PF', 'Professional tax', 'Income tax (TDS)', 'Total deductions', 'Take-home (net)',
           'Unpaid days', 'Bank account', 'Status', 'Paid on',
         ],
         rows: sorted.map((s) => {
           const c = s.components;
           return [
-            s.employeeCode, s.employeeName, slipCenter(s), s.designation || '', c.basic, c.hra,
+            s.employeeCode, s.employeeName, slipCenter(s), c.basic, c.hra,
             Math.round((c.specialAllowance || 0) + (c.conveyanceAllowance || 0) + (c.medicalAllowance || 0)),
             Math.round((c.bonus || 0) + (c.incentives || 0)),
             c.grossMonthly, c.epfEmployee, c.professionalTax, c.tds, c.totalDeductions, c.netMonthly,
@@ -231,7 +230,7 @@ export const buildAttendanceReport = (ctx: ReportContext): ReportData => {
   // Per-person rows: everyone active in scope, plus anyone with records this month
   const ids = new Set<string>();
   ctx.employees
-    .filter((e) => e.status !== 'TERMINATED' && inScope(centerNameOf(ctx.centers, e.location)))
+    .filter((e) => e.status !== 'TERMINATED' && e.role !== 'ADMIN' && inScope(centerNameOf(ctx.centers, e.location)))
     .forEach((e) => ids.add(idKey(e.id)));
   recs.forEach((r) => ids.add(idKey(r.employeeId)));
 
@@ -560,7 +559,7 @@ export const buildStaffReport = (ctx: ReportContext): ReportData => {
   const { inScope, barsFor, nameList } = helpers(ctx);
   const { range } = ctx;
   const centerOf = (e: Employee) => centerNameOf(ctx.centers, e.location);
-  const allActive = ctx.employees.filter((e) => e.status !== 'TERMINATED');
+  const allActive = ctx.employees.filter((e) => e.status !== 'TERMINATED' && e.role !== 'ADMIN');
   const active = allActive.filter((e) => inScope(centerOf(e)));
   const joined = active.filter((e) => e.joiningDate >= range.start && e.joiningDate <= range.end);
   const managers = active.filter((e) => e.role === 'MANAGER');
@@ -599,7 +598,7 @@ export const buildStaffReport = (ctx: ReportContext): ReportData => {
     });
   }
 
-  const roleLabel = (e: Employee) => (e.role === 'MANAGER' ? 'Manager' : e.role === 'ADMIN' ? 'Admin' : 'Staff');
+  const roleLabel = (e: Employee) => accessLabel(e.role);
   const sorted = [...active].sort((a, b) => a.fullName.localeCompare(b.fullName));
 
   return {
@@ -631,7 +630,6 @@ export const buildStaffReport = (ctx: ReportContext): ReportData => {
       columns: [
         { key: 'name', header: 'Name' },
         { key: 'center', header: 'Center' },
-        { key: 'designation', header: 'Job title' },
         { key: 'role', header: 'Access' },
         { key: 'joined', header: 'Joined' },
         { key: 'salary', header: 'Monthly salary', align: 'right' },
@@ -641,11 +639,10 @@ export const buildStaffReport = (ctx: ReportContext): ReportData => {
         const complete = !!e.bankDetails?.accountNumber?.trim() && !!e.bankDetails?.panNumber?.trim();
         return {
           id: e.id,
-          search: `${e.fullName} ${e.employeeCode} ${e.designation || ''}`,
+          search: `${e.fullName} ${e.employeeCode}`,
           cells: {
             name: e.fullName,
             center: centerOf(e),
-            designation: e.designation || '—',
             role: roleLabel(e),
             joined: formatDate(e.joiningDate),
             salary: e.monthlySalary > 0 ? formatINR(e.monthlySalary) : <span className="text-amber-800">Not set</span>,
@@ -655,9 +652,9 @@ export const buildStaffReport = (ctx: ReportContext): ReportData => {
       }),
       csv: {
         filename: `staff-${scopeSuffix(ctx)}`,
-        headers: ['Employee code', 'Name', 'Email', 'Phone', 'Center', 'Job title', 'Access', 'Shift', 'Joined', 'Monthly salary', 'Bank account', 'PAN', 'UAN'],
+        headers: ['Employee code', 'Name', 'Email', 'Phone', 'Center', 'Access', 'Shift', 'Joined', 'Monthly salary', 'Bank account', 'PAN', 'UAN'],
         rows: sorted.map((e) => [
-          e.employeeCode, e.fullName, e.email, e.phone, centerOf(e), e.designation || '', roleLabel(e), titleCase(e.shift || 'MORNING'),
+          e.employeeCode, e.fullName, e.email, e.phone, centerOf(e), roleLabel(e), titleCase(e.shift || 'MORNING'),
           e.joiningDate, e.monthlySalary || 0, e.bankDetails?.accountNumber || '', e.bankDetails?.panNumber || '', e.bankDetails?.uanNumber || '',
         ]),
       },

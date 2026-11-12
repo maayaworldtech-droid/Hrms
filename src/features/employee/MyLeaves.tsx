@@ -7,43 +7,53 @@ import { api } from '@/services/api';
 import { LeaveRequest, LeaveBalance } from '@/types';
 import { Modal } from '@/components/common/Modal';
 import { Input } from '@/components/common/Input';
+import { Select } from '@/components/common/Select';
+import { Textarea } from '@/components/common/Textarea';
+import { Button } from '@/components/common/Button';
+import { Badge } from '@/components/common/Badge';
+import { EmptyState } from '@/components/common/EmptyState';
+import { FilterPills, MobileSearch, MobileSkeleton, MobileTitle } from '@/components/employee/MobilePrimitives';
 import { formatDate, formatLabel } from '@/utils/formatters';
+import { leaveStatusVariant } from '@/utils/status';
 import { businessDate } from '@/utils/operations';
-import { Plus, Search, Calendar, CalendarDays } from 'lucide-react';
+import { Plus, CalendarDays } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 
 const applyLeaveSchema = z
   .object({
-    leaveType: z.enum([
-      'CASUAL_LEAVE',
-      'SICK_LEAVE',
-      'EARNED_LEAVE',
-      'MATERNITY_LEAVE',
-      'PATERNITY_LEAVE',
-      'LOSS_OF_PAY',
-    ]),
-    startDate: z.string().min(1, 'Start date required'),
-    endDate: z.string().min(1, 'End date required'),
-    reason: z.string().min(5, 'Reason required'),
+    leaveType: z.enum(['CASUAL_LEAVE', 'SICK_LEAVE', 'EARNED_LEAVE', 'MATERNITY_LEAVE', 'PATERNITY_LEAVE', 'LOSS_OF_PAY']),
+    startDate: z.string().min(1, 'Start date is required'),
+    endDate: z.string().min(1, 'End date is required'),
+    reason: z.string().trim().min(5, 'Please give a short reason (at least 5 characters)'),
   })
   .refine((data) => data.endDate >= data.startDate, {
-    message: 'End date cannot be earlier than start date',
+    message: 'End date cannot be before the start date',
     path: ['endDate'],
   });
 
 type ApplyLeaveFormValues = z.infer<typeof applyLeaveSchema>;
+type Filter = 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED';
+
+const LEAVE_TYPES = [
+  { value: 'CASUAL_LEAVE', label: 'Casual leave' },
+  { value: 'SICK_LEAVE', label: 'Sick leave' },
+  { value: 'EARNED_LEAVE', label: 'Earned leave' },
+  { value: 'MATERNITY_LEAVE', label: 'Maternity leave' },
+  { value: 'PATERNITY_LEAVE', label: 'Paternity leave' },
+  { value: 'LOSS_OF_PAY', label: 'Loss of pay' },
+];
 
 export const MyLeaves: React.FC = () => {
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
   const employeeId = user?.id || '';
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [balances, setBalances] = useState<LeaveBalance | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(() => searchParams.get('apply') === 'true');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<Filter>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
   const todayIst = businessDate();
@@ -55,12 +65,7 @@ export const MyLeaves: React.FC = () => {
     formState: { errors, isSubmitting },
   } = useForm<ApplyLeaveFormValues>({
     resolver: zodResolver(applyLeaveSchema),
-    defaultValues: {
-      leaveType: 'CASUAL_LEAVE',
-      startDate: todayIst,
-      endDate: todayIst,
-      reason: '',
-    },
+    defaultValues: { leaveType: 'CASUAL_LEAVE', startDate: todayIst, endDate: todayIst, reason: '' },
   });
 
   const startDateWatch = watch('startDate');
@@ -70,9 +75,8 @@ export const MyLeaves: React.FC = () => {
     if (!startDateWatch || !endDateWatch) return 1;
     const start = new Date(startDateWatch).getTime();
     const end = new Date(endDateWatch).getTime();
-    if (end < start) return 1;
-    const diffDays = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
-    return Math.max(1, diffDays);
+    if (Number.isNaN(start) || Number.isNaN(end) || end < start) return 1;
+    return Math.max(1, Math.round((end - start) / 86_400_000) + 1);
   }, [startDateWatch, endDateWatch]);
 
   const loadData = useCallback(async () => {
@@ -86,7 +90,7 @@ export const MyLeaves: React.FC = () => {
         api.leaves.getByEmployee(employeeId).catch(() => []),
         api.leaves.getBalances(employeeId).catch(() => null),
       ]);
-      setLeaves(Array.isArray(list) ? list : []);
+      setLeaves(Array.isArray(list) ? [...list].sort((a, b) => b.appliedOn.localeCompare(a.appliedOn)) : []);
       setBalances(bal);
     } finally {
       setIsLoading(false);
@@ -96,6 +100,15 @@ export const MyLeaves: React.FC = () => {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  const closeApply = () => {
+    setIsApplyModalOpen(false);
+    if (searchParams.has('apply')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('apply');
+      setSearchParams(next, { replace: true });
+    }
+  };
 
   const onApplySubmit = async (values: ApplyLeaveFormValues) => {
     try {
@@ -109,19 +122,18 @@ export const MyLeaves: React.FC = () => {
         days: computedDays,
         reason: values.reason,
       });
-
       dispatch(
         addToast({
           type: 'success',
           title: 'Leave request submitted',
-          message: `${computedDays} day(s) requested for manager review.`,
+          message: `${computedDays} day${computedDays > 1 ? 's' : ''} sent to your manager for review.`,
         })
       );
-      setIsApplyModalOpen(false);
+      closeApply();
       reset();
       void loadData();
     } catch {
-      dispatch(addToast({ type: 'error', title: 'Submission failed' }));
+      dispatch(addToast({ type: 'error', title: 'Submission failed', message: 'Please try again.' }));
     }
   };
 
@@ -132,233 +144,127 @@ export const MyLeaves: React.FC = () => {
       (balances.compOff?.remaining ?? 0)
     : null;
 
-  const counts = useMemo(() => {
-    return {
+  const counts = useMemo(
+    () => ({
       ALL: leaves.length,
-      APPROVED: leaves.filter((r) => r.status === 'APPROVED').length,
       PENDING: leaves.filter((r) => r.status === 'PENDING').length,
+      APPROVED: leaves.filter((r) => r.status === 'APPROVED').length,
       REJECTED: leaves.filter((r) => r.status === 'REJECTED').length,
-    };
-  }, [leaves]);
+    }),
+    [leaves]
+  );
 
   const filteredLeaves = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     return leaves.filter((req) => {
-      if (statusFilter !== 'ALL' && req.status !== statusFilter) {
-        return false;
-      }
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesReason = req.reason.toLowerCase().includes(q);
-        const matchesDate =
-          req.startDate.includes(q) ||
-          req.endDate.includes(q) ||
-          formatDate(req.startDate).toLowerCase().includes(q);
-        if (!matchesReason && !matchesDate) return false;
-      }
-      return true;
+      if (statusFilter !== 'ALL' && req.status !== statusFilter) return false;
+      if (!q) return true;
+      return (
+        req.reason.toLowerCase().includes(q) ||
+        req.startDate.includes(q) ||
+        req.endDate.includes(q) ||
+        formatDate(req.startDate).toLowerCase().includes(q) ||
+        formatLabel(req.leaveType).toLowerCase().includes(q)
+      );
     });
   }, [leaves, statusFilter, searchQuery]);
 
   return (
-    <div className="space-y-3 pb-4">
-      {/* Leave Balance Header Card (Direct Quota Rule) */}
-      <section className="employee-card flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0 border border-brand-200">
-            <CalendarDays className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-xl font-bold text-slate-900 tabular-nums">
-                {totalRemaining !== null ? totalRemaining : '—'}
-              </span>
-              <span className="text-xs font-semibold text-slate-600">days available</span>
-            </div>
-            <span className="text-xs text-slate-500 block">Annual leave entitlement 2026</span>
-          </div>
-        </div>
+    <div className="space-y-4 pb-4">
+      <MobileTitle
+        title="Leave"
+        subtitle={
+          totalRemaining !== null ? (
+            <>
+              <span className="font-semibold tabular-nums text-slate-900">{totalRemaining}</span> days available this year
+            </>
+          ) : (
+            'Leave balance unavailable'
+          )
+        }
+        action={
+          <Button size="md" onClick={() => setIsApplyModalOpen(true)} leftIcon={<Plus className="h-4 w-4" />}>
+            Apply
+          </Button>
+        }
+      />
 
-        <button
-          onClick={() => setIsApplyModalOpen(true)}
-          className="employee-primary-btn"
-          style={{ width: 'auto', minHeight: '38px', padding: '0 14px' }}
-        >
-          <Plus className="w-4 h-4" />
-          <span>Apply</span>
-        </button>
-      </section>
-
-      {/* Filter and Search Bar */}
       <div className="space-y-2">
-        <div className="employee-search-box">
-          <Search size={15} />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            aria-label="Search leaves"
-            placeholder="Search dates or reasons…"
-          />
-        </div>
-
-        {/* Filter Pills with real counts */}
-        <div className="employee-filter-bar">
-          {(
-            [
-              { key: 'ALL', label: 'All' },
-              { key: 'APPROVED', label: 'Approved' },
-              { key: 'PENDING', label: 'Pending' },
-              { key: 'REJECTED', label: 'Rejected' },
-            ] as const
-          ).map((tab) => {
-            const isActive = statusFilter === tab.key;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setStatusFilter(tab.key)}
-                className={`employee-filter-pill ${isActive ? 'is-active' : ''}`}
-              >
-                <span>{tab.label}</span>
-                <span className="pill-count">{counts[tab.key]}</span>
-              </button>
-            );
-          })}
-        </div>
+        <MobileSearch value={searchQuery} onChange={setSearchQuery} label="Search leave requests" placeholder="Search by date, type or reason" />
+        <FilterPills<Filter>
+          label="Filter leave requests"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { key: 'ALL', label: 'All', count: counts.ALL },
+            { key: 'PENDING', label: 'Pending', count: counts.PENDING },
+            { key: 'APPROVED', label: 'Approved', count: counts.APPROVED },
+            { key: 'REJECTED', label: 'Rejected', count: counts.REJECTED },
+          ]}
+        />
       </div>
 
-      {/* Leave List */}
-      <div>
-        {isLoading ? (
-          <div className="employee-skeleton-group">
-            <div className="employee-skeleton" />
-            <div className="employee-skeleton" />
-          </div>
-        ) : filteredLeaves.length === 0 ? (
-          <div className="employee-empty">
-            <Calendar size={32} />
-            <h3>No leave requests found</h3>
-            <p>Your submitted requests will appear here with live manager review status.</p>
-          </div>
-        ) : (
-          filteredLeaves.map((req) => (
-            <div key={req.id} className="employee-record-card space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                  {formatLabel(req.leaveType)}
-                </span>
-                <span
-                  className={`employee-badge ${
-                    req.status === 'APPROVED'
-                      ? 'badge-success'
-                      : req.status === 'PENDING'
-                      ? 'badge-warning'
-                      : 'badge-danger'
-                  }`}
-                >
+      {isLoading ? (
+        <MobileSkeleton />
+      ) : filteredLeaves.length === 0 ? (
+        <EmptyState
+          icon={CalendarDays}
+          title={leaves.length === 0 ? 'No leave requests yet' : 'Nothing matches this filter'}
+          description={leaves.length === 0 ? 'Requests you submit will appear here with their approval status.' : undefined}
+          actionLabel={leaves.length === 0 ? 'Apply for leave' : undefined}
+          onAction={leaves.length === 0 ? () => setIsApplyModalOpen(true) : undefined}
+        />
+      ) : (
+        <ul className="space-y-2.5">
+          {filteredLeaves.map((req) => (
+            <li key={req.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-semibold text-slate-900">{formatLabel(req.leaveType)}</span>
+                <Badge variant={leaveStatusVariant(req.status)} size="sm" dot>
                   {formatLabel(req.status)}
-                </span>
+                </Badge>
               </div>
-
-              <div className="flex items-center justify-between text-xs py-1 border-y border-slate-100">
-                <span className="font-semibold text-slate-800">
-                  {formatDate(req.startDate)} – {formatDate(req.endDate)}
+              <p className="mt-1 text-sm text-slate-700">
+                {formatDate(req.startDate)}
+                {req.endDate !== req.startDate ? ` to ${formatDate(req.endDate)}` : ''}
+                <span className="text-slate-600">
+                  {' '}
+                  · {req.days} day{req.days > 1 ? 's' : ''}
                 </span>
-                <span className="tabular-nums font-bold text-slate-900 tabular-nums">
-                  {req.days} day{req.days > 1 ? 's' : ''}
-                </span>
-              </div>
-
-              <p className="text-xs text-slate-600 line-clamp-2 italic">
-                "{req.reason}"
               </p>
-
+              <p className="mt-1.5 text-sm text-slate-600 line-clamp-2">{req.reason}</p>
               {req.reviewerComments && (
-                <div className="text-xs text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-200">
-                  <span className="font-semibold block">Manager note:</span>
+                <p className="mt-2 border-t border-slate-100 pt-2 text-sm text-slate-700">
+                  <span className="font-medium text-slate-900">Manager note: </span>
                   {req.reviewerComments}
-                </div>
+                </p>
               )}
-            </div>
-          ))
-        )}
-      </div>
+            </li>
+          ))}
+        </ul>
+      )}
 
-      {/* Apply Leave Modal */}
-      <Modal
-        isOpen={isApplyModalOpen}
-        onClose={() => setIsApplyModalOpen(false)}
-        title="Apply for Leave"
-        size="md"
-      >
-        <form onSubmit={handleSubmit(onApplySubmit)} className="space-y-3.5 text-xs">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Leave Category *
-            </label>
-            <select
-              {...register('leaveType')}
-              className="w-full rounded-lg border border-slate-300 p-2 text-xs text-slate-900 bg-white outline-none focus:border-brand-400"
-            >
-              <option value="CASUAL_LEAVE">Casual Leave (CL)</option>
-              <option value="SICK_LEAVE">Sick Leave (SL)</option>
-              <option value="EARNED_LEAVE">Earned Leave (EL)</option>
-              <option value="MATERNITY_LEAVE">Maternity leave</option>
-              <option value="PATERNITY_LEAVE">Paternity leave</option>
-              <option value="LOSS_OF_PAY">Loss of Pay (LOP)</option>
-            </select>
+      <Modal isOpen={isApplyModalOpen} onClose={closeApply} title="Apply for leave" size="md">
+        <form onSubmit={handleSubmit(onApplySubmit)} className="space-y-4">
+          <Select label="Leave type" options={LEAVE_TYPES} {...register('leaveType')} />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="From" type="date" required error={errors.startDate?.message} {...register('startDate')} />
+            <Input label="To" type="date" required min={startDateWatch} error={errors.endDate?.message} {...register('endDate')} />
           </div>
-
-          <div className="grid grid-cols-2 gap-2.5">
-            <Input
-              label="Start Date"
-              type="date"
-              error={errors.startDate?.message}
-              {...register('startDate')}
-            />
-            <Input
-              label="End Date"
-              type="date"
-              error={errors.endDate?.message}
-              {...register('endDate')}
-            />
-          </div>
-
-          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
-            <span className="text-slate-600 font-medium">Computed duration</span>
-            <span className="font-bold text-slate-900 tabular-nums text-sm">{computedDays} day{computedDays > 1 ? 's' : ''}</span>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Reason for Absence *
-            </label>
-            <textarea
-              {...register('reason')}
-              rows={2}
-              placeholder="Please provide details for leave application"
-              className="w-full rounded-lg border border-slate-300 p-2 text-xs text-slate-900 outline-none focus:border-brand-400"
-            />
-            {errors.reason && (
-              <p className="text-accent-600 text-xs mt-0.5">{errors.reason.message}</p>
+          <p className="text-sm text-slate-700">
+            Duration: <span className="font-semibold tabular-nums text-slate-900">{computedDays} day{computedDays > 1 ? 's' : ''}</span>
+            {totalRemaining !== null && computedDays > totalRemaining && (
+              <span className="block mt-1 text-amber-800">This exceeds your {totalRemaining} remaining days; the extra days may be treated as loss of pay.</span>
             )}
-          </div>
-
-          <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => setIsApplyModalOpen(false)}
-              className="w-1/2 employee-secondary-btn"
-            >
+          </p>
+          <Textarea label="Reason" required rows={3} placeholder="Briefly explain the reason for leave" error={errors.reason?.message} {...register('reason')} />
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={closeApply}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-1/2 employee-primary-btn"
-              style={{ minHeight: '38px' }}
-            >
-              {isSubmitting ? 'Submitting…' : 'Submit Request'}
-            </button>
+            </Button>
+            <Button type="submit" isLoading={isSubmitting}>
+              Submit request
+            </Button>
           </div>
         </form>
       </Modal>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -6,17 +6,35 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '@/services/api';
 import { Employee } from '@/types';
 import { getShiftDefinition } from '@/utils/shiftUtils';
-import { Edit3, Check, X, LogOut, Phone, Mail, MapPin, CreditCard } from 'lucide-react';
+import { formatDate } from '@/utils/formatters';
+import { accessLabel } from '@/utils/access';
+import { Button } from '@/components/common/Button';
+import { Input } from '@/components/common/Input';
+import { Textarea } from '@/components/common/Textarea';
+import { EmptyState } from '@/components/common/EmptyState';
+import { KeyValueList, MobileCard, MobileSkeleton, MobileTitle } from '@/components/employee/MobilePrimitives';
+import { Pencil, LogOut, WifiOff } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { logout, updateUser } from '@/store/slices/authSlice';
 import { addToast } from '@/store/slices/uiSlice';
 
+/** Accepts "98765 43210" or "+91 98765 43210" and keeps the 10-digit mobile number. */
+const toMobile = (value: string) => {
+  const digits = value.replace(/\D/g, '');
+  return digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
+};
+
 const profileUpdateSchema = z.object({
-  phone: z.string().min(10, '10-digit number required'),
-  address: z.string().min(5, 'Address required'),
+  phone: z
+    .string()
+    .trim()
+    .refine((v) => /^[6-9]\d{9}$/.test(toMobile(v)), 'Enter a valid 10-digit mobile number'),
+  address: z.string().trim().min(5, 'Address is required'),
 });
 
 type ProfileUpdateFormValues = z.infer<typeof profileUpdateSchema>;
+
+const maskAccount = (account?: string) => (account && account.length > 4 ? `ending ${account.slice(-4)}` : account || 'Not provided');
 
 export const EmployeeProfile: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -26,7 +44,6 @@ export const EmployeeProfile: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-
   const employeeId = user?.id || '';
 
   const {
@@ -34,282 +51,138 @@ export const EmployeeProfile: React.FC = () => {
     handleSubmit,
     reset,
     formState: { isSubmitting, errors },
-  } = useForm<ProfileUpdateFormValues>({
-    resolver: zodResolver(profileUpdateSchema),
-  });
+  } = useForm<ProfileUpdateFormValues>({ resolver: zodResolver(profileUpdateSchema) });
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!employeeId) {
       setIsLoading(false);
       setLoadError(true);
       return;
     }
-    api.employees
-      .getById(employeeId)
-      .then((data) => {
-        if (data) {
-          setEmployee(data);
-          reset({
-            phone: data.phone || '',
-            address: data.address || '',
-          });
-        } else {
-          setLoadError(true);
-        }
-      })
-      .catch(() => {
-        setLoadError(true);
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
+    setIsLoading(true);
+    setLoadError(false);
+    try {
+      const data = await api.employees.getById(employeeId);
+      if (!data) throw new Error('No employee');
+      setEmployee(data);
+      reset({ phone: data.phone || '', address: data.address || '' });
+    } catch {
+      setLoadError(true);
+    } finally {
+      setIsLoading(false);
+    }
   }, [employeeId, reset]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const onUpdateSubmit = async (values: ProfileUpdateFormValues) => {
     if (!employee) return;
     try {
-      const updated = await api.employees.update(employee.id, {
-        phone: values.phone,
-        address: values.address,
-      });
+      const phone = toMobile(values.phone);
+      const address = values.address.trim();
+      const updated = await api.employees.update(employee.id, { phone, address });
       setEmployee(updated);
-      dispatch(updateUser({ phone: values.phone, address: values.address }));
+      dispatch(updateUser({ phone, address }));
       setIsEditing(false);
-      dispatch(
-        addToast({
-          type: 'success',
-          title: 'Profile updated',
-          message: 'Contact details saved successfully.',
-        })
-      );
+      dispatch(addToast({ type: 'success', title: 'Profile updated', message: 'Your contact details were saved.' }));
     } catch {
-      dispatch(addToast({ type: 'error', title: 'Update failed' }));
+      dispatch(addToast({ type: 'error', title: 'Update failed', message: 'Please try again.' }));
     }
   };
 
-  const handleSignOut = () => {
-    dispatch(logout());
-    navigate('/login');
+  const cancelEdit = () => {
+    reset({ phone: employee?.phone || '', address: employee?.address || '' });
+    setIsEditing(false);
   };
 
-  if (isLoading) {
-    return (
-      <div className="p-8 text-center text-xs text-slate-500 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-default)]">
-        Loading profile…
-      </div>
-    );
-  }
+  if (isLoading) return <MobileSkeleton heights={[88, 180, 120]} />;
 
   if (loadError || !employee) {
-    return (
-      <div className="p-8 text-center text-xs text-slate-500 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-default)] space-y-2">
-        <p className="font-semibold text-slate-800">Unable to load employee profile</p>
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
-        >
-          Retry
-        </button>
-      </div>
-    );
+    return <EmptyState tone="danger" icon={WifiOff} title="Unable to load your profile" actionLabel="Retry" onAction={load} />;
   }
 
   const shiftInfo = getShiftDefinition(employee.shift || 'MORNING');
 
   return (
-    <div className="space-y-3 pb-6">
-      {/* Identity Card */}
-      <div className="employee-card flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-12 h-12 rounded-full bg-brand-600 text-white flex items-center justify-center font-semibold text-sm shrink-0">
-            {employee.firstName?.[0] || 'E'}
-            {employee.lastName?.[0] || 'M'}
-          </div>
+    <div className="space-y-4 pb-6">
+      <MobileTitle title="Profile" />
 
-          <div className="min-w-0">
-            <h1 className="text-sm font-semibold text-slate-900 truncate">
-              {employee.fullName}
-            </h1>
-            <p className="text-xs text-slate-500 truncate">
-              {employee.designation || 'Staff'} — {employee.location || 'Headquarters'}
-            </p>
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className="tabular-nums text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                {employee.employeeCode}
-              </span>
-              <span className="text-xs text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
-                {shiftInfo.name}
-              </span>
-            </div>
-          </div>
+      <MobileCard className="flex items-center gap-3">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-semibold text-white" aria-hidden="true">
+          {(employee.firstName?.[0] || '') + (employee.lastName?.[0] || '') || employee.fullName[0]}
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-base font-semibold text-slate-900">{employee.fullName}</p>
+          <p className="truncate text-sm text-slate-600">
+            {accessLabel(employee.role)} · {employee.location || 'No center'}
+          </p>
+          <p className="mt-0.5 text-xs tabular-nums text-slate-600">
+            {employee.employeeCode} · {shiftInfo.name} · Joined {formatDate(employee.joiningDate)}
+          </p>
+        </div>
+      </MobileCard>
+
+      <MobileCard className="space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-slate-900">Contact details</h2>
+          {!isEditing && (
+            <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} leftIcon={<Pencil className="h-3.5 w-3.5" />}>
+              Edit
+            </Button>
+          )}
         </div>
 
-        {!isEditing && (
-          <button
-            onClick={() => setIsEditing(true)}
-            className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--border-default)] bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors cursor-pointer"
-          >
-            <Edit3 className="w-3.5 h-3.5 text-slate-500" />
-            <span>Edit profile</span>
-          </button>
+        {isEditing ? (
+          <form onSubmit={handleSubmit(onUpdateSubmit)} className="space-y-4 pt-1">
+            <Input label="Email" type="email" value={employee.email} disabled helperText="Managed by HR. Contact admin to change." />
+            <Input label="Phone" type="tel" inputMode="tel" autoComplete="tel" required error={errors.phone?.message} {...register('phone')} />
+            <Textarea label="Residential address" required rows={3} error={errors.address?.message} {...register('address')} />
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={cancelEdit}>
+                Cancel
+              </Button>
+              <Button type="submit" isLoading={isSubmitting}>
+                Save changes
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <KeyValueList
+            items={[
+              { label: 'Email', value: <span className="break-all">{employee.email}</span> },
+              { label: 'Phone', value: employee.phone || 'Not provided' },
+              { label: 'Address', value: employee.address || 'Not provided' },
+            ]}
+          />
         )}
-      </div>
+      </MobileCard>
 
-      {/* Edit Form View */}
-      {isEditing ? (
-        <form
-          onSubmit={handleSubmit(onUpdateSubmit)}
-          className="p-4 rounded-xl bg-[var(--bg-surface)] border border-brand-200 space-y-3 text-xs"
-        >
-          <div className="flex items-center justify-between pb-1 border-b border-[var(--border-default)]">
-            <span className="font-semibold text-slate-900">Edit contact details</span>
-            <button
-              type="button"
-              onClick={() => {
-                reset();
-                setIsEditing(false);
-              }}
-              className="text-slate-500 hover:text-slate-600 p-1"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+      <MobileCard className="space-y-2">
+        <h2 className="text-sm font-semibold text-slate-900">Bank and tax</h2>
+        <KeyValueList
+          items={[
+            { label: 'Bank', value: employee.bankDetails?.bankName || 'Not provided' },
+            { label: 'Account', value: <span className="tabular-nums">{maskAccount(employee.bankDetails?.accountNumber)}</span> },
+            { label: 'PAN', value: <span className="tabular-nums">{employee.bankDetails?.panNumber || 'Not provided'}</span> },
+            { label: 'UAN', value: <span className="tabular-nums">{employee.bankDetails?.uanNumber || 'Not applicable'}</span> },
+          ]}
+        />
+      </MobileCard>
 
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Email (System)</label>
-            <input
-              type="text"
-              value={employee.email}
-              disabled
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-slate-50 border border-slate-200 text-slate-500 cursor-not-allowed"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs text-slate-700 mb-1">Phone</label>
-            <input
-              type="text"
-              {...register('phone')}
-              placeholder="+91 99887 76655"
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white border border-[var(--border-default)] text-slate-900 outline-none focus:border-brand-400"
-            />
-            {errors.phone && (
-              <p className="text-accent-600 text-xs mt-0.5">{errors.phone.message}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-xs text-slate-700 mb-1">Residential address</label>
-            <input
-              type="text"
-              {...register('address')}
-              placeholder="Address"
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white border border-[var(--border-default)] text-slate-900 outline-none focus:border-brand-400"
-            />
-          </div>
-
-
-
-          <div className="pt-2 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                reset();
-                setIsEditing(false);
-              }}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-medium cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-3.5 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium flex items-center gap-1 cursor-pointer transition-colors"
-            >
-              <Check className="w-3.5 h-3.5" />
-              <span>{isSubmitting ? 'Saving…' : 'Save changes'}</span>
-            </button>
-          </div>
-        </form>
-      ) : (
-        /* Read-Only Clean Information Layout */
-        <div className="employee-card space-y-3">
-          <div className="flex items-center justify-between pb-1 border-b border-[var(--border-default)]">
-            <span className="text-xs font-semibold text-slate-900">Contact & address</span>
-          </div>
-
-          <div className="divide-y divide-slate-100 text-xs">
-            <div className="py-2 flex items-start justify-between gap-3">
-              <span className="text-slate-500 shrink-0 flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-slate-500" />
-                Email
-              </span>
-              <span className="font-medium text-slate-900 text-right break-all">
-                {employee.email}
-              </span>
-            </div>
-
-            <div className="py-2 flex items-center justify-between gap-3">
-              <span className="text-slate-500 shrink-0 flex items-center gap-1.5">
-                <Phone className="w-3.5 h-3.5 text-slate-500" />
-                Phone
-              </span>
-              <span className="font-medium text-slate-900 text-right">
-                {employee.phone || 'Not registered'}
-              </span>
-            </div>
-
-            <div className="py-2 flex items-start justify-between gap-3">
-              <span className="text-slate-500 shrink-0 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                Address
-              </span>
-              <span className="font-medium text-slate-900 text-right max-w-[240px] leading-relaxed">
-                {employee.address || 'Not specified'}
-              </span>
-            </div>
-
-
-          </div>
-        </div>
-      )}
-
-      {/* Bank and PF details */}
-      <div className="employee-card space-y-2 text-xs">
-        <div className="flex items-center gap-1.5 pb-1 border-b border-[var(--border-default)]">
-          <CreditCard className="w-3.5 h-3.5 text-slate-500" />
-          <span className="font-semibold text-slate-900">Bank and PF details</span>
-        </div>
-
-        <div className="divide-y divide-slate-100 text-xs">
-          <div className="py-2 flex items-center justify-between">
-            <span className="text-slate-500">Bank account</span>
-            <span className="font-medium text-slate-900 tabular-nums">
-              {employee.bankDetails.bankName} (ending {employee.bankDetails.accountNumber.slice(-4)})
-            </span>
-          </div>
-
-          <div className="py-2 flex items-center justify-between">
-            <span className="text-slate-500">PAN</span>
-            <span className="font-medium text-slate-900 tabular-nums">
-              {employee.bankDetails.panNumber}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Clean Sign Out */}
-      <div className="pt-1">
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className="w-full py-2.5 px-3 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-        >
-          <LogOut className="w-3.5 h-3.5 text-rose-500" />
-          <span>Sign out</span>
-        </button>
-      </div>
+      <Button
+        variant="danger-ghost"
+        size="lg"
+        className="w-full border border-rose-200 bg-white"
+        onClick={() => {
+          dispatch(logout());
+          navigate('/login');
+        }}
+        leftIcon={<LogOut className="h-4 w-4" />}
+      >
+        Sign out
+      </Button>
     </div>
   );
 };

@@ -34,13 +34,11 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 text-center">
-          <div className="max-w-md w-full bg-white rounded-2xl border border-slate-200/90 p-8 shadow-sm">
-            <div className="w-12 h-12 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto mb-4">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <h2 className="text-xl font-bold text-slate-900">Something went wrong</h2>
-            <p className="text-xs text-slate-600 mt-2">
-              An unexpected application exception occurred. Our engineers have been alerted.
+          <div role="alert" className="max-w-md w-full bg-white rounded-lg border border-slate-200 p-8">
+            <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-rose-600" strokeWidth={1.5} aria-hidden="true" />
+            <h1 className="text-xl font-semibold text-slate-900">Something went wrong</h1>
+            <p className="text-sm text-slate-600 mt-2">
+              This page hit an unexpected error. Reload to try again. If it keeps happening, tell your admin what you were doing.
             </p>
             {this.state.error && (
               <div className="mt-4 p-3 bg-slate-50 rounded-lg text-left text-xs font-mono text-slate-700 overflow-x-auto border border-slate-200">

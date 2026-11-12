@@ -30,7 +30,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           <select
             id={selectId}
             ref={ref}
-            className={`w-full h-10 appearance-none rounded-lg border bg-white pl-3 pr-9 py-2 text-sm text-slate-900 shadow-xs transition-colors duration-150 focus:outline-none disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed ${
+            aria-invalid={error ? true : undefined}
+            className={`w-full h-10 appearance-none rounded-lg border bg-white pl-3 pr-9 py-2 text-sm text-slate-900 transition-colors duration-150 focus:outline-none disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed ${
               error
                 ? 'border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-400/25'
                 : 'border-slate-300 hover:border-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-400/30'
@@ -55,7 +56,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         {error ? (
           <p className="mt-1.5 text-xs text-rose-700 font-medium">{error}</p>
         ) : helperText ? (
-          <p className="mt-1.5 text-xs text-slate-500">{helperText}</p>
+          <p className="mt-1.5 text-xs text-slate-600">{helperText}</p>
         ) : null}
       </div>
     );

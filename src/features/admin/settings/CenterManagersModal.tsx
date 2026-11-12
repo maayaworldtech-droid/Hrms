@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
+import { Select } from '@/components/common/Select';
 import { api } from '@/services/api';
 import { Center, Employee } from '@/types';
 import { businessDate } from '@/utils/operations';
@@ -181,7 +182,7 @@ export const CenterManagersModal: React.FC<CenterManagersModalProps> = ({
         )}
 
         <section>
-          <h4 className="text-sm font-medium text-slate-900 mb-2">Current managers</h4>
+          <h3 className="mb-2 text-sm font-semibold text-slate-900">Current managers</h3>
           {center.managers.length === 0 ? (
             <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
               This center has no manager yet. Requests from its staff can only be approved by an admin.
@@ -196,7 +197,7 @@ export const CenterManagersModal: React.FC<CenterManagersModalProps> = ({
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-slate-900">{m.fullName}</p>
                         <p className="text-xs text-slate-600 truncate">
-                          {[m.designation, m.email, m.phone].filter(Boolean).join(' · ')}
+                          {[m.email, m.phone].filter(Boolean).join(' · ')}
                         </p>
                       </div>
                       {!isPending && (
@@ -248,7 +249,7 @@ export const CenterManagersModal: React.FC<CenterManagersModalProps> = ({
         </section>
 
         <section className="pt-5 border-t border-slate-200">
-          <h4 className="text-sm font-medium text-slate-900 mb-2">Add a manager</h4>
+          <h3 className="mb-2 text-sm font-semibold text-slate-900">Add a manager</h3>
           <div className="inline-flex rounded-lg border border-slate-300 p-0.5 mb-3" role="tablist">
             {(
               [
@@ -262,8 +263,8 @@ export const CenterManagersModal: React.FC<CenterManagersModalProps> = ({
                 role="tab"
                 aria-selected={addMode === mode}
                 onClick={() => setAddMode(mode)}
-                className={`h-8 px-3 rounded-md text-sm cursor-pointer ${
-                  addMode === mode ? 'bg-brand-600 text-white shadow-xs' : 'text-slate-700 hover:bg-slate-100'
+                className={`h-8 cursor-pointer rounded-md px-3 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60 ${
+                  addMode === mode ? 'bg-brand-600 text-white' : 'text-slate-700 hover:bg-slate-100'
                 }`}
               >
                 {label}
@@ -273,25 +274,15 @@ export const CenterManagersModal: React.FC<CenterManagersModalProps> = ({
 
           {addMode === 'existing' ? (
             <div className="space-y-3">
-              <div>
-                <label htmlFor="manager-candidate" className="block text-sm font-medium text-slate-900 mb-1.5">
-                  Staff member
-                </label>
-                <select
-                  id="manager-candidate"
-                  value={selectedEmployeeId}
-                  disabled={loadingStaff}
-                  onChange={(e) => setSelectedEmployeeId(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-400/30"
-                >
-                  <option value="">{loadingStaff ? 'Loading staff...' : 'Select a person'}</option>
-                  {candidates.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.fullName} · {e.designation || 'Staff'} · {e.location || 'No center'}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Select
+                id="manager-candidate"
+                label="Staff member"
+                value={selectedEmployeeId}
+                disabled={loadingStaff}
+                onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                placeholder={loadingStaff ? 'Loading staff...' : 'Select a person'}
+                options={candidates.map((e) => ({ value: e.id, label: `${e.fullName} · ${e.employeeCode} · ${e.location || 'No center'}` }))}
+              />
               {selected && selected.location !== center.name && (
                 <p className="text-xs text-amber-800">
                   {selected.fullName} currently works at {selected.location || 'no center'} and will be moved to {center.name}.
@@ -333,7 +324,7 @@ export const CenterManagersModal: React.FC<CenterManagersModalProps> = ({
                   onChange={(e) => setNewManager({ ...newManager, phone: e.target.value.replace(/\D/g, '') })}
                 />
                 <Input
-                  label="Monthly salary (Rs.)"
+                  label="Monthly salary (₹)"
                   required
                   type="number"
                   min={10000}

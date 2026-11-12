@@ -9,9 +9,9 @@ interface AuthLayoutProps {
 }
 
 const POINTS = [
-  'Face and location check-in for every center',
-  'Leave, On Duty and expense approvals in one place',
-  'Monthly payroll with payslips for every employee',
+  'Staff check in with their face when they arrive at the center',
+  'Center managers approve leave and outside work from their phone',
+  'Salaries and payslips for every center, every month',
 ];
 
 /**
@@ -26,8 +26,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, childre
       </div>
 
       <div className="max-w-md">
-        <span className="block h-1 w-10 rounded-full bg-accent-500" aria-hidden="true" />
-        <p className="mt-6 text-3xl font-semibold leading-tight tracking-tight">
+                <p className="text-3xl font-semibold leading-tight tracking-tight">
           Run every Maaya World center from one place.
         </p>
         <ul className="mt-8 space-y-3">
@@ -40,7 +39,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, childre
         </ul>
       </div>
 
-      <p className="text-xs text-brand-200">Maaya World staff portal</p>
+      <p className="text-xs text-brand-200">Maaya World team app</p>
     </aside>
 
     <main className="flex min-h-screen flex-col justify-center px-5 py-10 sm:px-10 lg:min-h-0 lg:px-16">

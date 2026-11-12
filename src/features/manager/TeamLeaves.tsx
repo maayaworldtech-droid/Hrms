@@ -9,43 +9,48 @@ import { DataTable, Column } from '@/components/common/DataTable';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
+import { Textarea } from '@/components/common/Textarea';
 import { formatDate, formatLabel } from '@/utils/formatters';
-import  { Check, X } from 'lucide-react';
+import { leaveStatusVariant } from '@/utils/status';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 import { PageHeader } from '@/components/common/PageHeader';
 
 export const TeamLeaves: React.FC = () => {
   const dispatch = useAppDispatch();
-  const user = useAppSelector(state => state.auth.user);
+  const user = useAppSelector((state) => state.auth.user);
   const filters = useOperationsFilters();
   const [team, setTeam] = useState<Employee[]>([]);
   const [saving, setSaving] = useState(false);
   const [teamLeaves, setTeamLeaves] = useState<LeaveRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedLeave, setSelectedLeave] = useState<LeaveRequest | null>(null);
-  const [isDecisionModalOpen, setIsDecisionModalOpen] = useState(false);
   const [comments, setComments] = useState('');
-
-  const managerId = user?.id || 'emp-002';
+  const managerId = user?.id || '';
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [allEmps, allLeaves] = await Promise.all([
-        api.employees.getAll(),
-        api.leaves.getAll(),
-      ]);
+      const [allEmps, allLeaves] = await Promise.all([api.employees.getAll(), api.leaves.getAll()]);
       const myTeam = allEmps.filter((e) => getReportingManager(e).id === managerId);
       setTeam(myTeam);
       const teamIds = new Set(myTeam.map((e) => e.id));
       setTeamLeaves(allLeaves.filter((l) => teamIds.has(l.employeeId)));
-    } catch { dispatch(addToast({ type: 'error', title: 'Could not load team leave' })); } finally {
+    } catch {
+      dispatch(addToast({ type: 'error', title: 'Could not load team leave' }));
+    } finally {
       setIsLoading(false);
     }
-  }, [dispatch,managerId]);
+  }, [dispatch, managerId]);
 
-  useEffect(() => { void loadData(); }, [loadData]);
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  const openReview = (leave: LeaveRequest) => {
+    setSelectedLeave(leave);
+    setComments('');
+  };
 
   const handleDecision = async (status: 'APPROVED' | 'REJECTED') => {
     if (!selectedLeave || saving || (status === 'REJECTED' && !comments.trim())) return;
@@ -57,51 +62,47 @@ export const TeamLeaves: React.FC = () => {
         comments.trim() || (status === 'APPROVED' ? 'Approved by center manager' : 'Declined: not enough staff at the center on these dates'),
         user?.name || 'Manager'
       );
-      dispatch(
-        addToast({
-          type: status === 'APPROVED' ? 'success' : 'info',
-          title: `Leave ${status === 'APPROVED' ? 'Approved' : 'Declined'}`,
-          message: `Decision recorded for ${selectedLeave.employeeName}`,
-        })
-      );
-      setIsDecisionModalOpen(false);
+      dispatch(addToast({ type: 'success', title: status === 'APPROVED' ? 'Leave approved' : 'Leave declined', message: `Decision saved for ${selectedLeave.employeeName}.` }));
+      setSelectedLeave(null);
       setComments('');
-      loadData();
+      void loadData();
     } catch {
-      dispatch(addToast({ type: 'error', title: 'Decision recording failed' }));
-    } finally { setSaving(false); }
+      dispatch(addToast({ type: 'error', title: 'Could not save decision', message: 'Please try again.' }));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const filtered = teamLeaves.filter(request => {
-    const employee = team.find(person => person.id === request.employeeId);
-    return (!filters.leaveDate || (request.startDate <= filters.leaveDate && request.endDate >= filters.leaveDate)) && (filters.venue === 'ALL' || (request.location || employee?.location) === filters.venue) && (filters.shift === 'ALL' || (employee?.shift || 'MORNING') === filters.shift) && (filters.status === 'ALL' || request.status === filters.status);
-  }).sort((a,b) => Number(b.status === 'PENDING') - Number(a.status === 'PENDING') || b.appliedOn.localeCompare(a.appliedOn));
+  const filtered = teamLeaves
+    .filter((request) => {
+      const employee = team.find((person) => person.id === request.employeeId);
+      return (
+        (!filters.leaveDate || (request.startDate <= filters.leaveDate && request.endDate >= filters.leaveDate)) &&
+        (filters.venue === 'ALL' || (request.location || employee?.location) === filters.venue) &&
+        (filters.shift === 'ALL' || (employee?.shift || 'MORNING') === filters.shift) &&
+        (filters.status === 'ALL' || request.status === filters.status)
+      );
+    })
+    .sort((a, b) => Number(b.status === 'PENDING') - Number(a.status === 'PENDING') || b.appliedOn.localeCompare(a.appliedOn));
+
+  const pendingCount = filtered.filter((l) => l.status === 'PENDING').length;
 
   const columns: Column<LeaveRequest>[] = [
-    {
-      key: 'employeeName',
-      header: 'Teammate',
-      sortable: true,
-      render: (row) => (
-        <span className="font-semibold text-slate-900">{row.employeeName}</span>
-      ),
-    },
-    {
-      key: 'leaveType',
-      header: 'Category',
-      sortable: true,
-      render: (row) => (
-        <Badge variant="purple" size="sm">{formatLabel(row.leaveType)}</Badge>
-      ),
-    },
+    { key: 'employeeName', header: 'Teammate', sortable: true, render: (row) => <span className="font-medium text-slate-900">{row.employeeName}</span> },
+    { key: 'leaveType', header: 'Type', sortable: true, render: (row) => formatLabel(row.leaveType) },
     {
       key: 'startDate',
-      header: 'Duration',
+      header: 'Dates',
       sortable: true,
       render: (row) => (
         <div>
-          <span className="text-slate-800 font-medium">{formatDate(row.startDate)} - {formatDate(row.endDate)}</span>
-          <div className="text-xs text-slate-500">{row.days} day{row.days > 1 ? 's' : ''}</div>
+          <div className="text-slate-900">
+            {formatDate(row.startDate)}
+            {row.endDate !== row.startDate ? ` to ${formatDate(row.endDate)}` : ''}
+          </div>
+          <div className="text-xs text-slate-600">
+            {row.days} day{row.days > 1 ? 's' : ''}
+          </div>
         </div>
       ),
     },
@@ -109,7 +110,7 @@ export const TeamLeaves: React.FC = () => {
       key: 'reason',
       header: 'Reason',
       render: (row) => (
-        <span className="text-slate-600 line-clamp-1 max-w-xs" title={row.reason}>
+        <span className="line-clamp-1 max-w-xs text-slate-700" title={row.reason}>
           {row.reason}
         </span>
       ),
@@ -119,131 +120,113 @@ export const TeamLeaves: React.FC = () => {
       header: 'Status',
       sortable: true,
       render: (row) => (
-        <Badge
-          variant={
-            row.status === 'APPROVED'
-              ? 'success'
-              : row.status === 'PENDING'
-              ? 'warning'
-              : 'error'
-          }
-          size="sm"
-          dot
-        >
+        <Badge variant={leaveStatusVariant(row.status)} size="sm" dot>
           {formatLabel(row.status)}
         </Badge>
       ),
     },
     {
       key: 'actions',
-      header: 'Action',
+      header: '',
       align: 'right',
-      render: (row) => (
-        <div className="flex items-center justify-end gap-1.5">
-          {row.status === 'PENDING' ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setSelectedLeave(row);
-                setComments('');
-                setIsDecisionModalOpen(true);
-              }}
-              className="!py-1 !px-2.5 text-xs text-brand-700 bg-brand-50 hover:bg-brand-100 border-brand-200"
-            >
-              Review request
-            </Button>
-          ) : (
-            <span className="text-slate-500 text-xs">Decided</span>
-          )}
-        </div>
-      ),
+      render: (row) =>
+        row.status === 'PENDING' ? (
+          <Button variant="outline" size="xs" onClick={() => openReview(row)}>
+            Review
+          </Button>
+        ) : (
+          <span className="text-xs text-slate-600">{row.reviewedBy ? `By ${row.reviewedBy}` : 'Decided'}</span>
+        ),
     },
   ];
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Leave approvals" description="Approve or decline leave requests from your team." />
-
-      <OperationsFilters venues={[...new Set(team.map(employee => employee.location))]} />
-      <DataTable
-        key={[filters.venue,filters.shift,filters.status,filters.leaveDate].join(':')}
-        data={filtered}
-        mobileRender={row => <div className="space-y-2"><div className="flex justify-between gap-3"><strong>{row.employeeName}</strong><span>{row.status.toLowerCase()}</span></div><p>{formatDate(row.startDate)} – {formatDate(row.endDate)} · {row.days} days</p><p className="ops-muted">{row.reason}</p><p className="ops-muted">{overlappingLeaveCount(row, teamLeaves, team)} colleagues at this center and shift have overlapping approved leave.</p>{row.status === 'PENDING' && <button className="ops-button secondary" onClick={() => { setSelectedLeave(row); setComments(''); setIsDecisionModalOpen(true); }}>Review request</button>}</div>}
-        columns={columns}
-        searchPlaceholder="Filter team leave applications..."
-        exportFileName="maaya_team_leaves"
-        isLoading={isLoading}
+      <PageHeader
+        title="Leave approvals"
+        description={pendingCount > 0 ? `${pendingCount} request${pendingCount > 1 ? 's' : ''} waiting for your decision.` : 'Approve or decline leave requests from your team.'}
       />
 
-      {/* Decision Modal */}
-      {selectedLeave && (
-        <Modal
-          isOpen={isDecisionModalOpen}
-          onClose={() => setIsDecisionModalOpen(false)}
-          title="Team Leave Request"
-          subtitle={`Submitted by ${selectedLeave.employeeName}`}
-          size="md"
-        >
-          <div className="space-y-4 text-xs">
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Leave Category:</span>
-                <span className="font-semibold text-slate-900">{selectedLeave.leaveType.replace('_', ' ')}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Requested Period:</span>
-                <span className="font-semibold text-slate-900">
-                  {formatDate(selectedLeave.startDate)} to {formatDate(selectedLeave.endDate)} ({selectedLeave.days} days)
-                </span>
-              </div>
-            </div>
+      <OperationsFilters venues={[...new Set(team.map((employee) => employee.location))]} />
 
-            <p className="ops-muted">{overlappingLeaveCount(selectedLeave, teamLeaves, team)} colleagues at the same center and shift have approved leave overlapping these dates. Review staffing before deciding.</p>
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">Reason provided</label>
-              <div className="p-3 rounded-lg border border-slate-200 bg-white text-slate-800 leading-relaxed">
-                {selectedLeave.reason}
-              </div>
+      <DataTable
+        key={[filters.venue, filters.shift, filters.status, filters.leaveDate].join(':')}
+        data={filtered}
+        columns={columns}
+        mobileRender={(row) => (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold text-slate-900">{row.employeeName}</span>
+              <Badge variant={leaveStatusVariant(row.status)} size="sm" dot>
+                {formatLabel(row.status)}
+              </Badge>
             </div>
-
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">Manager Note / Feedback</label>
-              <textarea
-                value={comments}
-                onChange={(e) => setComments(e.target.value)}
-                placeholder="Add a note (required when declining)..."
-                rows={3}
-                className="w-full rounded-lg border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:border-brand-600"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
-              <Button variant="outline" size="sm" onClick={() => setIsDecisionModalOpen(false)}>
-                Cancel
+            <p className="text-sm text-slate-700">
+              {formatLabel(row.leaveType)} · {formatDate(row.startDate)}
+              {row.endDate !== row.startDate ? ` to ${formatDate(row.endDate)}` : ''} · {row.days} day{row.days > 1 ? 's' : ''}
+            </p>
+            <p className="text-sm text-slate-600 line-clamp-2">{row.reason}</p>
+            {row.status === 'PENDING' && (
+              <Button variant="outline" size="sm" onClick={() => openReview(row)}>
+                Review request
               </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                disabled={saving || !comments.trim()}
-                onClick={() => handleDecision('REJECTED')}
-                leftIcon={<X className="w-4 h-4" />}
-              >
-                Decline
-              </Button>
-              <Button
-                variant="success"
-                size="sm"
-                disabled={saving}
-                onClick={() => handleDecision('APPROVED')}
-                leftIcon={<Check className="w-4 h-4" />}
-              >
-                Approve
-              </Button>
-            </div>
+            )}
           </div>
-        </Modal>
-      )}
+        )}
+        searchPlaceholder="Search by teammate or reason"
+        exportFileName="maaya_team_leaves"
+        isLoading={isLoading}
+        emptyTitle={team.length === 0 ? 'No one reports to you yet' : 'No leave requests'}
+        emptyDescription={team.length === 0 ? 'Ask an admin to assign staff to you from the Employees page.' : 'Nothing matches the current filters.'}
+      />
+
+      <Modal
+        isOpen={Boolean(selectedLeave)}
+        onClose={() => setSelectedLeave(null)}
+        title="Review leave request"
+        subtitle={selectedLeave?.employeeName}
+        size="md"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setSelectedLeave(null)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button variant="danger-ghost" disabled={saving || !comments.trim()} onClick={() => handleDecision('REJECTED')}>
+              Decline
+            </Button>
+            <Button isLoading={saving} onClick={() => handleDecision('APPROVED')}>
+              Approve
+            </Button>
+          </>
+        }
+      >
+        {selectedLeave && (
+          <div className="space-y-4">
+            <dl className="ops-definition">
+              <dt>Type</dt>
+              <dd>{formatLabel(selectedLeave.leaveType)}</dd>
+              <dt>Dates</dt>
+              <dd>
+                {formatDate(selectedLeave.startDate)} to {formatDate(selectedLeave.endDate)} · {selectedLeave.days} day{selectedLeave.days > 1 ? 's' : ''}
+              </dd>
+              <dt>Reason</dt>
+              <dd className="font-normal">{selectedLeave.reason}</dd>
+              <dt>Coverage</dt>
+              <dd className="font-normal">
+                {overlappingLeaveCount(selectedLeave, teamLeaves, team)} colleagues at the same center and shift have approved leave overlapping these dates.
+              </dd>
+            </dl>
+            <Textarea
+              label="Note to the employee"
+              rows={3}
+              value={comments}
+              onChange={(e) => setComments(e.target.value)}
+              placeholder="Required when declining"
+              helperText="Shown to the employee with your decision."
+            />
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

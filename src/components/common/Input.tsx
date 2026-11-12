@@ -29,7 +29,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           <input
             id={inputId}
             ref={ref}
-            className={`w-full h-10 rounded-lg border bg-white text-sm text-slate-900 placeholder:text-slate-400 shadow-xs transition-colors duration-150 focus:outline-none disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed ${
+            aria-invalid={error ? true : undefined}
+            className={`w-full h-10 rounded-lg border bg-white text-sm text-slate-900 placeholder:text-slate-400 transition-colors duration-150 focus:outline-none disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed ${
               leftIcon ? 'pl-9' : 'pl-3'
             } ${rightIcon ? 'pr-9' : 'pr-3'} py-2 ${
               error
@@ -47,7 +48,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         {error ? (
           <p className="mt-1.5 text-xs text-rose-700 font-medium">{error}</p>
         ) : helperText ? (
-          <p className="mt-1.5 text-xs text-slate-500">{helperText}</p>
+          <p className="mt-1.5 text-xs text-slate-600">{helperText}</p>
         ) : null}
       </div>
     );

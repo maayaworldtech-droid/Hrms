@@ -3,24 +3,23 @@ import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '@/store';
 import { api } from '@/services/api';
 import { Employee } from '@/types';
-import {
-  Search,
-  LayoutDashboard,
-  Users,
-  Clock,
-  CalendarDays,
-  Banknote,
-  BarChart3,
-  Settings,
-  User as UserIcon,
-  CreditCard,
-} from 'lucide-react';
+import { Search, LayoutDashboard, Users, Clock, CalendarDays, Banknote, BarChart3, Settings, User as UserIcon, Briefcase, Wallet } from 'lucide-react';
 
 interface CommandPaletteProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+interface Command {
+  id: string;
+  title: string;
+  category: string;
+  icon: React.ComponentType<{ className?: string }>;
+  action: () => void;
+  role?: string[];
+}
+
+/** Keyboard-first jump box (Ctrl or Cmd K) for pages and, for admins, people. */
 export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const activeRole = useAppSelector((state) => state.auth.activeRole);
@@ -28,278 +27,153 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const listId = React.useId();
 
   useEffect(() => {
-    if (isOpen) {
+    const el = dialogRef.current;
+    if (!el) return;
+    if (isOpen && !el.open) {
+      el.showModal();
       inputRef.current?.focus();
-      if (activeRole === 'ADMIN' || activeRole === 'MANAGER') {
+      if (activeRole === 'ADMIN') {
         api.employees.getAll().then(setEmployees).catch(() => setEmployees([]));
-      } else {
-        setEmployees([]);
       }
-    } else {
+    } else if (!isOpen && el.open) {
+      el.close();
       setQuery('');
       setSelectedIndex(0);
     }
   }, [isOpen, activeRole]);
 
-  // All actionable commands
-  const allCommands = useMemo(() => {
-    const navItems = [
-      {
-        id: 'nav-admin-dash',
-        title: 'Admin Executive Dashboard',
-        category: 'Navigation',
-        icon: LayoutDashboard,
-        action: () => navigate('/admin/dashboard'),
-        role: ['ADMIN'],
-      },
-      {
-        id: 'nav-employees',
-        title: 'Employee Management',
-        category: 'Navigation',
-        icon: Users,
-        action: () => navigate('/admin/employees'),
-        role: ['ADMIN'],
-      },
-      {
-        id: 'nav-attendance-mgmt',
-        title: 'Attendance Records & Time Tracking',
-        category: 'Navigation',
-        icon: Clock,
-        action: () => navigate('/admin/attendance'),
-        role: ['ADMIN'],
-      },
-      {
-        id: 'nav-leaves-mgmt',
-        title: 'Leave Management',
-        category: 'Navigation',
-        icon: CalendarDays,
-        action: () => navigate('/admin/leaves'),
-        role: ['ADMIN'],
-      },
-      {
-        id: 'nav-payroll',
-        title: 'Payroll Processing & Disbursals',
-        category: 'Navigation',
-        icon: Banknote,
-        action: () => navigate('/admin/payroll'),
-        role: ['ADMIN'],
-      },
-      {
-        id: 'nav-reports',
-        title: 'Reports',
-        category: 'Navigation',
-        icon: BarChart3,
-        action: () => navigate('/admin/reports'),
-        role: ['ADMIN'],
-      },
-      {
-        id: 'nav-settings',
-        title: 'Settings',
-        category: 'Navigation',
-        icon: Settings,
-        action: () => navigate('/admin/settings'),
-        role: ['ADMIN'],
-      },
-      {
-        id: 'nav-mgr-dash',
-        title: 'Manager Team Dashboard',
-        category: 'Navigation',
-        icon: LayoutDashboard,
-        action: () => navigate('/manager/dashboard'),
-        role: ['MANAGER'],
-      },
-      {
-        id: 'nav-mgr-att',
-        title: 'Team Attendance & Approvals',
-        category: 'Navigation',
-        icon: Clock,
-        action: () => navigate('/manager/attendance'),
-        role: ['MANAGER'],
-      },
-      {
-        id: 'nav-mgr-leaves',
-        title: 'Team Leave Requests Queue',
-        category: 'Navigation',
-        icon: CalendarDays,
-        action: () => navigate('/manager/leaves'),
-        role: ['MANAGER'],
-      },
-      {
-        id: 'nav-emp-dash',
-        title: 'Employee Self-Service Dashboard',
-        category: 'Navigation',
-        icon: LayoutDashboard,
-        action: () => navigate('/employee/dashboard'),
-      },
-      {
-        id: 'nav-my-att',
-        title: 'My Daily Attendance & Timesheets',
-        category: 'Navigation',
-        icon: Clock,
-        action: () => navigate('/employee/attendance'),
-      },
-      {
-        id: 'nav-my-leaves',
-        title: 'My Leave Applications & Balance',
-        category: 'Navigation',
-        icon: CalendarDays,
-        action: () => navigate('/employee/leaves'),
-      },
-      {
-        id: 'nav-my-salary',
-        title: 'My Salary Structure & Payslips',
-        category: 'Navigation',
-        icon: CreditCard,
-        action: () => navigate('/employee/salary'),
-      },
-      {
-        id: 'nav-my-profile',
-        title: 'My Employee Profile File',
-        category: 'Navigation',
-        icon: UserIcon,
-        action: () => navigate('/employee/profile'),
-      },
+  const allCommands = useMemo<Command[]>(() => {
+    const nav: Command[] = [
+      { id: 'admin-dash', title: 'Dashboard', category: 'Admin', icon: LayoutDashboard, action: () => navigate('/admin/dashboard'), role: ['ADMIN'] },
+      { id: 'employees', title: 'Employees', category: 'Admin', icon: Users, action: () => navigate('/admin/employees'), role: ['ADMIN'] },
+      { id: 'attendance', title: 'Attendance', category: 'Admin', icon: Clock, action: () => navigate('/admin/attendance'), role: ['ADMIN'] },
+      { id: 'leaves', title: 'Leave', category: 'Admin', icon: CalendarDays, action: () => navigate('/admin/leaves'), role: ['ADMIN'] },
+      { id: 'on-duty', title: 'On Duty and claims', category: 'Admin', icon: Briefcase, action: () => navigate('/admin/on-duty'), role: ['ADMIN'] },
+      { id: 'payroll', title: 'Payroll', category: 'Admin', icon: Banknote, action: () => navigate('/admin/payroll'), role: ['ADMIN'] },
+      { id: 'reports', title: 'Reports', category: 'Admin', icon: BarChart3, action: () => navigate('/admin/reports'), role: ['ADMIN'] },
+      { id: 'settings', title: 'Settings', category: 'Admin', icon: Settings, action: () => navigate('/admin/settings'), role: ['ADMIN'] },
+      { id: 'mgr-dash', title: 'Team dashboard', category: 'Manager', icon: LayoutDashboard, action: () => navigate('/manager/dashboard'), role: ['MANAGER'] },
+      { id: 'mgr-att', title: 'Team attendance', category: 'Manager', icon: Clock, action: () => navigate('/manager/attendance'), role: ['MANAGER'] },
+      { id: 'mgr-leaves', title: 'Leave approvals', category: 'Manager', icon: CalendarDays, action: () => navigate('/manager/leaves'), role: ['MANAGER'] },
+      { id: 'mgr-od', title: 'On Duty approvals', category: 'Manager', icon: Briefcase, action: () => navigate('/manager/on-duty'), role: ['MANAGER'] },
+      { id: 'profile', title: 'My profile', category: 'Me', icon: UserIcon, action: () => navigate('/profile'), role: ['MANAGER', 'EMPLOYEE'] },
+      { id: 'my-att', title: 'My attendance', category: 'Me', icon: Clock, action: () => navigate('/employee/attendance'), role: ['MANAGER', 'EMPLOYEE'] },
+      { id: 'my-leaves', title: 'My leave', category: 'Me', icon: CalendarDays, action: () => navigate('/employee/leaves'), role: ['MANAGER', 'EMPLOYEE'] },
+      { id: 'my-salary', title: 'My payslips', category: 'Me', icon: Wallet, action: () => navigate('/employee/salary'), role: ['MANAGER', 'EMPLOYEE'] },
     ];
-
-    const authorizedNav = navItems.filter((item) => !item.role || item.role.includes(activeRole));
-
-    const employeeMatches =
+    const authorizedNav = nav.filter((item) => !item.role || item.role.includes(activeRole));
+    const people: Command[] =
       activeRole === 'ADMIN'
         ? employees.map((emp) => ({
             id: `emp-${emp.id}`,
-            title: `${emp.fullName} (${emp.employeeCode}) — ${emp.location} Center`,
-            category: 'Employees Directory',
+            title: `${emp.fullName} · ${emp.employeeCode} · ${emp.location}`,
+            category: 'People',
             icon: Users,
-            action: () => {
-              navigate('/admin/employees');
-            },
+            action: () => navigate(`/admin/employees?q=${encodeURIComponent(emp.employeeCode || emp.fullName)}`),
           }))
         : [];
-
-    return [...authorizedNav, ...employeeMatches];
+    return [...authorizedNav, ...people];
   }, [navigate, employees, activeRole]);
 
-  // Filter commands
   const filteredCommands = useMemo(() => {
-    if (!query.trim()) return allCommands.slice(0, 10);
     const q = query.toLowerCase().trim();
-    return allCommands.filter(
-      (c) =>
-        c.title.toLowerCase().includes(q) ||
-        c.category.toLowerCase().includes(q)
-    );
+    if (!q) return allCommands.filter((c) => c.category !== 'People').slice(0, 12);
+    return allCommands.filter((c) => c.title.toLowerCase().includes(q) || c.category.toLowerCase().includes(q)).slice(0, 20);
   }, [allCommands, query]);
 
-  // Handle keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOpen) return;
+  const run = (command: Command) => {
+    command.action();
+    onClose();
+  };
 
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSelectedIndex((prev) => (prev + 1) % Math.max(1, filteredCommands.length));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSelectedIndex((prev) => (prev - 1 + filteredCommands.length) % Math.max(1, filteredCommands.length));
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        if (filteredCommands[selectedIndex]) {
-          filteredCommands[selectedIndex].action();
-          onClose();
-        }
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, filteredCommands, selectedIndex, onClose]);
-
-  if (!isOpen) return null;
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex((prev) => (prev + 1) % Math.max(1, filteredCommands.length));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex((prev) => (prev - 1 + filteredCommands.length) % Math.max(1, filteredCommands.length));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filteredCommands[selectedIndex]) run(filteredCommands[selectedIndex]);
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto p-4 sm:p-6 md:p-20">
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-slate-950/45 transition-opacity"
-        onClick={onClose}
-      />
-
-      {/* Modal Dialog */}
-      <div className="relative mx-auto max-w-xl rounded-xl bg-white shadow-2xl border border-slate-200/90 overflow-hidden">
-        {/* Search Input Bar */}
-        <div className="flex items-center px-4 border-b border-slate-100">
-          <Search className="w-4 h-4 text-slate-500 shrink-0" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setSelectedIndex(0);
-            }}
-            placeholder="Search pages, employees, actions, or switch roles..."
-            className="w-full px-3 py-3.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none bg-transparent"
-          />
-          <kbd className="text-xs font-mono px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 text-slate-500">
-            ESC
-          </kbd>
-        </div>
-
-        {/* Results List */}
-        <div className="max-h-80 overflow-y-auto p-2 divide-y divide-slate-50">
-          {filteredCommands.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-500">
-              No matching pages, actions, or employees found for "{query}".
-            </div>
-          ) : (
-            filteredCommands.map((item, idx) => {
-              const Icon = item.icon;
-              const isSelected = idx === selectedIndex;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    item.action();
-                    onClose();
-                  }}
-                  onMouseEnter={() => setSelectedIndex(idx)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs transition-colors ${
-                    isSelected
-                      ? 'bg-brand-50 text-slate-900 font-medium'
-                      : 'text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-brand-600' : 'text-slate-500'}`} />
-                    <span className="truncate">{item.title}</span>
-                  </div>
-                  <span className="text-xs text-slate-500 font-mono shrink-0 ml-2">
-                    {item.category}
-                  </span>
-                </button>
-              );
-            })
-          )}
-        </div>
-
-        {/* Footer shortcuts */}
-        <div className="px-4 py-2 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-          <div className="flex items-center gap-2">
-            <span>Use</span>
-            <kbd className="px-1 py-0.2 rounded border bg-white border-slate-200 font-mono text-xs">↑</kbd>
-            <kbd className="px-1 py-0.2 rounded border bg-white border-slate-200 font-mono text-xs">↓</kbd>
-            <span>to navigate</span>
-            <kbd className="px-1.5 py-0.2 rounded border bg-white border-slate-200 font-mono text-xs">↵</kbd>
-            <span>to select</span>
+    <dialog
+      ref={dialogRef}
+      className="app-dialog w-full sm:max-w-xl sm:!mt-[12vh]"
+      aria-label="Search"
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      {isOpen && (
+        <div onKeyDown={onKeyDown}>
+          <div className="flex items-center gap-3 border-b border-slate-200 px-4">
+            <Search className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+            <input
+              ref={inputRef}
+              type="text"
+              role="combobox"
+              aria-expanded="true"
+              aria-controls={listId}
+              aria-activedescendant={filteredCommands[selectedIndex] ? `${listId}-${filteredCommands[selectedIndex].id}` : undefined}
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setSelectedIndex(0);
+              }}
+              placeholder={activeRole === 'ADMIN' ? 'Search pages or people' : 'Search pages'}
+              className="h-12 w-full bg-transparent text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none"
+            />
+            <kbd className="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 text-xs text-slate-600" aria-hidden="true">
+              Esc
+            </kbd>
           </div>
-          <span>Maaya World operations</span>
+
+          <ul id={listId} role="listbox" className="max-h-80 overflow-y-auto p-2">
+            {filteredCommands.length === 0 ? (
+              <li className="py-8 text-center text-sm text-slate-600">Nothing matches "{query}".</li>
+            ) : (
+              filteredCommands.map((item, idx) => {
+                const Icon = item.icon;
+                const isSelected = idx === selectedIndex;
+                return (
+                  <li key={item.id} id={`${listId}-${item.id}`} role="option" aria-selected={isSelected}>
+                    <button
+                      type="button"
+                      onClick={() => run(item)}
+                      onMouseEnter={() => setSelectedIndex(idx)}
+                      className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                        isSelected ? 'bg-brand-50 text-slate-900' : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        <Icon className={`h-4 w-4 shrink-0 ${isSelected ? 'text-brand-700' : 'text-slate-500'}`} aria-hidden="true" />
+                        <span className="truncate">{item.title}</span>
+                      </span>
+                      <span className="shrink-0 text-xs text-slate-600">{item.category}</span>
+                    </button>
+                  </li>
+                );
+              })
+            )}
+          </ul>
+
+          <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">
+            <span>Type a page or a person's name</span>
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+    </dialog>
   );
 };

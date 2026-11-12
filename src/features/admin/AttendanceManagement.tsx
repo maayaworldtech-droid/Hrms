@@ -4,11 +4,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/services/api';
 import { AttendanceRecord } from '@/types';
 import { DataTable, Column } from '@/components/common/DataTable';
-import { Button } from '@/components/common/Button';
 import { Badge } from '@/components/common/Badge';
 import { Modal } from '@/components/common/Modal';
+import { StatTile, StatTiles } from '@/components/common/StatTile';
 import { EmployeeAttendanceHistoryModal } from '@/components/attendance/EmployeeAttendanceHistoryModal';
 import { formatDate, formatTime, formatLabel } from '@/utils/formatters';
+import { attendanceStatusVariant } from '@/utils/status';
 import { ShieldCheck } from 'lucide-react';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
@@ -21,18 +22,11 @@ export const AttendanceManagement: React.FC = () => {
   const dispatch = useAppDispatch();
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
   const [totalElements, setTotalElements] = useState(0);
   const [summary, setSummary] = useState({ present: 0, onDuty: 0, late: 0, onLeave: 0 });
   const [searchQuery, setSearchQuery] = useState('');
-  const [historyEmployee, setHistoryEmployee] = useState<{
-    employeeId: string;
-    employeeName: string;
-    location?: string;
-    shift?: string;
-  } | null>(null);
+  const [historyEmployee, setHistoryEmployee] = useState<{ employeeId: string; employeeName: string; location?: string; shift?: string } | null>(null);
   const [previewPhotoRecord, setPreviewPhotoRecord] = useState<AttendanceRecord | null>(null);
 
   const filters = useOperationsFilters(true);
@@ -41,12 +35,8 @@ export const AttendanceManagement: React.FC = () => {
   const setStatusFilter = (value: string) => filters.set('status', value);
 
   const loadPage = useCallback(
-    async (targetPage: number, append: boolean) => {
-      if (append) {
-        setIsLoadingMore(true);
-      } else {
-        setIsLoading(true);
-      }
+    async (targetPage: number) => {
+      setIsLoading(true);
       try {
         const res = await api.attendance.getPaged({
           date: filters.date,
@@ -58,49 +48,33 @@ export const AttendanceManagement: React.FC = () => {
           size: PAGE_SIZE,
         });
         const items = Array.isArray(res.items) ? res.items : [];
-        setAttendance((prev) => {
-          if (!append) return items;
-          const merged = new Map<string, AttendanceRecord>();
-          prev.forEach((r) => merged.set(String(r.id), r));
-          items.forEach((r) => merged.set(String(r.id), r));
-          return Array.from(merged.values());
-        });
+        setAttendance(items);
         setPage(res.page ?? targetPage);
-        setHasMore(Boolean(res.hasMore));
         setTotalElements(res.totalElements ?? items.length);
-        if (res.summary) {
-          setSummary(res.summary);
-        }
+        if (res.summary) setSummary(res.summary);
       } catch {
         dispatch(addToast({ type: 'error', title: 'Could not load attendance' }));
       } finally {
         setIsLoading(false);
-        setIsLoadingMore(false);
       }
     },
     [dispatch, filters.date, filters.venue, shiftFilter, statusFilter, searchQuery]
   );
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      void loadPage(0, false);
-    }, searchQuery ? 250 : 0);
+    const timer = setTimeout(() => void loadPage(0), searchQuery ? 250 : 0);
     return () => clearTimeout(timer);
   }, [loadPage, searchQuery]);
 
-  const openEmployeeHistory = (row: AttendanceRecord) => {
-    setHistoryEmployee({
-      employeeId: row.employeeId,
-      employeeName: row.employeeName,
-      location: row.location,
-      shift: row.shift,
-    });
-  };
+  const openEmployeeHistory = (row: AttendanceRecord) =>
+    setHistoryEmployee({ employeeId: row.employeeId, employeeName: row.employeeName, location: row.location, shift: row.shift });
+
+  const toggleStatus = (value: string) => setStatusFilter(statusFilter === value ? 'ALL' : value);
 
   const columns: Column<AttendanceRecord>[] = [
     {
       key: 'employeeName',
-      header: 'Employee name',
+      header: 'Employee',
       sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2.5">
@@ -111,265 +85,125 @@ export const AttendanceManagement: React.FC = () => {
                 e.stopPropagation();
                 setPreviewPhotoRecord(row);
               }}
-              className="relative group cursor-pointer"
-              title="Click to view real face biometric photo"
+              className="shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60"
+              aria-label={`View check-in photo of ${row.employeeName}`}
             >
-              <img
-                src={row.facePhoto}
-                alt={row.employeeName}
-                className="w-8 h-8 rounded-full object-cover border-2 border-emerald-400 group-hover:scale-105 transition-transform shrink-0"
-              />
-              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border border-white" />
+              <img src={row.facePhoto} alt="" className="h-8 w-8 rounded-full border border-slate-200 object-cover" />
             </button>
           ) : (
-            <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center font-bold text-xs shrink-0">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700" aria-hidden="true">
               {row.employeeName?.charAt(0) || 'E'}
             </div>
           )}
-          <div>
-            <div className="font-semibold text-slate-900 hover:text-brand-700 flex items-center gap-1.5">
-              <span>{row.employeeName}</span>
-              {row.isBiometricVerified && (
-                <span title="Face Biometric Verified">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                </span>
-              )}
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 font-medium text-slate-900">
+              <span className="truncate">{row.employeeName}</span>
+              {row.isBiometricVerified && <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-label="Face checked" />}
             </div>
-            <div className="text-xs text-slate-500">{row.location || 'No center'}</div>
+            <div className="text-xs text-slate-600">{row.location || 'No center'}</div>
           </div>
         </div>
       ),
     },
-    {
-      key: 'shift',
-      header: 'Shift timing',
-      sortable: true,
-      render: (row) => (
-        <span className="text-xs text-slate-700 font-medium">
-          {getShiftLabel(row.shift)}
-        </span>
-      ),
-    },
-    {
-      key: 'date',
-      header: 'Date',
-      sortable: true,
-      render: (row) => formatDate(row.date),
-    },
-    {
-      key: 'checkIn',
-      header: 'Punch in',
-      render: (row) => (
-        <span className="tabular-nums text-slate-800 font-medium">
-          {row.checkIn ? formatTime(row.checkIn) : '--:--'}
-        </span>
-      ),
-    },
-    {
-      key: 'checkOut',
-      header: 'Punch out',
-      render: (row) => (
-        <span className="tabular-nums text-slate-800 font-medium">
-          {row.checkOut ? formatTime(row.checkOut) : '--:--'}
-        </span>
-      ),
-    },
+    { key: 'shift', header: 'Shift', sortable: true, render: (row) => getShiftLabel(row.shift) },
+    { key: 'date', header: 'Date', sortable: true, render: (row) => formatDate(row.date) },
+    { key: 'checkIn', header: 'In', render: (row) => <span className="tabular-nums">{row.checkIn ? formatTime(row.checkIn) : '--:--'}</span> },
+    { key: 'checkOut', header: 'Out', render: (row) => <span className="tabular-nums">{row.checkOut ? formatTime(row.checkOut) : '--:--'}</span> },
     {
       key: 'workHours',
-      header: 'Effective hours',
+      header: 'Hours',
       sortable: true,
-      render: (row) => (
-        <span className="font-medium text-slate-900">
-          {row.workHours ? `${row.workHours} hrs` : '--'}
-        </span>
-      ),
+      align: 'right',
+      render: (row) => <span className="font-medium text-slate-900">{row.workHours ? `${row.workHours} h` : '--'}</span>,
     },
     {
       key: 'status',
       header: 'Status',
       sortable: true,
       render: (row) => (
-        <Badge
-          variant={
-            row.status === 'PRESENT'
-              ? 'success'
-              : row.status === 'ON_DUTY'
-              ? 'info'
-              : row.status === 'LATE'
-              ? 'warning'
-              : 'error'
-          }
-          size="sm"
-        >
-          {formatLabel(row.status)}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={attendanceStatusVariant(row.status)} size="sm" dot>
+            {formatLabel(row.status)}
+          </Badge>
+          {row.regularizationStatus === 'PENDING' && (
+            <Badge variant="warning" size="sm">
+              Correction pending
+            </Badge>
+          )}
+        </div>
       ),
     },
   ];
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Attendance"
-        description="Daily check-ins across all centers. Select a person to see their last month."
-      />
+      <PageHeader title="Attendance" description="Daily check-ins across all centers. Select a person to see their last month." />
 
       <OperationsFilters attendance />
-      {/* Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <button
-          onClick={() => setStatusFilter(statusFilter === 'PRESENT' ? 'ALL' : 'PRESENT')}
-          className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-            statusFilter === 'PRESENT'
-              ? 'border-emerald-500 bg-emerald-50/40 shadow-xs'
-              : 'border-slate-200 bg-white hover:bg-slate-50'
-          }`}
-        >
-          <span className="text-xs font-semibold text-emerald-600">Present</span>
-          <p className="text-xl font-bold text-slate-900 mt-1">{summary.present}</p>
-        </button>
 
-        <button
-          onClick={() => setStatusFilter(statusFilter === 'ON_DUTY' ? 'ALL' : 'ON_DUTY')}
-          className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-            statusFilter === 'ON_DUTY'
-              ? 'border-brand-500 bg-brand-50/40 shadow-xs'
-              : 'border-slate-200 bg-white hover:bg-slate-50'
-          }`}
-        >
-          <span className="text-xs font-semibold text-brand-600">On Duty</span>
-          <p className="text-xl font-bold text-slate-900 mt-1">{summary.onDuty}</p>
-        </button>
+      <StatTiles columns={4} aria-label="Attendance summary for the selected day">
+        <StatTile label="Present" value={summary.present} tone="success" active={statusFilter === 'PRESENT'} onClick={() => toggleStatus('PRESENT')} />
+        <StatTile label="On Duty" value={summary.onDuty} active={statusFilter === 'ON_DUTY'} onClick={() => toggleStatus('ON_DUTY')} />
+        <StatTile label="Late" value={summary.late} tone={summary.late > 0 ? 'warning' : 'neutral'} active={statusFilter === 'LATE'} onClick={() => toggleStatus('LATE')} />
+        <StatTile label="On leave" value={summary.onLeave} active={statusFilter === 'ON_LEAVE'} onClick={() => toggleStatus('ON_LEAVE')} />
+      </StatTiles>
 
-        <button
-          onClick={() => setStatusFilter(statusFilter === 'LATE' ? 'ALL' : 'LATE')}
-          className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-            statusFilter === 'LATE'
-              ? 'border-amber-500 bg-amber-50/40 shadow-xs'
-              : 'border-slate-200 bg-white hover:bg-slate-50'
-          }`}
-        >
-          <span className="text-xs font-semibold text-amber-600">Late check-in</span>
-          <p className="text-xl font-bold text-slate-900 mt-1">{summary.late}</p>
-        </button>
-
-        <button
-          onClick={() => setStatusFilter(statusFilter === 'ON_LEAVE' ? 'ALL' : 'ON_LEAVE')}
-          className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-            statusFilter === 'ON_LEAVE'
-              ? 'border-brand-500 bg-brand-50/40 shadow-xs'
-              : 'border-slate-200 bg-white hover:bg-slate-50'
-          }`}
-        >
-          <span className="text-xs font-semibold text-brand-600">On leave</span>
-          <p className="text-xl font-bold text-slate-900 mt-1">{summary.onLeave}</p>
-        </button>
-      </div>
-
-      {/* Main Table */}
       <DataTable
         data={attendance}
         columns={columns}
-        searchPlaceholder="Search attendance by employee name..."
+        searchPlaceholder="Search by employee name"
         onSearchChange={setSearchQuery}
         onRowClick={openEmployeeHistory}
         exportFileName="maaya_attendance_register"
         isLoading={isLoading}
-        hidePagination
+        pageSize={PAGE_SIZE}
+        pagination={{
+          page: page + 1,
+          totalPages: Math.max(1, Math.ceil(totalElements / PAGE_SIZE)),
+          totalElements,
+          onPageChange: (next) => void loadPage(next - 1),
+        }}
+        emptyTitle="No attendance for this day"
+        emptyDescription="Try another date, center or status."
       />
 
-      {/* Incremental Server Load More Bar */}
-      {!isLoading && attendance.length > 0 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-600">
-          <span className="tabular-nums">
-            Showing <strong className="text-slate-900">{attendance.length}</strong> of{' '}
-            <strong className="text-slate-900">{totalElements}</strong> records
-          </span>
-          {hasMore && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void loadPage(page + 1, true)}
-              isLoading={isLoadingMore}
-            >
-              Load more
-            </Button>
-          )}
-        </div>
-      )}
+      <EmployeeAttendanceHistoryModal employee={historyEmployee} onClose={() => setHistoryEmployee(null)} />
 
-      {/* Employee 1-Month History Modal */}
-      <EmployeeAttendanceHistoryModal
-        employee={historyEmployee}
-        onClose={() => setHistoryEmployee(null)}
-      />
-
-      {/* Biometric Face Photo Verification Modal */}
-      {previewPhotoRecord && (
-        <Modal
-          isOpen={!!previewPhotoRecord}
-          onClose={() => setPreviewPhotoRecord(null)}
-          title="Face Biometric Punch Verification"
-          subtitle={`${previewPhotoRecord.employeeName} · ${formatDate(previewPhotoRecord.date)}`}
-          size="sm"
-        >
-          <div className="space-y-4 text-xs">
+      <Modal
+        isOpen={Boolean(previewPhotoRecord)}
+        onClose={() => setPreviewPhotoRecord(null)}
+        title="Check-in photo"
+        subtitle={previewPhotoRecord ? `${previewPhotoRecord.employeeName} · ${formatDate(previewPhotoRecord.date)}` : undefined}
+        size="sm"
+      >
+        {previewPhotoRecord && (
+          <div className="space-y-4">
             {previewPhotoRecord.facePhoto ? (
-              <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-950 aspect-[4/3] flex items-center justify-center">
-                <img
-                  src={previewPhotoRecord.facePhoto}
-                  alt={`Captured face of ${previewPhotoRecord.employeeName}`}
-                  className="w-full h-full object-cover"
-                />
-                {previewPhotoRecord.isBiometricVerified && (
-                  <div className="absolute top-2.5 left-2.5 bg-emerald-950/80 backdrop-blur-xs border border-emerald-500/40 px-2 py-1 rounded-md text-xs text-emerald-300 font-semibold flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                    <span>Real face verified</span>
-                  </div>
-                )}
+              <div className="overflow-hidden rounded-lg bg-slate-950 aspect-[4/3]">
+                <img src={previewPhotoRecord.facePhoto} alt={`Face captured for ${previewPhotoRecord.employeeName}`} className="h-full w-full object-cover" />
               </div>
             ) : (
-              <div className="p-6 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
-                No biometric face photo recorded for this punch.
-              </div>
+              <p className="text-sm text-slate-600">No photo was recorded for this check-in.</p>
             )}
-
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Punch Time:</span>
-                <span className="tabular-nums font-semibold text-slate-900">
-                  {previewPhotoRecord.checkIn ? formatTime(previewPhotoRecord.checkIn) : '--:--'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Center:</span>
-                <span className="text-slate-900 font-medium">
-                  {previewPhotoRecord.location || 'No center'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Biometric Match:</span>
-                <span className="tabular-nums font-semibold text-emerald-700">
-                  {previewPhotoRecord.biometricScore != null
-                    ? `${previewPhotoRecord.biometricScore.toFixed(1)}%`
-                    : 'Not recorded'}
-                </span>
-              </div>
+            <dl className="ops-definition">
+              <dt>Check-in time</dt>
+              <dd className="tabular-nums">{previewPhotoRecord.checkIn ? formatTime(previewPhotoRecord.checkIn) : '--:--'}</dd>
+              <dt>Center</dt>
+              <dd>{previewPhotoRecord.location || 'No center'}</dd>
+              <dt>Face check</dt>
+              <dd className={previewPhotoRecord.isBiometricVerified ? 'text-emerald-700' : ''}>
+                {previewPhotoRecord.isBiometricVerified ? 'Matched' : previewPhotoRecord.biometricScore != null ? 'Not matched' : 'Not recorded'}
+              </dd>
               {previewPhotoRecord.notes && (
-                <div className="pt-1 border-t border-slate-200 text-slate-600 text-xs truncate">
-                  {previewPhotoRecord.notes}
-                </div>
+                <>
+                  <dt>Notes</dt>
+                  <dd className="font-normal">{previewPhotoRecord.notes}</dd>
+                </>
               )}
-            </div>
-
-            <div className="flex justify-end pt-2 border-t border-slate-100">
-              <Button variant="outline" size="sm" onClick={() => setPreviewPhotoRecord(null)}>
-                Close
-              </Button>
-            </div>
+            </dl>
           </div>
-        </Modal>
-      )}
+        )}
+      </Modal>
     </div>
   );
 };

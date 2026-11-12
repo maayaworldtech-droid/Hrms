@@ -4,9 +4,13 @@ import { Employee } from '@/types';
 import { getReportingManager } from '@/utils/reportingManager';
 import { formatDate, formatINR } from '@/utils/formatters';
 import { getShiftDefinition } from '@/utils/shiftUtils';
+import { accessLabel } from '@/utils/access';
+import { Button } from './Button';
+import { Badge } from './Badge';
 
 const sections = ['Personal', 'Employment', 'Payroll'] as const;
 
+/** Right-hand slide-over with the full employee record, opened from the Employees table. */
 export const EmployeeDetailsPanel = ({
   employee,
   isOpen,
@@ -19,19 +23,13 @@ export const EmployeeDetailsPanel = ({
   onEdit: () => void;
 }) => {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [section, setSection] = useState<typeof sections[number]>('Personal');
+  const [section, setSection] = useState<(typeof sections)[number]>('Personal');
 
   useEffect(() => {
-    if (!isOpen) return;
     const element = dialog.current;
-    element?.showModal();
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      element?.close();
-      document.body.style.overflow = previousOverflow;
-    };
+    if (!element) return;
+    if (isOpen && !element.open) element.showModal();
+    else if (!isOpen && element.open) element.close();
   }, [isOpen]);
 
   const details = (items: [string, string | number | undefined][]) => (
@@ -45,150 +43,131 @@ export const EmployeeDetailsPanel = ({
     </dl>
   );
 
+  const emergency = employee.emergencyContact?.name
+    ? `${employee.emergencyContact.name} (${employee.emergencyContact.relationship || 'Emergency'}${employee.emergencyContact.phone ? `, ${employee.emergencyContact.phone}` : ''})`
+    : employee.emergencyContactName
+    ? `${employee.emergencyContactName} (${employee.emergencyContactRelationship || 'Emergency'}${employee.emergencyContactPhone ? `, ${employee.emergencyContactPhone}` : ''})`
+    : undefined;
+
+  let customComponents: any[] = [];
+  if (employee.salaryStructureJson) {
+    try {
+      const parsed = JSON.parse(employee.salaryStructureJson);
+      if (Array.isArray(parsed)) customComponents = parsed;
+    } catch {
+      customComponents = [];
+    }
+  }
+
   return (
     <dialog
       ref={dialog}
-      className="ops-employee-panel"
+      className="app-slideover"
       aria-labelledby="employee-detail-title"
-      onCancel={onClose}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
       onClick={(event) => {
-        const rect = event.currentTarget.getBoundingClientRect();
-        if (
-          event.target === event.currentTarget &&
-          (event.clientX < rect.left ||
-            event.clientX > rect.right ||
-            event.clientY < rect.top ||
-            event.clientY > rect.bottom)
-        )
-          onClose();
+        if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="flex items-start justify-between gap-4 pb-6">
-        <div>
-          <h2 id="employee-detail-title">{employee.fullName}</h2>
+      <div className="flex h-full flex-col">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
+          <div className="min-w-0">
+            <h2 id="employee-detail-title" className="truncate text-lg font-semibold text-slate-900">
+              {employee.fullName}
+            </h2>
+            <p className="mt-0.5 text-sm text-slate-600">
+              {employee.employeeCode || employee.id} · {accessLabel(employee.role)} · {employee.location || 'No center'}
+            </p>
+          </div>
+          <Button variant="ghost" size="icon" aria-label="Close employee details" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </Button>
         </div>
-        <button className="workspace-icon" aria-label="Close employee details" onClick={onClose}>
-          <X size={20} />
-        </button>
-      </div>
 
-      <div className="ops-detail-tabs" aria-label="Employee sections">
-        {sections.map((item) => (
-          <button
-            key={item}
-            aria-pressed={section === item}
-            className={section === item ? 'active' : ''}
-            onClick={() => setSection(item)}
-          >
-            {item}
-          </button>
-        ))}
-      </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <div className="ops-detail-tabs" role="tablist" aria-label="Employee sections">
+            {sections.map((item) => (
+              <button key={item} type="button" role="tab" aria-selected={section === item} className={section === item ? 'active' : ''} onClick={() => setSection(item)}>
+                {item}
+              </button>
+            ))}
+          </div>
 
-      {section === 'Personal' && (
-        <>
-          {employee.enrolledFacePhoto && (
-            <div className="mb-4 flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-              <img
-                src={employee.enrolledFacePhoto}
-                alt="Enrolled Face"
-                className="w-14 h-14 rounded-lg object-cover border border-slate-200 bg-white shrink-0"
-              />
-              <div>
-                <span className="text-xs font-semibold text-slate-900 block">Registered face ID</span>
-                <span className="text-xs text-emerald-700 font-medium block mt-0.5">
-                  Biometrics Enrolled for Attendance Verification
-                </span>
-              </div>
-            </div>
-          )}
-          {details([
-            ['Employee ID', employee.employeeCode || employee.id],
-            ['Blood Group', employee.bloodGroup || 'Not provided'],
-            ['Joining date', formatDate(employee.joiningDate)],
-            ['Email', employee.email],
-            ['Phone', employee.phone],
-            ['Residential address', employee.address],
-            [
-              'Emergency Contact',
-              employee.emergencyContact?.name
-                ? `${employee.emergencyContact.name} (${employee.emergencyContact.relationship || 'Emergency'} - ${employee.emergencyContact.phone || ''})`
-                : employee.emergencyContactName
-                  ? `${employee.emergencyContactName} (${employee.emergencyContactRelationship || 'Emergency'} - ${employee.emergencyContactPhone || ''})`
-                  : 'Not provided',
-            ],
-            ['Facial Attendance Profile', employee.enrolledFacePhoto ? 'Enrolled & Verified' : 'Not Registered'],
-          ])}
-        </>
-      )}
-
-      {section === 'Employment' &&
-        details([
-          ['Center', employee.location],
-          ['Employee shift', getShiftDefinition(employee.shift).name],
-          ['Date of joining', formatDate(employee.joiningDate)],
-          ['Employment type', employee.employmentType?.replaceAll('_', ' ')],
-          ['Status', employee.status],
-          ['Reports to', getReportingManager(employee).name],
-          ['Portal role', employee.role],
-          ['EPFO UAN', employee.bankDetails?.uanNumber || 'Not applicable (No PF)'],
-        ])}
-
-      {section === 'Payroll' && (
-        <>
-          <h3 className="mb-4">Salary and banking</h3>
-          {details([
-            ['Monthly salary', employee.monthlySalary != null ? formatINR(employee.monthlySalary) : undefined],
-            ['Annual CTC', employee.ctcAnnual != null ? formatINR(employee.ctcAnnual) : undefined],
-            ['Bank', employee.bankDetails?.bankName],
-            ['Account number', employee.bankDetails?.accountNumber],
-            ['IFSC', employee.bankDetails?.ifscCode],
-            ['PAN', employee.bankDetails?.panNumber],
-          ])}
-
-          {employee.salaryStructureJson && (() => {
-            try {
-              const comps: any[] = JSON.parse(employee.salaryStructureJson);
-              if (Array.isArray(comps) && comps.length > 0) {
-                return (
-                  <div className="mt-5 pt-4 border-t border-slate-200">
-                    <h4 className="text-xs font-bold text-slate-900 mb-2">
-                      Custom salary components breakdown
-                    </h4>
-                    <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-100 bg-white">
-                      {comps.map((c, idx) => {
-                        const isEarn = c.type === 'EARNING';
-                        return (
-                          <div key={c.id || idx} className="p-2.5 flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-2">
-                              <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${
-                                isEarn
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                  : 'bg-rose-50 text-rose-700 border border-rose-200'
-                              }`}>
-                                {isEarn ? 'EARNING' : 'DEDUCTION'}
-                              </span>
-                              <span className="font-medium text-slate-800">{c.name}</span>
-                            </div>
-                            <span className="font-semibold text-slate-900">{formatINR(c.amount || 0)}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
+          {section === 'Personal' && (
+            <>
+              {employee.enrolledFacePhoto && (
+                <div className="mb-5 flex items-center gap-3">
+                  <img src={employee.enrolledFacePhoto} alt="" className="h-14 w-14 shrink-0 rounded-lg border border-slate-200 object-cover" />
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Face saved for check-in</p>
+                    <p className="text-xs text-slate-600">Used to verify daily attendance.</p>
                   </div>
-                );
-              }
-            } catch (ignored) {}
-            return null;
-          })()}
-        </>
-      )}
+                </div>
+              )}
+              {details([
+                ['Employee ID', employee.employeeCode || employee.id],
+                ['Email', employee.email],
+                ['Phone', employee.phone],
+                ['Blood group', employee.bloodGroup],
+                ['Address', employee.address],
+                ['Emergency contact', emergency],
+                ['Face for check-in', employee.enrolledFacePhoto ? 'Saved' : 'Not saved yet'],
+              ])}
+            </>
+          )}
 
-      <div className="flex justify-end mt-6 pt-5 border-t border-slate-200">
-        <button className="ops-button" onClick={onEdit}>
-          <Pencil size={16} />
-          Edit employee
-        </button>
+          {section === 'Employment' &&
+            details([
+              ['Center', employee.location],
+              ['Shift', getShiftDefinition(employee.shift).name],
+              ['Joined', formatDate(employee.joiningDate)],
+              ['Status', employee.status === 'TERMINATED' ? 'Deactivated' : employee.status ? employee.status[0] + employee.status.slice(1).toLowerCase().replaceAll('_', ' ') : undefined],
+              ['Reports to', getReportingManager(employee).name],
+              ['Access', employee.role === 'ADMIN' ? 'Admin, all centers' : employee.role === 'MANAGER' ? 'Center manager' : 'Staff'],
+            ])}
+
+          {section === 'Payroll' && (
+            <>
+              {details([
+                ['Monthly salary', employee.monthlySalary != null ? formatINR(employee.monthlySalary) : undefined],
+                ['Yearly salary', employee.ctcAnnual != null ? formatINR(employee.ctcAnnual) : undefined],
+                ['Bank', employee.bankDetails?.bankName],
+                ['Account number', employee.bankDetails?.accountNumber],
+                ['IFSC', employee.bankDetails?.ifscCode],
+                ['PAN', employee.bankDetails?.panNumber],
+                ['EPFO UAN', employee.bankDetails?.uanNumber || 'Not applicable'],
+              ])}
+
+              {customComponents.length > 0 && (
+                <div className="mt-5 border-t border-slate-200 pt-4">
+                  <h3 className="text-sm font-semibold text-slate-900">Salary components</h3>
+                  <ul className="mt-2 divide-y divide-slate-100">
+                    {customComponents.map((c, idx) => (
+                      <li key={c.id || idx} className="flex items-center justify-between gap-3 py-2 text-sm">
+                        <span className="flex items-center gap-2 text-slate-800">
+                          <Badge variant={c.type === 'EARNING' ? 'success' : 'neutral'} size="sm">
+                            {c.type === 'EARNING' ? 'Earning' : 'Deduction'}
+                          </Badge>
+                          {c.name}
+                        </span>
+                        <span className="font-medium tabular-nums text-slate-900">{formatINR(c.amount || 0)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="flex justify-end border-t border-slate-200 px-6 py-3">
+          <Button onClick={onEdit} leftIcon={<Pencil className="h-4 w-4" />}>
+            Edit employee
+          </Button>
+        </div>
       </div>
     </dialog>
   );

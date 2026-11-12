@@ -32,20 +32,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center p-6 text-center">
-        <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mb-4">
-          <ShieldAlert className="w-7 h-7" />
-        </div>
-        <h2 className="text-xl font-bold text-slate-900">Access restricted</h2>
-        <p className="text-sm text-slate-600 mt-2 max-w-md">
-          Your current account role (<span className="font-semibold text-slate-900">{activeRole}</span>) does not have authorization to view this module.
+        <ShieldAlert className="mb-3 h-8 w-8 text-amber-600" strokeWidth={1.5} aria-hidden="true" />
+        <h1 className="text-xl font-semibold text-slate-900">You do not have access to this page</h1>
+        <p className="mt-2 max-w-md text-sm text-slate-600">
+          It is only available to {allowedRoles.map((r) => r.toLowerCase() + 's').join(' and ')}. You are signed in as {activeRole === 'ADMIN' ? 'an admin' : activeRole === 'MANAGER' ? 'a manager' : 'an employee'}.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <Button
-            variant="outline"
-            onClick={() => window.history.back()}
-          >
-            Go back
-          </Button>
           <Button
             variant="primary"
             onClick={() => {
@@ -61,7 +53,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
             onClick={handleSwitchAccount}
             leftIcon={<LogOut className="w-3.5 h-3.5" />}
           >
-            Switch account
+            Sign in as someone else
           </Button>
         </div>
       </div>

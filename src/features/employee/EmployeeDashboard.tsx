@@ -1,74 +1,65 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/services/api';
-import { AttendanceRecord, Employee } from '@/types';
+import { AttendanceRecord, Employee, LeaveRequest, OnDutyRequest } from '@/types';
 import { useAppSelector } from '@/store';
-import { formatTime } from '@/utils/formatters';
+import { formatTime, formatLabel } from '@/utils/formatters';
 import { getShiftDefinition } from '@/utils/shiftUtils';
+import { businessDate } from '@/utils/operations';
+import { attendanceStatusVariant } from '@/utils/status';
 import { BiometricAttendanceModal } from '@/components/attendance/BiometricAttendanceModal';
-import {
-  ScanFace,
-  CheckCircle2,
-  Clock,
-  FileText,
-  ShieldCheck,
-  Briefcase,
-  UserCheck,
-  CalendarDays,
-  CalendarPlus,
-  Receipt,
-} from 'lucide-react';
+import { Button } from '@/components/common/Button';
+import { Badge } from '@/components/common/Badge';
+import { EmptyState } from '@/components/common/EmptyState';
+import { MobileCard, MobileSectionHeading, MobileSkeleton } from '@/components/employee/MobilePrimitives';
+import { ScanFace, Clock, CalendarPlus, Briefcase, WifiOff, ChevronRight } from 'lucide-react';
 
-function getDayParts(dateStr: string): { dayNum: string; weekday: string } {
-  const parts = dateStr.split('-').map(Number);
-  if (parts.length === 3 && !parts.some(isNaN)) {
-    const d = new Date(parts[0], parts[1] - 1, parts[2]);
-    return {
-      dayNum: String(parts[2]).padStart(2, '0'),
-      weekday: d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
-    };
-  }
-  return { dayNum: '--', weekday: '---' };
-}
-
-function getAttendanceStatusLabel(rec: AttendanceRecord): string {
-  if (rec.status === 'LATE') return 'Late';
-  if (rec.status === 'HALF_DAY') return 'Half Day';
-  if (rec.status === 'ABSENT') return 'Absent';
-  if (rec.status === 'ON_LEAVE') return 'On Leave';
-  return rec.checkOut ? 'Present' : 'Checked In';
-}
+const dayLabel = (iso: string) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return iso;
+  return new Date(y, m - 1, d).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+};
 
 export const EmployeeDashboard: React.FC = () => {
   const user = useAppSelector((state) => state.auth.user);
-  const employeeId = user?.id || 'emp-003';
+  const employeeId = user?.id || '';
 
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [attendance, setAttendance] = useState<AttendanceRecord | null>(null);
   const [recentRecords, setRecentRecords] = useState<AttendanceRecord[]>([]);
+  const [pending, setPending] = useState<{ leaves: number; duties: number }>({ leaves: 0, duties: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
+  const [todayText] = useState(() => new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }));
 
   const load = useCallback(async () => {
+    if (!employeeId) {
+      setError(true);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(false);
     try {
-      const [person, records] = await Promise.all([
+      const [person, records, leaves, duties] = await Promise.all([
         api.employees.getById(employeeId),
-        api.attendance.getByEmployee(employeeId).catch(() => []),
+        api.attendance.getByEmployee(employeeId).catch(() => [] as AttendanceRecord[]),
+        api.leaves.getByEmployee(employeeId).catch(() => [] as LeaveRequest[]),
+        api.onDuty.getByEmployee(employeeId).catch(() => [] as OnDutyRequest[]),
       ]);
-
       if (!person) throw new Error('Employee record could not be loaded');
 
-      const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-      const sorted = Array.isArray(records)
-        ? [...records].sort((a, b) => b.date.localeCompare(a.date))
-        : [];
+      const today = businessDate();
+      const sorted = Array.isArray(records) ? [...records].sort((a, b) => b.date.localeCompare(a.date)) : [];
 
       setEmployee(person);
-      setAttendance(sorted.find((record) => record.date === todayStr) || null);
-      setRecentRecords(sorted.slice(0, 4));
+      setAttendance(sorted.find((record) => record.date === today) || null);
+      setRecentRecords(sorted.filter((record) => record.date !== today).slice(0, 5));
+      setPending({
+        leaves: (Array.isArray(leaves) ? leaves : []).filter((item) => item.status === 'PENDING').length,
+        duties: (Array.isArray(duties) ? duties : []).filter((item) => item.status === 'PENDING').length,
+      });
     } catch (err) {
       console.error('Failed to load employee details:', err);
       setError(true);
@@ -81,230 +72,156 @@ export const EmployeeDashboard: React.FC = () => {
     void load();
   }, [load]);
 
-  if (loading) {
-    return (
-      <div className="employee-skeleton-group py-2" role="status">
-        <div className="employee-skeleton" style={{ height: '56px' }} />
-        <div className="employee-skeleton" style={{ height: '160px' }} />
-        <div className="employee-skeleton" style={{ height: '90px' }} />
-      </div>
-    );
-  }
+  if (loading) return <MobileSkeleton heights={[200, 64, 180]} />;
 
   if (error || !employee) {
     return (
-      <div className="employee-empty" role="alert">
-        <ShieldCheck className="w-10 h-10 text-accent-500" />
-        <h3 className="text-sm font-semibold text-slate-900 mt-2">Unable to connect</h3>
-        <p className="text-xs text-slate-500 mt-1">Please check connection and retry.</p>
-        <button className="employee-secondary-btn mt-3" onClick={load}>
-          Try again
-        </button>
-      </div>
+      <EmptyState
+        tone="danger"
+        icon={WifiOff}
+        title="Unable to load your dashboard"
+        description="Check your connection and try again."
+        actionLabel="Try again"
+        onAction={load}
+      />
     );
   }
 
   const shift = getShiftDefinition(employee.shift || 'MORNING');
-  const completed = !!attendance?.checkOut;
-  const working = !!attendance?.checkIn && !completed;
-
-  const currentHour = new Date().getHours();
-  const greeting =
-    currentHour < 12 ? 'Good morning' : currentHour < 17 ? 'Good afternoon' : 'Good evening';
-
-  const statusLine = completed
-    ? `Shift completed · ${attendance.workHours ? `${attendance.workHours}h logged` : 'Punched out'}`
-    : working
-    ? `Clocked in at ${formatTime(attendance!.checkIn!)}`
-    : `${shift.name} · ${shift.timing}`;
+  const completed = Boolean(attendance?.checkOut);
+  const working = Boolean(attendance?.checkIn) && !completed;
+  const pendingTotal = pending.leaves + pending.duties;
 
   return (
-    <div className="space-y-5 pb-3">
-      {/* Clean Typographic Greeting Header */}
-      <div className="pt-1">
-        <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-          {greeting}, {employee.firstName || employee.fullName}
-        </h1>
+    <div className="space-y-4 pb-3">
+      <div>
+        <p className="text-sm text-slate-600">{todayText}</p>
+        <h1 className="text-lg font-semibold tracking-tight text-slate-900">{employee.firstName || employee.fullName}</h1>
       </div>
 
-      {/* Compact Biometric Punch Action Bar (Flat, single CTA) */}
-      <section className="bg-white border border-slate-200 rounded-xl px-4 py-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <span className="text-xs font-medium text-slate-500 block">
-            {employee.designation || employee.location || 'Staff'} · {employee.employeeCode}
-          </span>
-          <p className="text-sm font-semibold text-slate-900 truncate mt-0.5">{statusLine}</p>
-        </div>
-        <button
-          type="button"
-          disabled={completed}
-          onClick={() => setScanOpen(true)}
-          className="px-4 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:bg-slate-100 disabled:text-slate-500 text-white text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer disabled:cursor-default shadow-xs"
-        >
-          {completed ? (
-            <>
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Done</span>
-            </>
-          ) : working ? (
-            <>
-              <Clock className="w-4 h-4" />
-              <span>Check out</span>
-            </>
-          ) : (
-            <>
-              <ScanFace className="w-4 h-4" />
-              <span>Check in</span>
-            </>
-          )}
-        </button>
-      </section>
-
-      {/* Primary 2x2 Feature Grid */}
-      <section className="grid grid-cols-2 gap-3" aria-label="Primary actions">
-        <Link
-          to="/employee/attendance"
-          className="bg-white border border-slate-200 rounded-xl py-4 px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col items-center justify-center gap-2.5 hover:border-brand-300 transition-colors"
-        >
-          <span className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
-            <UserCheck className="w-5 h-5" strokeWidth={1.75} />
-          </span>
-          <span className="text-sm font-semibold text-slate-800">Attendance</span>
-        </Link>
-
-        <Link
-          to="/employee/salary"
-          className="bg-white border border-slate-200 rounded-xl py-4 px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col items-center justify-center gap-2.5 hover:border-brand-300 transition-colors"
-        >
-          <span className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
-            <FileText className="w-5 h-5" strokeWidth={1.75} />
-          </span>
-          <span className="text-sm font-semibold text-slate-800">Payslips</span>
-        </Link>
-
-        <Link
-          to="/employee/on-duty"
-          className="bg-white border border-slate-200 rounded-xl py-4 px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col items-center justify-center gap-2.5 hover:border-brand-300 transition-colors"
-        >
-          <span className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
-            <Briefcase className="w-5 h-5" strokeWidth={1.75} />
-          </span>
-          <span className="text-sm font-semibold text-slate-800">On Duty (OD)</span>
-        </Link>
-
-        <Link
-          to="/employee/leaves"
-          className="bg-white border border-slate-200 rounded-xl py-4 px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col items-center justify-center gap-2.5 hover:border-brand-300 transition-colors"
-        >
-          <span className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
-            <CalendarDays className="w-5 h-5" strokeWidth={1.75} />
-          </span>
-          <span className="text-sm font-semibold text-slate-800">Leave history</span>
-        </Link>
-      </section>
-
-      {/* More Action Section */}
-      <section className="space-y-2.5">
-        <h2 className="text-sm font-semibold text-slate-900">Quick actions</h2>
-        <div className="grid grid-cols-2 gap-3">
-          <Link
-            to="/employee/leaves?apply=true"
-            className="bg-white border border-slate-200 rounded-xl py-4 px-3 flex flex-col items-center justify-center gap-2 shadow-xs hover:border-brand-300 hover:bg-brand-50/40 transition-colors"
-          >
-            <CalendarPlus className="w-6 h-6 text-slate-700" strokeWidth={1.75} />
-            <span className="text-sm font-semibold text-slate-800">Apply for leave</span>
-          </Link>
-
-          <Link
-            to="/employee/on-duty?tab=EXPENSES"
-            className="bg-white border border-slate-200 rounded-xl py-4 px-3 flex flex-col items-center justify-center gap-2 shadow-xs hover:border-brand-300 hover:bg-brand-50/40 transition-colors"
-          >
-            <Receipt className="w-6 h-6 text-slate-700" strokeWidth={1.75} />
-            <span className="text-sm font-semibold text-slate-800">Claim expenses</span>
-          </Link>
-        </div>
-      </section>
-
-      {/* Attendance Summary Section */}
-      <section className="space-y-2.5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-900">Recent attendance</h2>
-          <Link
-            to="/employee/attendance"
-            className="text-xs font-semibold text-brand-600 hover:text-brand-700"
-          >
-            View all
-          </Link>
-        </div>
-
-        {recentRecords.length === 0 ? (
-          <div className="bg-white border border-slate-200 rounded-xl px-4 py-5 text-center">
-            <p className="text-xs text-slate-600">
-              No attendance logs yet. Use Check In above to record today&apos;s shift.
+      {/* Today's shift: the one thing an employee needs every day */}
+      <MobileCard aria-labelledby="today-heading" className="space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 id="today-heading" className="text-sm font-semibold text-slate-900">
+              Today&apos;s attendance
+            </h2>
+            <p className="mt-0.5 text-sm text-slate-600">
+              {shift.name} · {shift.timing}
             </p>
           </div>
-        ) : (
-          <div className="space-y-2.5">
-            {recentRecords.map((rec, idx) => {
-              const { dayNum, weekday } = getDayParts(rec.date);
-              const label = getAttendanceStatusLabel(rec);
-              const isLatest = idx === 0;
-              const isWarning = rec.status === 'LATE' || rec.status === 'HALF_DAY';
-              const isDanger = rec.status === 'ABSENT';
+          <Badge variant={completed ? 'success' : working ? 'info' : 'neutral'} dot>
+            {completed ? 'Completed' : working ? 'On shift' : 'Not checked in'}
+          </Badge>
+        </div>
 
-              const pillStyle = isDanger
-                ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                : isWarning
-                ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                : isLatest
-                ? 'bg-brand-600 text-white'
-                : 'bg-brand-50 text-brand-600 border border-brand-200';
-
-              return (
-                <div
-                  key={rec.id || rec.date}
-                  className={`rounded-xl px-3.5 py-3 flex items-center justify-between gap-2.5 border transition-colors ${
-                    isLatest
-                      ? 'bg-brand-50 border-brand-300'
-                      : 'bg-white border-slate-200'
-                  }`}
-                >
-                  <div className="w-10 shrink-0 text-center pr-2.5 border-r border-slate-200">
-                    <span className="block text-sm font-bold text-slate-900 leading-tight">
-                      {dayNum}
-                    </span>
-                    <span className="block text-xs font-medium text-slate-500 leading-tight">
-                      {weekday}
-                    </span>
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <span className="block text-xs text-slate-500">Punch in</span>
-                    <span className="block text-xs font-bold text-slate-900 tabular-nums">
-                      {rec.checkIn ? formatTime(rec.checkIn) : '--:--'}
-                    </span>
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <span className="block text-xs text-slate-500">Punch out</span>
-                    <span className="block text-xs font-bold text-slate-900 tabular-nums">
-                      {rec.checkOut ? formatTime(rec.checkOut) : '--:--'}
-                    </span>
-                  </div>
-
-                  <span
-                    className={`rounded-md px-2.5 py-1 text-xs font-semibold shrink-0 ${pillStyle}`}
-                  >
-                    {label}
-                  </span>
-                </div>
-              );
-            })}
+        <dl className="grid grid-cols-3 gap-3">
+          <div>
+            <dt className="text-xs text-slate-600">Check in</dt>
+            <dd className="mt-0.5 text-base font-semibold tabular-nums text-slate-900">
+              {attendance?.checkIn ? formatTime(attendance.checkIn) : '--:--'}
+            </dd>
           </div>
+          <div>
+            <dt className="text-xs text-slate-600">Check out</dt>
+            <dd className="mt-0.5 text-base font-semibold tabular-nums text-slate-900">
+              {attendance?.checkOut ? formatTime(attendance.checkOut) : '--:--'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-600">Hours</dt>
+            <dd className="mt-0.5 text-base font-semibold tabular-nums text-slate-900">
+              {completed && attendance?.workHours ? `${attendance.workHours} h` : working ? 'Live' : '--'}
+            </dd>
+          </div>
+        </dl>
+
+        {completed ? (
+          <p className="text-sm text-slate-600">Your attendance for today is recorded.</p>
+        ) : (
+          <Button
+            size="lg"
+            className="w-full"
+            onClick={() => setScanOpen(true)}
+            leftIcon={working ? <Clock className="h-4 w-4" /> : <ScanFace className="h-4 w-4" />}
+          >
+            {working ? 'Check out' : 'Check in with face ID'}
+          </Button>
+        )}
+      </MobileCard>
+
+      {/* Requests awaiting a decision */}
+      {pendingTotal > 0 && (
+        <MobileCard className="flex items-center justify-between gap-3 py-3">
+          <div className="text-sm">
+            <p className="font-semibold text-slate-900">
+              {pendingTotal} request{pendingTotal > 1 ? 's' : ''} awaiting approval
+            </p>
+            <p className="mt-0.5 text-slate-600">
+              {[pending.leaves ? `${pending.leaves} leave` : '', pending.duties ? `${pending.duties} On Duty` : ''].filter(Boolean).join(' · ')}
+            </p>
+          </div>
+          <Link
+            to={pending.leaves ? '/employee/leaves' : '/employee/on-duty'}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100"
+            aria-label="View pending requests"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </Link>
+        </MobileCard>
+      )}
+
+      {/* Only the two actions the bottom navigation does not already cover */}
+      <div className="grid grid-cols-2 gap-3" aria-label="Quick actions">
+        <Link
+          to="/employee/leaves?apply=true"
+          className="flex min-h-12 items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm font-medium text-slate-900 transition-colors hover:border-slate-300 hover:bg-slate-50"
+        >
+          <CalendarPlus className="h-5 w-5 text-brand-700" strokeWidth={1.75} aria-hidden="true" />
+          Apply for leave
+        </Link>
+        <Link
+          to="/employee/on-duty?apply=true"
+          className="flex min-h-12 items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm font-medium text-slate-900 transition-colors hover:border-slate-300 hover:bg-slate-50"
+        >
+          <Briefcase className="h-5 w-5 text-brand-700" strokeWidth={1.75} aria-hidden="true" />
+          Apply On Duty
+        </Link>
+      </div>
+
+      <section className="space-y-2" aria-labelledby="recent-heading">
+        <MobileSectionHeading
+          title="Recent attendance"
+          action={
+            <Link to="/employee/attendance" className="text-sm font-medium text-brand-700 hover:underline">
+              View all
+            </Link>
+          }
+        />
+        {recentRecords.length === 0 ? (
+          <EmptyState compact icon={Clock} title="No attendance yet" description="Check in above to record your first shift." />
+        ) : (
+          <MobileCard className="p-0">
+            <ul className="divide-y divide-slate-100">
+              {recentRecords.map((record) => (
+                <li key={record.id || record.date} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-900">{dayLabel(record.date)}</p>
+                    <p className="mt-0.5 text-xs tabular-nums text-slate-600">
+                      {record.checkIn ? formatTime(record.checkIn) : '--:--'} to {record.checkOut ? formatTime(record.checkOut) : '--:--'}
+                      {record.workHours ? ` · ${record.workHours} h` : ''}
+                    </p>
+                  </div>
+                  <Badge variant={attendanceStatusVariant(record.status)} size="sm">
+                    {formatLabel(record.status)}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          </MobileCard>
         )}
       </section>
 
-      {/* Biometric Attendance Modal */}
       <BiometricAttendanceModal
         isOpen={scanOpen}
         onClose={() => setScanOpen(false)}

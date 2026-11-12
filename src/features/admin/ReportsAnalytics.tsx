@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '@/services/api';
 import { AttendanceRecord, Employee, LeaveRequest, OnDutyRequest, PayrollRun, Payslip } from '@/types';
-import { Button } from '@/components/common/Button';
+import { EmptyState } from '@/components/common/EmptyState';
+import { PageHeader } from '@/components/common/PageHeader';
 import { businessDate } from '@/utils/operations';
 import { useCenters } from '@/hooks/useCenters';
 import { ReportViewLayout, ReportData } from './reports/ReportView';
@@ -138,14 +139,13 @@ export const ReportsAnalytics: React.FC = () => {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-slate-900">Reports</h1>
-          <p className="mt-1 text-sm text-slate-600">Salary, attendance, leave, expenses and staff, month by month.</p>
-        </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="text-sm text-slate-700">
-            <span className="block mb-1">Month</span>
+      <PageHeader
+        title="Reports"
+        description="Salary, attendance, leave, expenses and staff, month by month."
+        actions={
+        <>
+          <label className="flex flex-col gap-1 text-xs font-medium text-slate-700">
+            Month
             <input
               type="month"
               value={monthKey}
@@ -154,8 +154,8 @@ export const ReportsAnalytics: React.FC = () => {
               className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-400/30"
             />
           </label>
-          <label className="text-sm text-slate-700">
-            <span className="block mb-1">Center</span>
+          <label className="flex flex-col gap-1 text-xs font-medium text-slate-700">
+            Center
             <select
               value={centerKnown ? centerFilter : 'ALL'}
               onChange={(e) => setParam('center', e.target.value)}
@@ -170,21 +170,13 @@ export const ReportsAnalytics: React.FC = () => {
               ))}
             </select>
           </label>
-        </div>
-      </div>
+        </>
+        }
+      />
 
-      <div className="flex gap-1 border-b border-slate-200 overflow-x-auto" role="tablist">
+      <div className="ops-detail-tabs" role="tablist" aria-label="Report">
         {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            onClick={() => setParam('tab', t.id)}
-            className={`h-10 px-3 -mb-px text-sm whitespace-nowrap border-b-2 cursor-pointer ${
-              tab === t.id ? 'border-brand-600 text-brand-700 font-semibold' : 'border-transparent text-slate-600 hover:text-slate-900'
-            }`}
-          >
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setParam('tab', t.id)}>
             {t.label}
           </button>
         ))}
@@ -199,15 +191,11 @@ export const ReportsAnalytics: React.FC = () => {
       </p>
 
       {loadFailed ? (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 flex items-center justify-between gap-3">
-          <span>Could not load report data. Check your connection and try again.</span>
-          <Button variant="outline" size="sm" onClick={load}>
-            Try again
-          </Button>
-        </div>
+        <EmptyState tone="danger" title="Could not load report data" description="Check your connection and try again." actionLabel="Try again" onAction={load} />
       ) : !report || centersLoading || waitingForSlips ? (
-        <div className="rounded-lg border border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-600">
-          Preparing the report...
+        <div className="space-y-6" role="status" aria-label="Preparing the report">
+          <div className="h-20 animate-pulse rounded-lg bg-slate-200" />
+          <div className="h-64 animate-pulse rounded-lg bg-slate-200" />
         </div>
       ) : (
         <ReportViewLayout data={report} selectedCenter={centerKnown ? centerFilter : 'ALL'} />

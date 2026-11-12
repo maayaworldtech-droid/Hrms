@@ -2,12 +2,20 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '@/services/api';
 import { AttendanceRecord } from '@/types';
 import { Modal } from '@/components/common/Modal';
+import { Button } from '@/components/common/Button';
+import { Badge } from '@/components/common/Badge';
+import { Textarea } from '@/components/common/Textarea';
+import { EmptyState } from '@/components/common/EmptyState';
+import { FilterPills, MobileCard, MobileSearch, MobileSkeleton, MobileTitle } from '@/components/employee/MobilePrimitives';
 import { formatDate, formatTime, formatLabel } from '@/utils/formatters';
+import { attendanceStatusVariant } from '@/utils/status';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 import { BiometricAttendanceModal } from '@/components/attendance/BiometricAttendanceModal';
 import { businessDate } from '@/utils/operations';
-import { Search, Clock, ShieldCheck } from 'lucide-react';
+import { Clock, ShieldCheck, ScanFace } from 'lucide-react';
+
+type Filter = 'ALL' | 'PRESENT' | 'LATE' | 'OTHER';
 
 export const MyAttendance: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -16,20 +24,20 @@ export const MyAttendance: React.FC = () => {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [regularizeReason, setRegularizeReason] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [biometricModalOpen, setBiometricModalOpen] = useState(false);
   const [biometricMode, setBiometricMode] = useState<'LOGIN' | 'LOGOUT'>('LOGIN');
-
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PRESENT' | 'LATE'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<Filter>('ALL');
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
+  const [todayText] = useState(() => new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }));
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await api.attendance.getByEmployee(employeeId).catch(() => []);
-      setAttendance(Array.isArray(data) ? data : []);
+      setAttendance(Array.isArray(data) ? [...data].sort((a, b) => b.date.localeCompare(a.date)) : []);
     } finally {
       setIsLoading(false);
     }
@@ -39,310 +47,200 @@ export const MyAttendance: React.FC = () => {
     void loadData();
   }, [loadData]);
 
-  const [today] = useState(() => businessDate());
-  const [todayFormatted] = useState(() =>
-    new Date().toLocaleDateString('en-IN', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    })
-  );
+  const today = businessDate();
   const todayRec = attendance.find((a) => a.date === today);
+  const completed = Boolean(todayRec?.checkOut);
+  const working = Boolean(todayRec?.checkIn) && !completed;
 
-  const handleOpenBiometricLogin = () => {
-    setBiometricMode('LOGIN');
+  const openBiometric = (mode: 'LOGIN' | 'LOGOUT') => {
+    setBiometricMode(mode);
     setBiometricModalOpen(true);
-  };
-
-  const handleOpenBiometricLogout = () => {
-    setBiometricMode('LOGOUT');
-    setBiometricModalOpen(true);
-  };
-
-  const handleBiometricSuccess = () => {
-    void loadData();
   };
 
   const handleRegularizeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRecord || !regularizeReason.trim()) return;
-
+    setIsSubmitting(true);
     try {
-      await api.attendance.regularize(selectedRecord.id, regularizeReason);
-      dispatch(
-        addToast({
-          type: 'success',
-          title: 'Submitted',
-          message: 'Correction sent to manager.',
-        })
-      );
-      setIsModalOpen(false);
+      await api.attendance.regularize(selectedRecord.id, regularizeReason.trim());
+      dispatch(addToast({ type: 'success', title: 'Correction submitted', message: 'Your manager will review it.' }));
+      setSelectedRecord(null);
       setRegularizeReason('');
       void loadData();
     } catch {
-      dispatch(addToast({ type: 'error', title: 'Submission failed' }));
+      dispatch(addToast({ type: 'error', title: 'Submission failed', message: 'Please try again.' }));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const counts = useMemo(() => {
-    const present = attendance.filter((r) => r.status === 'PRESENT').length;
-    const late = attendance.filter((r) => r.status === 'LATE').length;
-    return {
+  const counts = useMemo(
+    () => ({
       ALL: attendance.length,
-      PRESENT: present,
-      LATE: late,
-    };
-  }, [attendance]);
+      PRESENT: attendance.filter((r) => r.status === 'PRESENT').length,
+      LATE: attendance.filter((r) => r.status === 'LATE').length,
+      OTHER: attendance.filter((r) => r.status !== 'PRESENT' && r.status !== 'LATE').length,
+    }),
+    [attendance]
+  );
 
-  const filteredRecords = attendance.filter((rec) => {
-    const matchesSearch =
-      rec.date.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (rec.notes && rec.notes.toLowerCase().includes(searchTerm.toLowerCase()));
-
-    const matchesStatus =
-      statusFilter === 'ALL'
-        ? true
-        : statusFilter === 'PRESENT'
-        ? rec.status === 'PRESENT'
-        : rec.status === 'LATE';
-
-    return matchesSearch && matchesStatus;
-  });
+  const filteredRecords = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return attendance.filter((rec) => {
+      const matchesSearch =
+        !q || rec.date.includes(q) || formatDate(rec.date).toLowerCase().includes(q) || rec.notes?.toLowerCase().includes(q);
+      const matchesStatus =
+        statusFilter === 'ALL'
+          ? true
+          : statusFilter === 'OTHER'
+          ? rec.status !== 'PRESENT' && rec.status !== 'LATE'
+          : rec.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [attendance, searchTerm, statusFilter]);
 
   return (
-    <div className="space-y-3 pb-4">
-      {/* Today Punch Card */}
-      <section className="employee-card space-y-3">
-        <div className="flex items-center justify-between text-xs pt-0.5">
+    <div className="space-y-4 pb-4">
+      <MobileTitle title="Attendance" subtitle={todayText} />
+
+      <MobileCard className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-slate-900">Today</h2>
+          <Badge variant={completed ? 'success' : working ? 'info' : 'neutral'} dot>
+            {completed ? `Done · ${todayRec?.workHours ?? 0} h` : working ? 'On shift' : 'Not checked in'}
+          </Badge>
+        </div>
+        <dl className="grid grid-cols-2 gap-3">
           <div>
-            <span className="text-xs text-slate-500 block font-semibold">Today</span>
-            <span className="font-semibold text-slate-900 text-sm">{todayFormatted}</span>
+            <dt className="text-xs text-slate-600">Check in</dt>
+            <dd className="mt-0.5 text-base font-semibold tabular-nums text-slate-900">{todayRec?.checkIn ? formatTime(todayRec.checkIn) : '--:--'}</dd>
           </div>
-
-          <span
-            className={`employee-badge ${
-              todayRec?.checkIn && !todayRec.checkOut
-                ? 'badge-success'
-                : todayRec?.checkOut
-                ? 'badge-brand'
-                : 'badge-neutral'
-            }`}
+          <div>
+            <dt className="text-xs text-slate-600">Check out</dt>
+            <dd className="mt-0.5 text-base font-semibold tabular-nums text-slate-900">{todayRec?.checkOut ? formatTime(todayRec.checkOut) : '--:--'}</dd>
+          </div>
+        </dl>
+        {!completed && (
+          <Button
+            size="lg"
+            className="w-full"
+            disabled={isLoading}
+            onClick={() => openBiometric(working ? 'LOGOUT' : 'LOGIN')}
+            leftIcon={working ? <Clock className="h-4 w-4" /> : <ScanFace className="h-4 w-4" />}
           >
-            {todayRec?.checkIn && !todayRec.checkOut
-              ? 'Active shift'
-              : todayRec?.checkOut
-              ? `Done (${todayRec.workHours}h)`
-              : 'Not checked in'}
-          </span>
-        </div>
-
-        <div className="employee-metric-grid cols-2">
-          <div className="employee-metric-tile">
-            <span className="metric-label">Punch in</span>
-            <strong className="metric-value">
-              {todayRec?.checkIn ? formatTime(todayRec.checkIn) : '—'}
-            </strong>
-          </div>
-          <div className="employee-metric-tile">
-            <span className="metric-label">Punch out</span>
-            <strong className="metric-value">
-              {todayRec?.checkOut ? formatTime(todayRec.checkOut) : '—'}
-            </strong>
-          </div>
-        </div>
-
-        <button
-          onClick={todayRec?.checkIn ? handleOpenBiometricLogout : handleOpenBiometricLogin}
-          disabled={!!todayRec?.checkOut || isLoading}
-          className="employee-primary-btn"
-        >
-          {todayRec?.checkOut ? 'Shift complete for today' : todayRec?.checkIn ? 'Check out' : 'Check in'}
-        </button>
-      </section>
-
-      {/* Filter and Search Bar */}
-      <div className="space-y-2">
-        <div className="employee-search-box">
-          <Search size={15} />
-          <input
-            type="text"
-            aria-label="Search attendance"
-            placeholder="Search dates or notes…"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-
-        <div className="employee-filter-bar">
-          <button
-            onClick={() => setStatusFilter('ALL')}
-            className={`employee-filter-pill ${statusFilter === 'ALL' ? 'is-active' : ''}`}
-          >
-            All <span className="pill-count">{counts.ALL}</span>
-          </button>
-          <button
-            onClick={() => setStatusFilter('PRESENT')}
-            className={`employee-filter-pill ${statusFilter === 'PRESENT' ? 'is-active' : ''}`}
-          >
-            On time <span className="pill-count">{counts.PRESENT}</span>
-          </button>
-          <button
-            onClick={() => setStatusFilter('LATE')}
-            className={`employee-filter-pill ${statusFilter === 'LATE' ? 'is-active' : ''}`}
-          >
-            Late <span className="pill-count">{counts.LATE}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Timesheet List */}
-      <div>
-        {isLoading ? (
-          <div className="employee-skeleton-group">
-            <div className="employee-skeleton" />
-            <div className="employee-skeleton" />
-            <div className="employee-skeleton" />
-          </div>
-        ) : filteredRecords.length === 0 ? (
-          <div className="employee-empty">
-            <Clock size={32} />
-            <h3>No attendance records</h3>
-            <p>Punch logs will appear here after checking in.</p>
-          </div>
-        ) : (
-          filteredRecords.map((record) => {
-            const isPresent = record.status === 'PRESENT';
-            const isLate = record.status === 'LATE';
-
-            return (
-              <div key={record.id} className="employee-record-card space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-xs text-slate-900">
-                    {formatDate(record.date)}
-                  </span>
-
-                  <span
-                    className={`employee-badge ${
-                      isPresent
-                        ? 'badge-success'
-                        : isLate
-                        ? 'badge-warning'
-                        : 'badge-neutral'
-                    }`}
-                  >
-                    {formatLabel(record.status)}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between text-xs py-1.5 border-y border-slate-100">
-                  <div className="flex items-center gap-1.5 text-slate-700">
-                    <Clock size={13} className="text-slate-500" />
-                    <span className="tabular-nums">
-                      {record.checkIn ? formatTime(record.checkIn) : '—'} – {record.checkOut ? formatTime(record.checkOut) : '—'}
-                    </span>
-                  </div>
-                  <span className="tabular-nums font-bold text-slate-900 tabular-nums">
-                    {record.workHours ? `${record.workHours}h` : 'Live'}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between pt-0.5 text-xs">
-                  <div className="flex items-center gap-1.5 text-slate-500">
-                    {record.facePhoto ? (
-                      <button
-                        type="button"
-                        onClick={() => setPreviewPhoto(record.facePhoto!)}
-                        className="flex items-center gap-1.5 text-emerald-700 hover:text-emerald-800 font-medium cursor-pointer"
-                        title="Click to view verified face photo"
-                      >
-                        <img
-                          src={record.facePhoto}
-                          alt="Face"
-                          className="w-4 h-4 rounded-full object-cover border border-emerald-400"
-                        />
-                        <span>Face verified (view photo)</span>
-                      </button>
-                    ) : record.isBiometricVerified ? (
-                      <>
-                        <ShieldCheck size={13} className="text-emerald-600" />
-                        <span>Face & GPS verified</span>
-                      </>
-                    ) : (
-                      <span>Recorded attendance</span>
-                    )}
-                  </div>
-
-                  {(isLate || record.status === 'ABSENT' || record.regularizationStatus === 'PENDING') && (
-                    <div>
-                      {record.regularizationStatus === 'PENDING' ? (
-                        <span className="text-amber-700 font-medium">Correction pending</span>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setSelectedRecord(record);
-                            setRegularizeReason(record.regularizationReason || '');
-                            setIsModalOpen(true);
-                          }}
-                          className="text-brand-600 font-semibold hover:underline"
-                        >
-                          Request correction →
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })
+            {working ? 'Check out' : 'Check in with face ID'}
+          </Button>
         )}
+      </MobileCard>
+
+      <div className="space-y-2">
+        <MobileSearch value={searchTerm} onChange={setSearchTerm} label="Search attendance" placeholder="Search by date or note" />
+        <FilterPills<Filter>
+          label="Filter attendance"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { key: 'ALL', label: 'All', count: counts.ALL },
+            { key: 'PRESENT', label: 'On time', count: counts.PRESENT },
+            { key: 'LATE', label: 'Late', count: counts.LATE },
+            { key: 'OTHER', label: 'Other', count: counts.OTHER },
+          ]}
+        />
       </div>
 
-      {/* Regularize Modal */}
-      {selectedRecord && (
-        <Modal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          title="Attendance Correction"
-          subtitle={formatDate(selectedRecord.date)}
-          size="sm"
-        >
-          <form onSubmit={handleRegularizeSubmit} className="space-y-3 text-xs">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Reason for exception *
-              </label>
-              <textarea
-                value={regularizeReason}
-                onChange={(e) => setRegularizeReason(e.target.value)}
-                placeholder="Reason for delay or missed punch"
-                rows={2}
-                required
-                className="w-full rounded-lg border border-slate-300 p-2 text-xs text-slate-900 outline-none focus:border-brand-400"
-              />
-            </div>
+      {isLoading ? (
+        <MobileSkeleton />
+      ) : filteredRecords.length === 0 ? (
+        <EmptyState icon={Clock} title="No attendance records" description="Days you check in will appear here." />
+      ) : (
+        <ul className="space-y-2.5">
+          {filteredRecords.map((record) => {
+            const canCorrect = record.status === 'LATE' || record.status === 'ABSENT' || record.status === 'HALF_DAY';
+            return (
+              <li key={record.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold text-slate-900">{formatDate(record.date)}</span>
+                  <Badge variant={attendanceStatusVariant(record.status)} size="sm">
+                    {formatLabel(record.status)}
+                  </Badge>
+                </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                className="employee-secondary-btn"
-                onClick={() => setIsModalOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="employee-primary-btn"
-                style={{ width: 'auto', minHeight: '36px', padding: '0 16px' }}
-              >
-                Submit
-              </button>
-            </div>
-          </form>
-        </Modal>
+                <div className="mt-2 flex items-center justify-between gap-3 text-sm">
+                  <span className="tabular-nums text-slate-700">
+                    {record.checkIn ? formatTime(record.checkIn) : '--:--'} to {record.checkOut ? formatTime(record.checkOut) : '--:--'}
+                  </span>
+                  <span className="font-semibold tabular-nums text-slate-900">{record.workHours ? `${record.workHours} h` : working && record.date === today ? 'Live' : '--'}</span>
+                </div>
+
+                <div className="mt-2 flex items-center justify-between gap-3 border-t border-slate-100 pt-2 text-xs">
+                  {record.facePhoto ? (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewPhoto(record.facePhoto!)}
+                      className="inline-flex items-center gap-1.5 font-medium text-emerald-700 hover:underline"
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                      Face verified · view photo
+                    </button>
+                  ) : record.isBiometricVerified ? (
+                    <span className="inline-flex items-center gap-1.5 text-emerald-700">
+                      <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                      Face and location verified
+                    </span>
+                  ) : (
+                    <span className="text-slate-600">Recorded attendance</span>
+                  )}
+
+                  {record.regularizationStatus === 'PENDING' ? (
+                    <span className="font-medium text-amber-800">Correction pending</span>
+                  ) : record.regularizationStatus === 'APPROVED' ? (
+                    <span className="font-medium text-emerald-700">Correction approved</span>
+                  ) : canCorrect ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedRecord(record);
+                        setRegularizeReason(record.regularizationReason || '');
+                      }}
+                      className="font-medium text-brand-700 hover:underline"
+                    >
+                      Request correction
+                    </button>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
-      {/* Biometric Attendance Modal */}
+      <Modal
+        isOpen={Boolean(selectedRecord)}
+        onClose={() => setSelectedRecord(null)}
+        title="Request attendance correction"
+        subtitle={selectedRecord ? formatDate(selectedRecord.date) : undefined}
+        size="sm"
+      >
+        <form onSubmit={handleRegularizeSubmit} className="space-y-4">
+          <Textarea
+            label="What happened?"
+            required
+            value={regularizeReason}
+            onChange={(e) => setRegularizeReason(e.target.value)}
+            placeholder="For example: came in late because the bus was delayed"
+            helperText="Your manager sees this note when reviewing the correction."
+          />
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setSelectedRecord(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" isLoading={isSubmitting} disabled={!regularizeReason.trim()}>
+              Submit
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
       <BiometricAttendanceModal
         isOpen={biometricModalOpen}
         onClose={() => setBiometricModalOpen(false)}
@@ -356,38 +254,16 @@ export const MyAttendance: React.FC = () => {
           enrolledFacePhoto: user?.enrolledFacePhoto,
           enrolledFaceBiometrics: user?.enrolledFaceBiometrics,
         }}
-        onSuccess={handleBiometricSuccess}
+        onSuccess={() => void loadData()}
       />
 
-      {/* Face Photo Preview Modal */}
-      {previewPhoto && (
-        <Modal
-          isOpen={!!previewPhoto}
-          onClose={() => setPreviewPhoto(null)}
-          title="Face Attendance Photo"
-          subtitle="Real face biometrics snapshot captured during punch"
-          size="sm"
-        >
-          <div className="space-y-3">
-            <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-950 aspect-[4/3] flex items-center justify-center">
-              <img
-                src={previewPhoto}
-                alt="Captured Face Punch"
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <div className="flex justify-end pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setPreviewPhoto(null)}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
+      <Modal isOpen={Boolean(previewPhoto)} onClose={() => setPreviewPhoto(null)} title="Check-in photo" size="sm">
+        {previewPhoto && (
+          <div className="overflow-hidden rounded-lg bg-slate-950 aspect-[4/3]">
+            <img src={previewPhoto} alt="Face captured at check-in" className="h-full w-full object-cover" />
           </div>
-        </Modal>
-      )}
+        )}
+      </Modal>
     </div>
   );
 };

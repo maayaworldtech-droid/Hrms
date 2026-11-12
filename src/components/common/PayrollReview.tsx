@@ -5,9 +5,15 @@ import { api } from '@/services/api';
 import { formatDate, formatINR } from '@/utils/formatters';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
-import { Gift, PlusCircle, CheckCircle2 } from 'lucide-react';
+import { Input } from '@/components/common/Input';
+import { Textarea } from '@/components/common/Textarea';
+import { StatTile, StatTiles } from '@/components/common/StatTile';
+import { MONTH_NAMES } from '@/features/admin/reports/reportUtils';
+import { Check } from 'lucide-react';
+import { useAppDispatch } from '@/store';
+import { addToast } from '@/store/slices/uiSlice';
 
-const stages = ['Attendance', 'Adjustments', 'Payroll register', 'Finalize'];
+const stages = ['Attendance', 'Adjustments', 'Salary register', 'Finalize'];
 
 interface PayrollReviewProps {
   run: PayrollRun;
@@ -17,14 +23,18 @@ interface PayrollReviewProps {
   onRunUpdated?: () => void;
 }
 
-export const PayrollReview: React.FC<PayrollReviewProps> = ({
-  run,
-  onView,
-  onFinalize,
-  saving,
-  onRunUpdated,
-}) => {
-  const [step, setStep] = useState(0);
+/** Resolves "October", "Oct" or "2026-10" to a 0-based month index; -1 when unknown. */
+const monthIndex = (month: string) => {
+  const m = (month || '').trim().toLowerCase();
+  const numeric = m.match(/^\d{4}-(\d{1,2})$/);
+  if (numeric) return Number(numeric[1]) - 1;
+  return MONTH_NAMES.findIndex((name) => name.toLowerCase() === m || (m.length >= 3 && name.toLowerCase().startsWith(m)));
+};
+
+export const PayrollReview: React.FC<PayrollReviewProps> = ({ run, onView, onFinalize, saving, onRunUpdated }) => {
+  const dispatch = useAppDispatch();
+  const complete = run.status === 'DISBURSED';
+  const [step, setStep] = useState(complete ? 2 : 0);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [payslips, setPayslips] = useState<Payslip[]>(run.payslips || []);
@@ -33,15 +43,13 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
   const [reviewed, setReviewed] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
 
-  // Bonus and Adjustment state
   const [adjustingSlip, setAdjustingSlip] = useState<Payslip | null>(null);
-  const [bonusAmount, setBonusAmount] = useState<number>(0);
-  const [incentivesAmount, setIncentivesAmount] = useState<number>(0);
-  const [specialAmount, setSpecialAmount] = useState<number>(0);
-  const [lossOfPayDays, setLossOfPayDays] = useState<number>(0);
-  const [adjustmentNotes, setAdjustmentNotes] = useState<string>('');
-  const [isSavingAdjustment, setIsSavingAdjustment] = useState<boolean>(false);
-  const [adjustmentSuccessMsg, setAdjustmentSuccessMsg] = useState<string | null>(null);
+  const [bonusAmount, setBonusAmount] = useState(0);
+  const [incentivesAmount, setIncentivesAmount] = useState(0);
+  const [specialAmount, setSpecialAmount] = useState(0);
+  const [lossOfPayDays, setLossOfPayDays] = useState(0);
+  const [adjustmentNotes, setAdjustmentNotes] = useState('');
+  const [isSavingAdjustment, setIsSavingAdjustment] = useState(false);
 
   const openAdjustmentModal = (slip: Payslip) => {
     setAdjustingSlip(slip);
@@ -50,13 +58,11 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
     setSpecialAmount(slip.components?.specialAllowance || 0);
     setLossOfPayDays(slip.lossOfPayDays || 0);
     setAdjustmentNotes(slip.components?.adjustmentNotes || '');
-    setAdjustmentSuccessMsg(null);
   };
 
   const handleSaveAdjustment = async () => {
     if (!adjustingSlip) return;
     setIsSavingAdjustment(true);
-    setAdjustmentSuccessMsg(null);
     try {
       const updated = await api.payroll.adjustPayslip(adjustingSlip.id, {
         bonus: Number(bonusAmount) || 0,
@@ -65,19 +71,12 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
         lossOfPayDays: Number(lossOfPayDays) || 0,
         notes: adjustmentNotes,
       });
-
       setPayslips((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-      setAdjustmentSuccessMsg('Adjustment saved successfully');
-      setTimeout(() => {
-        setAdjustingSlip(null);
-        setAdjustmentSuccessMsg(null);
-      }, 900);
-
-      if (onRunUpdated) {
-        onRunUpdated();
-      }
+      dispatch(addToast({ type: 'success', title: 'Adjustment saved', message: `${adjustingSlip.employeeName}'s payslip was updated.` }));
+      setAdjustingSlip(null);
+      onRunUpdated?.();
     } catch (e: any) {
-      alert('Failed to save adjustment: ' + (e.message || 'Server error'));
+      dispatch(addToast({ type: 'error', title: 'Could not save adjustment', message: e?.message || 'Please try again.' }));
     } finally {
       setIsSavingAdjustment(false);
     }
@@ -87,24 +86,17 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
     let active = true;
     setLoading(true);
     setError(false);
-
     Promise.all([
       api.attendance.getAll().catch(() => []),
       api.leaves.getAll().catch(() => []),
-      run.payslips && run.payslips.length > 0
-        ? Promise.resolve(run.payslips)
-        : api.payroll.getPayslipsByRun(run.id).catch(() => []),
+      run.payslips && run.payslips.length > 0 ? Promise.resolve(run.payslips) : api.payroll.getPayslipsByRun(run.id).catch(() => []),
     ])
       .then(([records, requests, slips]) => {
-        if (active) {
-          setAttendance(Array.isArray(records) ? records : []);
-          setLeaves(Array.isArray(requests) ? requests : []);
-          if (Array.isArray(slips) && slips.length > 0) {
-            setPayslips(slips);
-          } else if (Array.isArray(run.payslips)) {
-            setPayslips(run.payslips);
-          }
-        }
+        if (!active) return;
+        setAttendance(Array.isArray(records) ? records : []);
+        setLeaves(Array.isArray(requests) ? requests : []);
+        if (Array.isArray(slips) && slips.length > 0) setPayslips(slips);
+        else if (Array.isArray(run.payslips)) setPayslips(run.payslips);
       })
       .catch(() => {
         if (active) setError(true);
@@ -112,116 +104,145 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
       .finally(() => {
         if (active) setLoading(false);
       });
-
     return () => {
       active = false;
     };
   }, [run.id, run.payslips]);
 
   const effectivePayslips = (payslips && payslips.length > 0 ? payslips : run.payslips) || [];
-  const month = new Date(`${run.month} 1, ${run.year}`).getMonth();
-  const start = `${run.year}-${String(month + 1).padStart(2, '0')}-01`;
-  const end = `${run.year}-${String(month + 1).padStart(2, '0')}-${new Date(run.year, month + 1, 0).getDate()}`;
+  const month = monthIndex(run.month);
+  const knownMonth = month >= 0;
+  const mm = String(month + 1).padStart(2, '0');
+  const start = knownMonth ? `${run.year}-${mm}-01` : '';
+  const end = knownMonth ? `${run.year}-${mm}-${String(new Date(run.year, month + 1, 0).getDate()).padStart(2, '0')}` : '';
 
   const ids = new Set(effectivePayslips.map((slip) => String(slip.employeeId)));
-  const records = (attendance || []).filter(
-    (record) => ids.has(String(record.employeeId)) && record.date >= start && record.date <= end
-  );
-  const requests = (leaves || []).filter(
-    (request) => ids.has(String(request.employeeId)) && request.startDate <= end && request.endDate >= start
-  );
-  const corrections = records.filter((record) => record.regularizationStatus === 'PENDING').length;
-  const pending = requests.filter((request) => request.status === 'PENDING').length;
+  const records = knownMonth ? attendance.filter((r) => ids.has(String(r.employeeId)) && r.date >= start && r.date <= end) : [];
+  const requests = knownMonth ? leaves.filter((r) => ids.has(String(r.employeeId)) && r.startDate <= end && r.endDate >= start) : [];
+  const corrections = records.filter((r) => r.regularizationStatus === 'PENDING').length;
+  const pending = requests.filter((r) => r.status === 'PENDING').length;
   const banking = effectivePayslips.filter((slip) => !slip.bankAccount?.trim() || !slip.bankName?.trim());
   const invalidPay = effectivePayslips.filter((slip) => {
     const net = slip.components?.netMonthly ?? 0;
     return !Number.isFinite(net) || net < 0;
   });
-  const complete = run.status === 'DISBURSED';
+  const blockers = [...new Set([...banking, ...invalidPay].map((slip) => slip.employeeName))];
+  const canFinalize = !saving && !loading && !error && reviewed && confirmed && blockers.length === 0 && effectivePayslips.length > 0;
 
-  const field = (label: string, amount: string | number) => (
-    <div>
-      <dt className="ops-muted">{label}</dt>
-      <dd className="font-semibold text-slate-900 mt-1">{amount}</dd>
-    </div>
-  );
+  const adjustButton = (slip: Payslip) =>
+    !complete && (
+      <Button variant="ghost" size="xs" onClick={() => openAdjustmentModal(slip)}>
+        Adjust
+      </Button>
+    );
+
+  // Mirrors PayrollController.adjustPayslip: stored gross is authoritative, only the change in special
+  // allowance moves the base, and non-statutory custom deductions carry over.
+  const preview = (() => {
+    if (!adjustingSlip) return null;
+    const c = adjustingSlip.components;
+    const payableDays = Math.max(1, adjustingSlip.payableDays || 30);
+    const prevBaseGross = Math.max(0, (c?.grossMonthly || 0) - (c?.bonus || 0) - (c?.incentives || 0));
+    const prevLopDays = adjustingSlip.lossOfPayDays || 0;
+    const prevLop = prevLopDays > 0 ? Math.round((prevBaseGross / payableDays) * prevLopDays) : 0;
+    const statutory = (c?.epfEmployee || 0) + (c?.professionalTax || 0) + (c?.tds || 0) + (c?.healthInsurance || 0);
+    const otherDeductions = Math.max(0, (c?.totalDeductions || 0) - statutory - prevLop);
+    const baseGross = Math.max(0, prevBaseGross + (Number(specialAmount) - (c?.specialAllowance || 0)));
+    const gross = baseGross + Number(bonusAmount) + Number(incentivesAmount);
+    const lop = lossOfPayDays > 0 ? Math.round((baseGross / payableDays) * lossOfPayDays) : 0;
+    const deductions = statutory + otherDeductions + lop;
+    return { gross, deductions, net: Math.max(0, gross - deductions) };
+  })();
 
   return (
     <div className="space-y-5">
       <ol className="ops-stepper" aria-label="Payroll review stages">
         {stages.map((stage, index) => (
-          <li className={step === index ? 'current' : ''} key={stage}>
-            <button aria-current={step === index ? 'step' : undefined} onClick={() => setStep(index)}>
+          <li className={step === index ? 'current' : index < step ? 'done' : ''} key={stage}>
+            <button type="button" className="w-full text-left focus:outline-none focus-visible:underline" aria-current={step === index ? 'step' : undefined} onClick={() => setStep(index)}>
               {index + 1}. {stage}
             </button>
           </li>
         ))}
       </ol>
 
-      <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4 py-4 border-y border-slate-200">
-        {field('Gross pay', formatINR(run.totalGrossPay || 0))}
-        {field('Deductions', formatINR(run.totalDeductions || 0))}
-        {field('Net payroll', formatINR(run.totalNetPay || 0))}
-      </dl>
+      <StatTiles columns={3}>
+        <StatTile label="Gross pay" value={formatINR(run.totalGrossPay || 0)} />
+        <StatTile label="Deductions" value={formatINR(run.totalDeductions || 0)} />
+        <StatTile label="Net payroll" value={formatINR(run.totalNetPay || 0)} />
+      </StatTiles>
 
-      {loading && <p role="status" className="text-sm text-slate-500 py-2">Loading review checks…</p>}
+      {loading && (
+        <p role="status" className="text-sm text-slate-600">
+          Loading review checks...
+        </p>
+      )}
       {error && (
-        <p role="alert" className="text-sm text-rose-600 py-2">
-          Review checks could not load. Close and reopen the register to retry.
+        <p role="alert" className="text-sm text-rose-700">
+          Review checks could not load. Close and reopen the payroll to retry.
         </p>
       )}
 
       {step === 0 && !loading && !error && (
-        <>
-          <h3 className="font-semibold text-slate-900">Attendance for {run.month} {run.year}</h3>
-          <dl className="ops-definition">
+        <section className="space-y-3">
+          <h3 className="text-base font-semibold text-slate-900">
+            Attendance for {run.month} {run.year}
+          </h3>
+          {!knownMonth && <p className="text-sm text-amber-800">This run's month could not be read, so attendance checks are skipped.</p>}
+          <dl className="ops-definition max-w-md">
             <dt>Recorded shifts</dt>
-            <dd>{records.length}</dd>
+            <dd className="tabular-nums">{records.length}</dd>
             <dt>Corrections to review</dt>
-            <dd>{corrections}</dd>
-            <dt>Awaiting manager decisions</dt>
-            <dd>{pending}</dd>
+            <dd className={`tabular-nums ${corrections ? 'text-amber-800' : ''}`}>{corrections}</dd>
+            <dt>Leave awaiting decision</dt>
+            <dd className={`tabular-nums ${pending ? 'text-amber-800' : ''}`}>{pending}</dd>
           </dl>
-          <p className="ops-muted">
-            Check exceptions and leave dates before verifying payroll amounts. This draft does not automatically reconcile attendance or leave changes.
-          </p>
-          <div className="flex gap-4 flex-wrap">
+          <p className="ops-muted">Clear exceptions first. The draft does not pick up attendance or leave changes until you regenerate it.</p>
+          <div className="flex flex-wrap gap-4">
             <Link className="ops-link" to="/admin/attendance?status=REGULARIZATION_PENDING">
               Review attendance corrections
             </Link>
             <Link className="ops-link" to="/admin/leaves?status=PENDING">
-              View manager leave decisions
+              View pending leave
             </Link>
           </div>
-          <p className="ops-muted">
-            The registers open all pending items. Select the relevant dates for this pay cycle.
-          </p>
-        </>
+        </section>
       )}
 
-      {step === 1 && (
-        <>
-          <h3 className="font-semibold text-slate-900">Review adjustments</h3>
-          <p className="ops-muted">
-            Verify payable days, loss of pay, bonuses and deductions for each employee. You can add bonuses or incentives directly below.
-          </p>
-          <div className="overflow-x-auto">
-            <table className="ops-table">
+      {(step === 1 || step === 2) && (
+        <section className="space-y-3">
+          <h3 className="text-base font-semibold text-slate-900">{step === 1 ? 'Days, bonus and loss of pay' : 'Salary register'}</h3>
+          {step === 1 && <p className="ops-muted">Check payable days and loss of pay, and add any bonus or incentive.</p>}
+          <div className="overflow-x-auto rounded-lg border border-slate-200">
+            <table className="ops-table text-sm">
               <thead>
-                <tr>
-                  <th>Employee</th>
-                  <th>Payable days</th>
-                  <th>Loss of pay days</th>
-                  <th>Bonus / Incentive</th>
-                  <th>Deductions</th>
-                  <th>Action</th>
-                </tr>
+                {step === 1 ? (
+                  <tr>
+                    <th>Employee</th>
+                    <th className="text-right">Payable days</th>
+                    <th className="text-right">Loss of pay days</th>
+                    <th className="text-right">Bonus and incentive</th>
+                    <th className="text-right">Deductions</th>
+                    <th />
+                  </tr>
+                ) : (
+                  <tr>
+                    <th>Employee</th>
+                    <th className="text-right">Gross</th>
+                    <th className="text-right">Bonus</th>
+                    <th className="text-right">EPF</th>
+                    <th className="text-right">PT</th>
+                    <th className="text-right">TDS</th>
+                    <th className="text-right">Net pay</th>
+                    <th />
+                  </tr>
+                )}
               </thead>
               <tbody>
                 {effectivePayslips.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-4 text-slate-500">
-                      No payslips found for this pay run.
+                    <td colSpan={8} className="py-6 text-center text-slate-600">
+                      No payslips in this run.
                     </td>
                   </tr>
                 ) : (
@@ -230,32 +251,33 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
                     return (
                       <tr key={slip.id}>
                         <td>
-                          <strong>{slip.employeeName}</strong>
-                          <p className="ops-muted">{slip.employeeCode}</p>
+                          <span className="font-medium text-slate-900">{slip.employeeName}</span>
+                          <span className="block text-xs text-slate-600">{slip.employeeCode}</span>
                         </td>
-                        <td>{slip.payableDays}</td>
-                        <td>{slip.lossOfPayDays}</td>
-                        <td>
-                          {bonusTotal > 0 ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              +{formatINR(bonusTotal)}
-                            </span>
-                          ) : (
-                            <span className="text-slate-500 tabular-nums text-xs">₹0</span>
-                          )}
-                        </td>
-                        <td>{formatINR(slip.components?.totalDeductions ?? 0)}</td>
-                        <td>
-                          {!complete && (
-                            <button
-                              type="button"
-                              className="text-xs font-semibold text-brand-600 hover:text-brand-800 transition-colors"
-                              onClick={() => openAdjustmentModal(slip)}
-                            >
-                              Add Bonus / Adjust
-                            </button>
-                          )}
-                        </td>
+                        {step === 1 ? (
+                          <>
+                            <td className="text-right tabular-nums">{slip.payableDays}</td>
+                            <td className={`text-right tabular-nums ${slip.lossOfPayDays ? 'text-amber-800' : ''}`}>{slip.lossOfPayDays}</td>
+                            <td className="text-right tabular-nums">{bonusTotal > 0 ? formatINR(bonusTotal) : '--'}</td>
+                            <td className="text-right tabular-nums">{formatINR(slip.components?.totalDeductions ?? 0)}</td>
+                            <td className="text-right">{adjustButton(slip)}</td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="text-right tabular-nums">{formatINR(slip.components?.grossMonthly ?? 0)}</td>
+                            <td className="text-right tabular-nums">{bonusTotal > 0 ? formatINR(bonusTotal) : '--'}</td>
+                            <td className="text-right tabular-nums">{formatINR(slip.components?.epfEmployee ?? 0)}</td>
+                            <td className="text-right tabular-nums">{formatINR(slip.components?.professionalTax ?? 0)}</td>
+                            <td className="text-right tabular-nums">{formatINR(slip.components?.tds ?? 0)}</td>
+                            <td className="text-right font-semibold tabular-nums text-slate-900">{formatINR(slip.components?.netMonthly ?? 0)}</td>
+                            <td className="whitespace-nowrap text-right">
+                              <Button variant="ghost" size="xs" onClick={() => onView(slip)} aria-label={`View payslip for ${slip.employeeName}`}>
+                                View
+                              </Button>
+                              {adjustButton(slip)}
+                            </td>
+                          </>
+                        )}
                       </tr>
                     );
                   })
@@ -263,339 +285,107 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
               </tbody>
             </table>
           </div>
-          <Link className="ops-link" to="/admin/employees">
-            Open employee details
-          </Link>
-        </>
-      )}
-
-      {step === 2 && (
-        <>
-          <h3 className="font-semibold text-slate-900">Salary register</h3>
-          <div className="overflow-x-auto">
-            <table className="ops-table">
-              <thead>
-                <tr>
-                  <th>Employee</th>
-                  <th>Gross pay</th>
-                  <th>Bonus / Incentive</th>
-                  <th>EPF</th>
-                  <th>PT</th>
-                  <th>TDS</th>
-                  <th>Net pay</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {effectivePayslips.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="text-center py-4 text-slate-500">
-                      No payslips found for this pay run.
-                    </td>
-                  </tr>
-                ) : (
-                  effectivePayslips.map((slip) => {
-                    const bonusTotal = (slip.components?.bonus || 0) + (slip.components?.incentives || 0);
-                    return (
-                      <tr key={slip.id}>
-                        <td>
-                          <strong>{slip.employeeName}</strong>
-                          <p className="ops-muted">{slip.employeeCode}</p>
-                        </td>
-                        <td>{formatINR(slip.components?.grossMonthly ?? 0)}</td>
-                        <td>
-                          {bonusTotal > 0 ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              +{formatINR(bonusTotal)}
-                            </span>
-                          ) : (
-                            <span className="text-slate-500 tabular-nums text-xs">₹0</span>
-                          )}
-                        </td>
-                        <td>{formatINR(slip.components?.epfEmployee ?? 0)}</td>
-                        <td>{formatINR(slip.components?.professionalTax ?? 0)}</td>
-                        <td>{formatINR(slip.components?.tds ?? 0)}</td>
-                        <td><strong>{formatINR(slip.components?.netMonthly ?? 0)}</strong></td>
-                        <td>{(slip.paymentStatus || 'PAID').toLowerCase()}</td>
-                        <td>
-                          <div className="flex items-center gap-3">
-                            <button
-                              type="button"
-                              className="ops-link"
-                              onClick={() => onView(slip)}
-                              aria-label={`View payslip for ${slip.employeeName}`}
-                            >
-                              View
-                            </button>
-                            {!complete && (
-                              <button
-                                type="button"
-                                className="text-xs font-semibold text-brand-600 hover:text-brand-800 transition-colors"
-                                onClick={() => openAdjustmentModal(slip)}
-                              >
-                                Adjust / Bonus
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </>
+        </section>
       )}
 
       {step === 3 && (
-        <>
-          <h3 className="font-semibold text-slate-900">{complete ? 'Payroll finalized' : 'Final review'}</h3>
-          <p className="ops-muted">
-            {run.totalEmployees} employees · {run.month} {run.year} · {formatINR(run.totalNetPay || 0)}
-          </p>
+        <section className="space-y-4">
+          <h3 className="text-base font-semibold text-slate-900">{complete ? 'Payroll paid' : 'Finalize payroll'}</h3>
           {complete ? (
             <p className="text-sm text-slate-700">
               Marked paid on {formatDate(run.disbursedAt)} by {run.disbursedBy || 'People operations'}.
             </p>
           ) : (
             <>
-              <dl className="ops-definition">
+              <dl className="ops-definition max-w-md">
                 <dt>Missing bank details</dt>
-                <dd>{banking.length}</dd>
+                <dd className={banking.length ? 'text-rose-700' : ''}>{banking.length}</dd>
                 <dt>Invalid pay amounts</dt>
-                <dd>{invalidPay.length}</dd>
+                <dd className={invalidPay.length ? 'text-rose-700' : ''}>{invalidPay.length}</dd>
                 <dt>Pending corrections</dt>
-                <dd>{loading ? 'Checking…' : corrections}</dd>
+                <dd>{loading ? 'Checking...' : corrections}</dd>
                 <dt>Pending leave decisions</dt>
-                <dd>{loading ? 'Checking…' : pending}</dd>
+                <dd>{loading ? 'Checking...' : pending}</dd>
               </dl>
-              {(banking.length > 0 || invalidPay.length > 0) && (
-                <p role="alert" className="ops-status error">
-                  Update employee details and regenerate the draft before finalizing:{' '}
-                  {[...new Set([...banking, ...invalidPay].map((slip) => slip.employeeName))].join(', ')}.
+              {blockers.length > 0 && (
+                <p role="alert" className="text-sm text-rose-700">
+                  Fix these employees' details and regenerate the draft before finalizing: {blockers.join(', ')}.
                 </p>
               )}
-              <label className="flex items-start gap-3 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={reviewed}
-                  onChange={(event) => setReviewed(event.target.checked)}
-                  className="mt-1 shrink-0"
-                />
+              <label className="flex items-start gap-3 text-sm text-slate-800">
+                <input type="checkbox" checked={reviewed} onChange={(e) => setReviewed(e.target.checked)} className="mt-0.5 shrink-0" />
                 I have reviewed attendance, leave decisions and salary adjustments.
               </label>
-              <label className="flex items-start gap-3 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={confirmed}
-                  onChange={(event) => setConfirmed(event.target.checked)}
-                  className="mt-1 shrink-0"
-                />
-                I confirm payments are complete and want to mark this payroll as paid.
+              <label className="flex items-start gap-3 text-sm text-slate-800">
+                <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5 shrink-0" />
+                Payments are complete and this month can be marked as paid.
               </label>
-              <p className="ops-muted">
-                This action records payment status and releases payslips. It does not send money to a bank.
-              </p>
-              <button
-                type="button"
-                className="ops-button"
-                disabled={
-                  saving ||
-                  loading ||
-                  error ||
-                  !reviewed ||
-                  !confirmed ||
-                  banking.length > 0 ||
-                  invalidPay.length > 0 ||
-                  effectivePayslips.length === 0
-                }
-                onClick={onFinalize}
-              >
-                {saving ? 'Finalizing…' : 'Finalize and mark paid'}
-              </button>
+              <p className="ops-muted">This records payment status and releases payslips to employees. It does not move money.</p>
+              <Button disabled={!canFinalize} isLoading={saving} onClick={onFinalize} leftIcon={<Check className="h-4 w-4" />}>
+                Finalize and mark paid
+              </Button>
             </>
           )}
-        </>
+        </section>
       )}
 
-      <div className="flex justify-between gap-3 pt-4 border-t border-slate-200">
-        <button
-          type="button"
-          className="ops-button secondary"
-          disabled={step === 0}
-          onClick={() => setStep(step - 1)}
-        >
+      <div className="flex justify-between gap-3 border-t border-slate-200 pt-4">
+        <Button variant="outline" disabled={step === 0} onClick={() => setStep(step - 1)}>
           Back
-        </button>
-        {step < 3 && (
-          <button type="button" className="ops-button" onClick={() => setStep(step + 1)}>
-            Continue to {stages[step + 1].toLowerCase()}
-          </button>
-        )}
+        </Button>
+        {step < 3 && <Button variant="secondary" onClick={() => setStep(step + 1)}>Next: {stages[step + 1].toLowerCase()}</Button>}
       </div>
 
-      {/* Bonus & Salary Adjustment Modal */}
-      {adjustingSlip && (
-        <Modal
-          isOpen={Boolean(adjustingSlip)}
-          onClose={() => setAdjustingSlip(null)}
-          title={`Adjust Salary & Bonus: ${adjustingSlip.employeeName}`}
-          subtitle={`${adjustingSlip.employeeCode} | ${adjustingSlip.designation || 'Staff'} | Pay Cycle: ${run.month} ${run.year}`}
-          size="md"
-        >
-          <div className="space-y-4 text-xs">
-            {adjustmentSuccessMsg && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span className="font-medium">{adjustmentSuccessMsg}</span>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
-              <div>
-                <span className="text-xs text-slate-500 block">Base basic pay</span>
-                <span className="font-semibold text-slate-900">{formatINR(adjustingSlip.components?.basic || 0)}</span>
-              </div>
-              <div>
-                <span className="text-xs text-slate-500 block">Base HRA</span>
-                <span className="font-semibold text-slate-900">{formatINR(adjustingSlip.components?.hra || 0)}</span>
-              </div>
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                Bonus Amount (₹)
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="500"
-                value={bonusAmount}
-                onChange={(e) => setBonusAmount(Math.max(0, Number(e.target.value)))}
-                placeholder="e.g. 5000"
-                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-brand-600"
-              />
-              <span className="text-xs text-slate-500 mt-0.5 block">
-                Festival bonus, performance bonus or one-time reward.
-              </span>
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                Incentive / Performance Pay (₹)
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="500"
-                value={incentivesAmount}
-                onChange={(e) => setIncentivesAmount(Math.max(0, Number(e.target.value)))}
-                placeholder="e.g. 2500"
-                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-brand-600"
-              />
-            </div>
-
+      <Modal
+        isOpen={Boolean(adjustingSlip)}
+        onClose={() => setAdjustingSlip(null)}
+        title={adjustingSlip ? `Adjust pay · ${adjustingSlip.employeeName}` : 'Adjust pay'}
+        subtitle={adjustingSlip ? `${adjustingSlip.employeeCode} · ${run.month} ${run.year}` : undefined}
+        size="md"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setAdjustingSlip(null)} disabled={isSavingAdjustment}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveAdjustment} isLoading={isSavingAdjustment}>
+              Save adjustment
+            </Button>
+          </>
+        }
+      >
+        {adjustingSlip && preview && (
+          <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Special Allowance (₹)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="500"
-                  value={specialAmount}
-                  onChange={(e) => setSpecialAmount(Math.max(0, Number(e.target.value)))}
-                  className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-brand-600"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Loss of Pay (Days)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="31"
-                  value={lossOfPayDays}
-                  onChange={(e) => setLossOfPayDays(Math.max(0, Number(e.target.value)))}
-                  className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-brand-600"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                Adjustment reason & notes
-              </label>
-              <textarea
-                rows={2}
-                value={adjustmentNotes}
-                onChange={(e) => setAdjustmentNotes(e.target.value)}
-                placeholder="e.g., Q3 Sales milestone bonus approved by management"
-                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-brand-600"
+              <Input label="Bonus" type="number" min={0} step={500} value={bonusAmount} onChange={(e) => setBonusAmount(Math.max(0, Number(e.target.value)))} helperText="Festival or one-time reward" />
+              <Input label="Incentive" type="number" min={0} step={500} value={incentivesAmount} onChange={(e) => setIncentivesAmount(Math.max(0, Number(e.target.value)))} />
+              <Input label="Special allowance" type="number" min={0} step={500} value={specialAmount} onChange={(e) => setSpecialAmount(Math.max(0, Number(e.target.value)))} />
+              <Input
+                label="Loss of pay days"
+                type="number"
+                min={0}
+                max={adjustingSlip.payableDays || 31}
+                value={lossOfPayDays}
+                onChange={(e) => setLossOfPayDays(Math.min(adjustingSlip.payableDays || 31, Math.max(0, Number(e.target.value))))}
               />
             </div>
-
-            {/* Live Calculation Summary */}
-            {(() => {
-              // Mirrors PayrollController.adjustPayslip: the stored gross is authoritative, only the
-              // change in special allowance moves the base, and non-statutory custom deductions carry over.
-              const c = adjustingSlip.components;
-              const payableDays = Math.max(1, adjustingSlip.payableDays || 30);
-              const prevBaseGross = Math.max(0, (c?.grossMonthly || 0) - (c?.bonus || 0) - (c?.incentives || 0));
-              const prevLopDays = adjustingSlip.lossOfPayDays || 0;
-              const prevLop = prevLopDays > 0 ? Math.round((prevBaseGross / payableDays) * prevLopDays) : 0;
-              const statutory = (c?.epfEmployee || 0) + (c?.professionalTax || 0) + (c?.tds || 0) + (c?.healthInsurance || 0);
-              const otherDeductions = Math.max(0, (c?.totalDeductions || 0) - statutory - prevLop);
-              const baseGross = Math.max(0, prevBaseGross + (Number(specialAmount) - (c?.specialAllowance || 0)));
-              const newGross = baseGross + Number(bonusAmount) + Number(incentivesAmount);
-              const lopDeduction = lossOfPayDays > 0 ? Math.round((baseGross / payableDays) * lossOfPayDays) : 0;
-              const totalDed = statutory + otherDeductions + lopDeduction;
-              const newNet = Math.max(0, newGross - totalDed);
-
-              return (
-                <div className="p-3 bg-brand-50/50 border border-brand-100 rounded-lg space-y-1.5 text-xs">
-                  <div className="flex justify-between text-slate-600">
-                    <span>New Total Gross Pay:</span>
-                    <span className="font-bold text-slate-900">{formatINR(newGross)}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600">
-                    <span>Total deductions (PF, tax and unpaid days):</span>
-                    <span className="font-semibold text-slate-800">-{formatINR(totalDed)}</span>
-                  </div>
-                  <div className="flex justify-between pt-1 border-t border-brand-100 text-sm font-bold text-brand-900">
-                    <span>New Projected Net Pay:</span>
-                    <span>{formatINR(newNet)}</span>
-                  </div>
-                </div>
-              );
-            })()}
-
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setAdjustingSlip(null)}
-                disabled={isSavingAdjustment}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleSaveAdjustment}
-                isLoading={isSavingAdjustment}
-              >
-                Apply & save adjustment
-              </Button>
-            </div>
+            <Textarea label="Reason" rows={2} value={adjustmentNotes} onChange={(e) => setAdjustmentNotes(e.target.value)} placeholder="Q3 sales milestone bonus approved by management" />
+            <dl className="divide-y divide-slate-100 rounded-lg bg-slate-50 px-4 py-1 text-sm">
+              <div className="flex justify-between py-2">
+                <dt className="text-slate-600">New gross</dt>
+                <dd className="tabular-nums text-slate-900">{formatINR(preview.gross)}</dd>
+              </div>
+              <div className="flex justify-between py-2">
+                <dt className="text-slate-600">Deductions, including loss of pay</dt>
+                <dd className="tabular-nums text-slate-900">{formatINR(preview.deductions)}</dd>
+              </div>
+              <div className="flex justify-between py-2 font-semibold">
+                <dt className="text-slate-900">New net pay</dt>
+                <dd className="tabular-nums text-slate-900">{formatINR(preview.net)}</dd>
+              </div>
+            </dl>
           </div>
-        </Modal>
-      )}
+        )}
+      </Modal>
     </div>
   );
 };

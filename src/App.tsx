@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { lazy, Suspense } from 'react';
+import { createBrowserRouter, createRoutesFromElements, RouterProvider, Route, Navigate, Outlet } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { store, useAppSelector } from '@/store';
@@ -14,29 +14,25 @@ import { Login } from '@/features/auth/Login';
 import { ForgotPassword } from '@/features/auth/ForgotPassword';
 import { ResetPassword } from '@/features/auth/ResetPassword';
 
-// Admin Feature Screens
-import { AdminDashboard } from '@/features/admin/AdminDashboard';
-import { EmployeeManagement } from '@/features/admin/EmployeeManagement';
-import { AttendanceManagement } from '@/features/admin/AttendanceManagement';
-import { LeaveManagement } from '@/features/admin/LeaveManagement';
-import { OnDutyManagement } from '@/features/admin/OnDutyManagement';
-import { PayrollProcessing } from '@/features/admin/PayrollProcessing';
-import { ReportsAnalytics } from '@/features/admin/ReportsAnalytics';
-import { CompanySettings } from '@/features/admin/CompanySettings';
-
-// Manager Feature Screens
-import { ManagerDashboard } from '@/features/manager/ManagerDashboard';
-import { TeamAttendance } from '@/features/manager/TeamAttendance';
-import { TeamLeaves } from '@/features/manager/TeamLeaves';
-import { TeamOnDuty } from '@/features/manager/TeamOnDuty';
-
-// Employee Feature Screens
-import { EmployeeDashboard } from '@/features/employee/EmployeeDashboard';
-import { MyAttendance } from '@/features/employee/MyAttendance';
-import { MyLeaves } from '@/features/employee/MyLeaves';
-import { MyOnDuty } from '@/features/employee/MyOnDuty';
-import { MySalary } from '@/features/employee/MySalary';
-import { EmployeeProfile } from '@/features/employee/EmployeeProfile';
+// Screens load on demand so the phone portal does not download the admin workspace
+const AdminDashboard = lazy(() => import('@/features/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
+const EmployeeManagement = lazy(() => import('@/features/admin/EmployeeManagement').then((m) => ({ default: m.EmployeeManagement })));
+const AttendanceManagement = lazy(() => import('@/features/admin/AttendanceManagement').then((m) => ({ default: m.AttendanceManagement })));
+const LeaveManagement = lazy(() => import('@/features/admin/LeaveManagement').then((m) => ({ default: m.LeaveManagement })));
+const OnDutyManagement = lazy(() => import('@/features/admin/OnDutyManagement').then((m) => ({ default: m.OnDutyManagement })));
+const PayrollProcessing = lazy(() => import('@/features/admin/PayrollProcessing').then((m) => ({ default: m.PayrollProcessing })));
+const ReportsAnalytics = lazy(() => import('@/features/admin/ReportsAnalytics').then((m) => ({ default: m.ReportsAnalytics })));
+const CompanySettings = lazy(() => import('@/features/admin/CompanySettings').then((m) => ({ default: m.CompanySettings })));
+const ManagerDashboard = lazy(() => import('@/features/manager/ManagerDashboard').then((m) => ({ default: m.ManagerDashboard })));
+const TeamAttendance = lazy(() => import('@/features/manager/TeamAttendance').then((m) => ({ default: m.TeamAttendance })));
+const TeamLeaves = lazy(() => import('@/features/manager/TeamLeaves').then((m) => ({ default: m.TeamLeaves })));
+const TeamOnDuty = lazy(() => import('@/features/manager/TeamOnDuty').then((m) => ({ default: m.TeamOnDuty })));
+const EmployeeDashboard = lazy(() => import('@/features/employee/EmployeeDashboard').then((m) => ({ default: m.EmployeeDashboard })));
+const MyAttendance = lazy(() => import('@/features/employee/MyAttendance').then((m) => ({ default: m.MyAttendance })));
+const MyLeaves = lazy(() => import('@/features/employee/MyLeaves').then((m) => ({ default: m.MyLeaves })));
+const MyOnDuty = lazy(() => import('@/features/employee/MyOnDuty').then((m) => ({ default: m.MyOnDuty })));
+const MySalary = lazy(() => import('@/features/employee/MySalary').then((m) => ({ default: m.MySalary })));
+const EmployeeProfile = lazy(() => import('@/features/employee/EmployeeProfile').then((m) => ({ default: m.EmployeeProfile })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,6 +42,18 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+const RouteFallback: React.FC = () => (
+  <div className="flex min-h-[50vh] items-center justify-center" role="status" aria-label="Loading">
+    <span className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-brand-600" />
+  </div>
+);
+
+/** /profile opens inside the shell the person is working in. */
+const ProfileRedirect: React.FC = () => {
+  const activeRole = useAppSelector((state) => state.auth.activeRole);
+  return <Navigate to={activeRole === 'ADMIN' ? '/admin/dashboard' : activeRole === 'MANAGER' ? '/account/profile' : '/employee/profile'} replace />;
+};
 
 const RoleRootRedirect: React.FC = () => {
   const { isAuthenticated, activeRole } = useAppSelector((state) => state.auth);
@@ -63,11 +71,23 @@ const RoleRootRedirect: React.FC = () => {
   return <Navigate to="/employee/dashboard" replace />;
 };
 
-export const AppContent: React.FC = () => {
-  return (
-    <BrowserRouter>
-      <ErrorBoundary>
-        <Routes>
+/** Wraps every route: error screen, loading state and the toast stack. */
+const RootLayout: React.FC = () => (
+  <ErrorBoundary>
+    <Suspense fallback={<RouteFallback />}>
+      <Outlet />
+    </Suspense>
+    <ToastContainer />
+  </ErrorBoundary>
+);
+
+/**
+ * A data router (rather than <BrowserRouter>) so screens can block navigation with useBlocker,
+ * for example to stop an admin losing a half-finished new employee.
+ */
+const router = createBrowserRouter(
+  createRoutesFromElements(
+        <Route element={<RootLayout />}>
           {/* Public Authentication Screens */}
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -87,8 +107,9 @@ export const AppContent: React.FC = () => {
                 </ProtectedRoute>
               }
             />
+            {/* One route for the list and /new, so moving between them keeps the screen mounted */}
             <Route
-              path="/admin/employees"
+              path="/admin/employees/:mode?"
               element={
                 <ProtectedRoute allowedRoles={['ADMIN']}>
                   <EmployeeManagement />
@@ -144,6 +165,17 @@ export const AppContent: React.FC = () => {
               }
             />
 
+            <Route
+              path="/account/profile"
+              element={
+                <ProtectedRoute allowedRoles={['MANAGER']}>
+                  <div className="max-w-2xl">
+                    <EmployeeProfile />
+                  </div>
+                </ProtectedRoute>
+              }
+            />
+
             {/* Manager Module (Role Protected: MANAGER & ADMIN) */}
             <Route
               path="/manager/dashboard"
@@ -182,7 +214,7 @@ export const AppContent: React.FC = () => {
           {/* Dedicated Mobile-First Employee Portal Shell */}
           <Route
             element={
-              <ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER', 'ADMIN']}>
+              <ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER']}>
                 <EmployeeMobileLayout />
               </ProtectedRoute>
             }
@@ -193,17 +225,16 @@ export const AppContent: React.FC = () => {
             <Route path="/employee/on-duty" element={<MyOnDuty />} />
             <Route path="/employee/salary" element={<MySalary />} />
             <Route path="/employee/profile" element={<EmployeeProfile />} />
-            <Route path="/profile" element={<Navigate to="/employee/profile" replace />} />
           </Route>
+          <Route path="/profile" element={<ProfileRedirect />} />
 
           {/* Catch-all Fallback */}
           <Route path="*" element={<RoleRootRedirect />} />
-        </Routes>
-        <ToastContainer />
-      </ErrorBoundary>
-    </BrowserRouter>
-  );
-};
+        </Route>
+  )
+);
+
+export const AppContent: React.FC = () => <RouterProvider router={router} />;
 
 export default function App() {
   return (

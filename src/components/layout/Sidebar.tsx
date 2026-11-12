@@ -19,6 +19,7 @@ import {
   X,
   CreditCard,
   LogOut,
+  Smartphone,
 } from 'lucide-react';
 
 interface NavSection {
@@ -45,8 +46,15 @@ export const Sidebar: React.FC = () => {
         setProfileMenuOpen(false);
       }
     };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setProfileMenuOpen(false);
+    };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
   }, []);
 
   const handleLogout = () => {
@@ -99,7 +107,8 @@ export const Sidebar: React.FC = () => {
     {
       title: 'Personal',
       items: [
-        { label: 'My profile', path: '/employee/profile', icon: User },
+        { label: 'My profile', path: '/account/profile', icon: User },
+        { label: 'My check-in and leave', path: '/employee/dashboard', icon: Smartphone },
       ],
     },
   ];
@@ -202,7 +211,7 @@ export const Sidebar: React.FC = () => {
           {sections.map((section, sIdx) => (
             <div key={sIdx} className="space-y-1">
               {!sidebarCollapsed && section.title && (
-                <p className="px-3 pb-1 text-xs font-medium text-slate-500">{section.title}</p>
+                <p className="px-3 pb-1 text-xs font-medium text-slate-600">{section.title}</p>
               )}
               {section.items.map((item) => {
                 const Icon = item.icon;
@@ -249,15 +258,17 @@ export const Sidebar: React.FC = () => {
               } rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-1.5 shadow-lg ring-1 ring-black/5 z-50`}
             >
               <div className="px-3 py-2 border-b border-[var(--border-default)] mb-1">
-                <p className="text-xs font-semibold text-slate-900 truncate">{user?.name || ''}</p>
-                <p className="text-xs text-slate-500 truncate">{user?.email || ''}</p>
+                <p className="text-sm font-semibold text-slate-900 truncate">{user?.name || ''}</p>
+                <p className="text-xs text-slate-600 truncate">{user?.email || ''}</p>
               </div>
 
+              {activeRole !== 'ADMIN' && (
+                <>
               <button
                 onClick={() => {
                   setProfileMenuOpen(false);
                   closeMobile();
-                  navigate('/employee/profile');
+                  navigate(activeRole === 'EMPLOYEE' ? '/employee/profile' : '/account/profile');
                 }}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors text-left cursor-pointer"
               >
@@ -269,24 +280,26 @@ export const Sidebar: React.FC = () => {
                 onClick={() => {
                   setProfileMenuOpen(false);
                   closeMobile();
-                  navigate('/employee/attendance');
+                  navigate('/employee/dashboard');
                 }}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors text-left cursor-pointer"
               >
-                <Clock className="w-3.5 h-3.5 text-slate-500" />
-                <span>My attendance</span>
+                <Smartphone className="w-3.5 h-3.5 text-slate-500" />
+                <span>My check-in, leave and payslips</span>
               </button>
 
-              <div className="border-t border-[var(--border-default)] pt-1 mt-1">
+                </>
+              )}
+              <div className={activeRole !== 'ADMIN' ? 'border-t border-[var(--border-default)] pt-1 mt-1' : ''}>
                 <button
                   onClick={() => {
                     setProfileMenuOpen(false);
                     closeMobile();
                     handleLogout();
                   }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-accent-600 hover:bg-accent-50 rounded-lg transition-colors text-left cursor-pointer"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 rounded-lg transition-colors text-left cursor-pointer"
                 >
-                  <LogOut className="w-3.5 h-3.5 text-accent-500" />
+                  <LogOut className="w-3.5 h-3.5 text-rose-600" />
                   <span>Sign out</span>
                 </button>
               </div>
@@ -294,8 +307,12 @@ export const Sidebar: React.FC = () => {
           )}
 
           <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={profileMenuOpen}
+            aria-label="Account menu"
             onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-            className={`w-full flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-slate-100 transition-colors text-left focus:outline-none cursor-pointer ${
+            className={`w-full flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-slate-100 transition-colors text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60 cursor-pointer ${
               sidebarCollapsed ? 'justify-center' : 'justify-between'
             }`}
             title={sidebarCollapsed ? `${user?.name || ''}${user?.employeeId ? ` (${user.employeeId})` : ''}` : undefined}
@@ -314,7 +331,7 @@ export const Sidebar: React.FC = () => {
                   <p className="text-sm font-semibold text-slate-900 truncate leading-tight">
                     {user?.name || ''}
                   </p>
-                  <p className="text-xs text-slate-500 truncate leading-tight mt-0.5">
+                  <p className="text-xs text-slate-600 truncate leading-tight mt-0.5">
                     {activeRole === 'ADMIN' ? 'Administrator' : activeRole === 'MANAGER' ? 'Manager' : 'Employee'}
                     {user?.employeeId ? ` · ${user.employeeId}` : ''}
                   </p>

@@ -6,6 +6,8 @@ import { AuditLog, Center, CenterInput, CompanySettings as CompanySettingsType }
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
+import { Textarea } from '@/components/common/Textarea';
+import { EmptyState } from '@/components/common/EmptyState';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 import { useCenters, centerTypeLabel, refreshCenters } from '@/hooks/useCenters';
@@ -40,20 +42,9 @@ export const CompanySettings: React.FC = () => {
     <div className="space-y-5">
       <PageHeader title="Settings" description="Centers, managers, shift timings and company information." />
 
-      <div className="flex gap-1 border-b border-slate-200" role="tablist">
+      <div className="ops-detail-tabs" role="tablist" aria-label="Settings sections">
         {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            onClick={() => setTab(t.id)}
-            className={`h-10 px-3 -mb-px text-sm border-b-2 cursor-pointer ${
-              tab === t.id
-                ? 'border-brand-600 text-brand-700 font-semibold'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
-            }`}
-          >
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}>
             {t.label}
           </button>
         ))}
@@ -159,21 +150,11 @@ const CentersPanel: React.FC<PanelProps> = ({ onError, onSuccess }) => {
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 flex items-center justify-between gap-3">
-          <span>Could not load centers. {error}</span>
-          <Button variant="outline" size="sm" onClick={() => void refreshCenters()}>
-            Try again
-          </Button>
-        </div>
+        <EmptyState tone="danger" compact title="Could not load centers" description={String(error)} actionLabel="Try again" onAction={() => void refreshCenters()} />
       ) : isLoading ? (
-        <div className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-600">
-          Loading centers...
-        </div>
+        <div className="h-40 animate-pulse rounded-lg bg-slate-200" role="status" aria-label="Loading centers" />
       ) : centers.length === 0 ? (
-        <div className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center">
-          <p className="text-sm text-slate-900 font-medium">No centers yet</p>
-          <p className="text-sm text-slate-600 mt-1">Add your first center to start assigning staff and managers.</p>
-        </div>
+        <EmptyState title="No centers yet" description="Add your first center to start assigning staff and managers." actionLabel="Add center" onAction={openAdd} />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
           <table className="w-full text-sm">
@@ -218,32 +199,15 @@ const CentersPanel: React.FC<PanelProps> = ({ onError, onSuccess }) => {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex justify-end gap-1.5">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setManaging(c)}
-                        leftIcon={<Users className="w-4 h-4" />}
-                      >
+                    <div className="flex justify-end gap-1">
+                      <Button variant="outline" size="xs" onClick={() => setManaging(c)} leftIcon={<Users className="h-3.5 w-3.5" />}>
                         Managers
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openEdit(c)}
-                        aria-label={`Edit ${c.name}`}
-                        leftIcon={<Pencil className="w-4 h-4" />}
-                      >
-                        Edit
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(c)} aria-label={`Edit ${c.name}`} title="Edit">
+                        <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="danger-ghost"
-                        size="sm"
-                        onClick={() => setDeleting(c)}
-                        aria-label={`Delete ${c.name}`}
-                        leftIcon={<Trash2 className="w-4 h-4" />}
-                      >
-                        Delete
+                      <Button variant="ghost" size="icon" className="hover:bg-rose-50 hover:text-rose-700" onClick={() => setDeleting(c)} aria-label={`Delete ${c.name}`} title="Delete">
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </td>
@@ -341,16 +305,11 @@ const CompanyPanel: React.FC<PanelProps> = ({ onError, onSuccess }) => {
 
   if (loadFailed) {
     return (
-      <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 flex items-center justify-between gap-3">
-        <span>Could not load company details.</span>
-        <Button variant="outline" size="sm" onClick={load}>
-          Try again
-        </Button>
-      </div>
+      <EmptyState tone="danger" compact title="Could not load company details." actionLabel="Try again" onAction={load} />
     );
   }
   if (!settings) {
-    return <div className="py-8 text-center text-sm text-slate-600">Loading company details...</div>;
+    return <div className="h-64 max-w-3xl animate-pulse rounded-lg bg-slate-200" role="status" aria-label="Loading company details" />;
   }
 
   const set = (patch: Partial<CompanySettingsType>) => setSettings({ ...settings, ...patch });
@@ -360,9 +319,9 @@ const CompanyPanel: React.FC<PanelProps> = ({ onError, onSuccess }) => {
       <section className="space-y-4">
         <h2 className="text-base font-semibold text-slate-900">Company</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Input label="Brand name" value={settings.companyName} onChange={(e) => set({ companyName: e.target.value })} />
+          <Input label="Name shown to staff" value={settings.companyName} onChange={(e) => set({ companyName: e.target.value })} />
           <Input
-            label="Registered company name"
+            label="Registered company name (for payslips)"
             value={settings.legalEntityName}
             onChange={(e) => set({ legalEntityName: e.target.value })}
           />
@@ -371,18 +330,14 @@ const CompanyPanel: React.FC<PanelProps> = ({ onError, onSuccess }) => {
           <Input label="ESI registration number" value={settings.esiRegistrationNo} onChange={(e) => set({ esiRegistrationNo: e.target.value })} />
           <Input label="HR contact email" type="email" value={settings.contactEmail} onChange={(e) => set({ contactEmail: e.target.value })} />
         </div>
-        <div>
-          <label htmlFor="registered-address" className="block text-sm font-medium text-slate-900 mb-1.5">
-            Registered office address
-          </label>
-          <textarea
-            id="registered-address"
-            rows={2}
-            value={settings.registeredAddress}
-            onChange={(e) => set({ registeredAddress: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-400/30"
-          />
-        </div>
+        <Textarea
+          id="registered-address"
+          label="Registered office address"
+          rows={2}
+          value={settings.registeredAddress}
+          onChange={(e) => set({ registeredAddress: e.target.value })}
+          helperText="Printed on every payslip."
+        />
       </section>
 
       <section className="space-y-4 pt-6 border-t border-slate-200">
@@ -452,18 +407,11 @@ const ActivityPanel: React.FC = () => {
 
   if (failed) {
     return (
-      <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 flex items-center justify-between gap-3">
-        <span>Could not load the activity log.</span>
-        <Button variant="outline" size="sm" onClick={load}>
-          Try again
-        </Button>
-      </div>
+      <EmptyState tone="danger" compact title="Could not load the activity log." actionLabel="Try again" onAction={load} />
     );
   }
-  if (!logs) return <div className="py-8 text-center text-sm text-slate-600">Loading activity...</div>;
-  if (logs.length === 0) {
-    return <div className="py-8 text-center text-sm text-slate-600">No admin activity recorded yet.</div>;
-  }
+  if (!logs) return <div className="h-48 animate-pulse rounded-lg bg-slate-200" role="status" aria-label="Loading activity" />;
+  if (logs.length === 0) return <EmptyState title="No activity yet" description="Changes to centers, managers, payroll and settings will be listed here." />;
 
   return (
     <section className="space-y-2">

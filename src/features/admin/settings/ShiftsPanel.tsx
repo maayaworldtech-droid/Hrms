@@ -3,6 +3,7 @@ import { api } from '@/services/api';
 import { CompanySettings } from '@/types';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
+import { EmptyState } from '@/components/common/EmptyState';
 import { formatClock, setShiftTimesFromSettings, shiftTimesFromSettings } from '@/utils/shiftUtils';
 
 interface ShiftsPanelProps {
@@ -47,16 +48,11 @@ export const ShiftsPanel: React.FC<ShiftsPanelProps> = ({ onError, onSuccess }) 
 
   if (loadFailed) {
     return (
-      <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 flex items-center justify-between gap-3">
-        <span>Could not load shift timings.</span>
-        <Button variant="outline" size="sm" onClick={load}>
-          Try again
-        </Button>
-      </div>
+      <EmptyState tone="danger" compact title="Could not load shift timings." actionLabel="Try again" onAction={load} />
     );
   }
   if (!settings || !form) {
-    return <div className="py-8 text-center text-sm text-slate-600">Loading shift timings...</div>;
+    return <div className="h-64 max-w-3xl animate-pulse rounded-lg bg-slate-200" role="status" aria-label="Loading shift timings" />;
   }
 
   const set = (patch: Partial<FormState>) => setForm({ ...form, ...patch });

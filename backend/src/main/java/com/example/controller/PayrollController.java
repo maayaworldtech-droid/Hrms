@@ -102,8 +102,10 @@ public class PayrollController {
             payrollRunRepository.delete(draft);
         }
 
+        // The admin is the owner, not salaried staff, so no payslip is generated for them
         List<Employee> employees = employeeRepository.findAll().stream()
                 .filter(emp -> !"TERMINATED".equalsIgnoreCase(emp.getStatus()))
+                .filter(emp -> !"ADMIN".equalsIgnoreCase(emp.getRole()))
                 .toList();
 
         PayrollRun run = new PayrollRun();

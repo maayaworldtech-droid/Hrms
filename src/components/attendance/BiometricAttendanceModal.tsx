@@ -125,7 +125,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
   const [geofencingEnabled, setGeofencingEnabled] = useState<boolean>(true);
   const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geofenceResult, setGeofenceResult] = useState<GeofenceCheckResult | null>(null);
-  const [gpsStatusText, setGpsStatusText] = useState<string>('Checking device GPS...');
+  const [gpsStatusText, setGpsStatusText] = useState<string>('Checking your location...');
   const [gpsChecked, setGpsChecked] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -185,7 +185,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
     }
     if (centersError) {
       setGpsChecked(false);
-      setGpsStatusText("Couldn't load your center details. Tap Refresh GPS to try again.");
+      setGpsStatusText("Couldn't load your center details. Tap Check location again.");
       return;
     }
     if (!venue) {
@@ -199,11 +199,11 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
       );
       return;
     }
-    setGpsStatusText('Checking device GPS...');
+    setGpsStatusText('Checking your location...');
     if (!navigator.geolocation) {
       setCurrentCoords(null);
       setGpsChecked(false);
-      setGpsStatusText('Geolocation unsupported in this browser');
+      setGpsStatusText('This phone cannot share its location. Try Chrome or Safari.');
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -218,8 +218,8 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
         setGpsChecked(true);
         setGpsStatusText(
           check.isWithinRadius
-            ? `Location verified (${check.distanceMeters}m from center)`
-            : `${check.distanceMeters}m away (allowed: ${check.allowedRadiusMeters}m)`
+            ? 'You are at the center'
+            : `You are ${check.distanceMeters} m away. Come within ${check.allowedRadiusMeters} m of the center to check in.`
         );
       },
       (err) => {
@@ -227,8 +227,8 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
         setGpsChecked(false);
         setGpsStatusText(
           err.code === err.PERMISSION_DENIED
-            ? 'Location permission denied. Allow GPS to check in.'
-            : 'Unable to acquire GPS signal. Tap Refresh GPS.'
+            ? 'Location is blocked. Allow location for this site in your phone settings.'
+            : "Couldn't find your location. Step near a window or outside, then tap Check location again."
         );
       },
       { enableHighAccuracy: true, timeout: 8000 }
@@ -337,7 +337,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
           if (currentResult.blinkDetected || currentResult.headMotionDetected || (progress > 80 && currentResult.faceDetected)) {
             stage = 'AUTHENTICATING';
             setScanStage('AUTHENTICATING');
-            setScanMessage('Verifying identity');
+            setScanMessage('Checking your face');
 
             const snapshot = captureFaceSnapshot(video);
             setCapturedPhoto(snapshot);
@@ -411,7 +411,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
                 appearanceSimilarity: 0,
                 threshold: 72,
                 status: 'MISMATCH',
-                reason: 'No registered face profile found. Tap Register Face first.',
+                reason: 'No face saved yet. Tap Register face first.',
               };
               setVerificationResult(unregComp);
               setMatchScore(0);
@@ -432,7 +432,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
                   appearanceSimilarity: 0,
                   threshold: 72,
                   status: 'MISMATCH',
-                  reason: 'Could not read reference face geometry.',
+                  reason: 'Your saved face photo could not be read. Ask your manager to register it again.',
                 };
               }
 
@@ -457,11 +457,11 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
                 if (comp.isMatch) {
                   stage = 'SUCCESS';
                   setScanStage('SUCCESS');
-                  setScanMessage(`Verified (${comp.similarity.toFixed(1)}%)`);
+                  setScanMessage('Face matched');
                 } else {
                   stage = 'FAILED_VERIFICATION';
                   setScanStage('FAILED_VERIFICATION');
-                  setScanMessage(`Face mismatch (${comp.similarity.toFixed(1)}%)`);
+                  setScanMessage('Face did not match. Try again in better light.');
                 }
               }, 350);
             }
@@ -550,7 +550,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
         appearanceSimilarity: 0,
         threshold: 72,
         status: 'MISMATCH',
-        reason: 'Please register your face profile first.',
+        reason: 'No face saved yet. Tap Register face first.',
       });
       setMatchScore(0);
       setScanStage('FAILED_VERIFICATION');
@@ -620,10 +620,10 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
       });
       if (comp.isMatch) {
         setScanStage('SUCCESS');
-        setScanMessage(`Verified (${comp.similarity.toFixed(1)}%)`);
+        setScanMessage('Face matched');
       } else {
         setScanStage('FAILED_VERIFICATION');
-        setScanMessage(`Face mismatch (${comp.similarity.toFixed(1)}%)`);
+        setScanMessage('Face did not match. Try again in better light.');
       }
     } else {
       setVerificationResult({
@@ -719,8 +719,8 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
         dispatch(
           addToast({
             type: 'success',
-            title: 'Checked In',
-            message: `Punch recorded at ${record.checkIn || timeFormatted}.`,
+            title: 'Checked in',
+            message: `Checked in at ${record.checkIn || timeFormatted}.`,
           })
         );
         onSuccess(record);
@@ -729,8 +729,8 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
         dispatch(
           addToast({
             type: 'success',
-            title: 'Checked Out',
-            message: `Shift completed at ${record.checkOut || timeFormatted}.`,
+            title: 'Checked out',
+            message: `Checked out at ${record.checkOut || timeFormatted}.`,
           })
         );
         onSuccess(record);
@@ -740,8 +740,8 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
       dispatch(
         addToast({
           type: 'error',
-          title: mode === 'LOGIN' ? 'Check-In Failed' : 'Check-Out Failed',
-          message: err?.message || 'Unable to save punch record.',
+          title: mode === 'LOGIN' ? 'Check-in failed' : 'Check-out failed',
+          message: err?.message || 'Your check-in was not saved. Please try again.',
         })
       );
     } finally {
@@ -752,15 +752,26 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/60 overflow-y-auto">
-      <div className="relative w-full max-w-md max-h-[92vh] flex flex-col bg-white border border-slate-200 rounded-2xl shadow-lg text-slate-900 overflow-hidden my-auto">
+    <dialog
+      ref={(el) => {
+        // Native modal: traps focus, Escape closes, page behind is inert
+        if (el && !el.open) el.showModal();
+      }}
+      aria-labelledby="face-check-title"
+      className="app-dialog w-full sm:max-w-md"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!isSubmitting) onClose();
+      }}
+    >
+      <div className="flex max-h-[inherit] flex-col text-slate-900">
         {/* Clean Header */}
         <div className="shrink-0 flex items-center justify-between px-4 py-3.5 border-b border-slate-200 bg-white">
           <div>
-            <h2 className="text-base font-bold text-slate-900">
-              {mode === 'LOGIN' ? 'Face Check-In' : 'Face Check-Out'}
+            <h2 id="face-check-title" className="text-base font-semibold text-slate-900">
+              {mode === 'LOGIN' ? 'Check in' : 'Check out'}
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-sm text-slate-600 mt-0.5">
               {employee.fullName} · {employee.employeeCode}
             </p>
           </div>
@@ -769,14 +780,14 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
             <button
               type="button"
               onClick={handleStartEnrollment}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-brand-600 transition-colors cursor-pointer"
+              className="h-8 px-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-sm font-medium text-slate-800 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60"
             >
-              {isEnrolled ? 'Update Face' : 'Register Face'}
+              {isEnrolled ? 'Update face' : 'Register face'}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              className="w-8 h-8 flex items-center justify-center text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60"
               aria-label="Close"
             >
               <X className="w-4 h-4" />
@@ -787,14 +798,14 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
         {/* Modal Body */}
         <div className="p-4 space-y-3.5 overflow-y-auto">
           {!isEnrolled && !isEnrollingMode && (
-            <div className="px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-2 text-xs text-amber-900">
-              <span>No face registered yet. Tap Register Face to capture.</span>
+            <div className="px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between gap-2 text-sm text-amber-900">
+              <span>No face registered yet. Tap Register face to capture one.</span>
             </div>
           )}
 
           {/* Viewfinder Viewport */}
           <div
-            className={`relative rounded-xl overflow-hidden bg-slate-950 border aspect-[4/3] flex items-center justify-center ${
+            className={`relative rounded-lg overflow-hidden bg-slate-950 border aspect-[4/3] flex items-center justify-center ${
               cameraActive
                 ? scanStage === 'SUCCESS' || isFaceCentered
                   ? 'border-emerald-500'
@@ -865,7 +876,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
 
           {/* Concise Result Strip */}
           {scanStage === 'SUCCESS' && (
-            <div className="px-3.5 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-3">
+            <div className="px-3.5 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
                 {capturedPhoto && (
                   <img
@@ -877,7 +888,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-emerald-900 flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>Identity Verified ({matchScore.toFixed(1)}%)</span>
+                    <span>Face matched</span>
                   </p>
                 </div>
               </div>
@@ -894,7 +905,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
           )}
 
           {scanStage === 'FAILED_VERIFICATION' && (
-            <div className="px-3.5 py-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between gap-3">
+            <div className="px-3.5 py-2.5 bg-rose-50 border border-rose-200 rounded-lg flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 min-w-0">
                 <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
                 <p className="text-xs font-medium text-rose-900 truncate">
@@ -913,7 +924,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
 
           {/* Clean Single-Line Location Strip (Login only) */}
           {mode === 'LOGIN' && (
-            <div className="px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-2 text-xs">
+            <div className="px-3.5 py-2.5 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between gap-2 text-xs">
               <div className="flex items-center gap-2 min-w-0">
                 <MapPin
                   className={`w-4 h-4 shrink-0 ${
@@ -928,7 +939,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
                   </span>
                   <span className="text-xs text-slate-500">
                     {!geofencingEnabled
-                      ? 'Geofence check disabled by company policy'
+                      ? 'Location check is turned off'
                       : gpsStatusText}
                   </span>
                 </div>
@@ -945,7 +956,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
                   className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-medium flex items-center gap-1 shrink-0 cursor-pointer"
                 >
                   <RefreshCw className="w-3 h-3" />
-                  <span>Refresh GPS</span>
+                  <span>Check location again</span>
                 </button>
               )}
             </div>
@@ -958,7 +969,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="flex-1 h-10 px-4 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
+            className="flex-1 h-11 px-4 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-semibold text-sm transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -967,7 +978,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
             type="button"
             onClick={handleConfirm}
             disabled={!canSubmit}
-            className={`flex-1 h-10 px-4 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+            className={`flex-1 h-11 px-4 rounded-lg font-semibold text-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
               canSubmit
                 ? 'bg-brand-600 hover:bg-brand-700 text-white'
                 : 'bg-slate-200 text-slate-500 cursor-not-allowed'
@@ -981,12 +992,12 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
             ) : (
               <>
                 <Check className="w-3.5 h-3.5" />
-                <span>{mode === 'LOGIN' ? 'Confirm Check-In' : 'Confirm Check-Out'}</span>
+                <span>{mode === 'LOGIN' ? 'Confirm check-in' : 'Confirm check-out'}</span>
               </>
             )}
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 };

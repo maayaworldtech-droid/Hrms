@@ -48,7 +48,8 @@ d:\Hrms/
     ├── assets/                        — Logos, brand vectors, and media
     ├── components/
     │   ├── attendance/                — Biometric webcam/geofence modal & 1-month paginated history modal (BiometricAttendanceModal.tsx, EmployeeAttendanceHistoryModal.tsx)
-    │   ├── common/                    — Shared UI: Button, Input, Modal, DataTable, PageHeader, OperationsDashboard, StatCard, etc.
+    │   ├── common/                    — Shared UI: Button, Input, PasswordInput, Textarea, Modal, DataTable, PageHeader, OperationsDashboard, StatTile, etc.
+    │   ├── employee/                  — Mobile employee primitives (`MobilePrimitives.tsx`)
     │   └── layout/                    — Shells: AppLayout (Desktop Admin/Manager), EmployeeMobileLayout (Mobile-First Shell), AuthLayout, Sidebar, Header
     ├── features/
     │   ├── admin/                     — Admin screens: Dashboard, EmployeeManagement, Attendance, Leaves, Payroll, Reports (`reports/`), Settings (`settings/`)
@@ -61,7 +62,7 @@ d:\Hrms/
     ├── store/                         — Redux Toolkit store setup
     │   └── slices/                    — authSlice (session & roles), uiSlice (toasts & mobile/sidebar toggles)
     ├── types/                         — Domain TypeScript interfaces and types
-    └── utils/                         — Helpers: dutyTypes, faceBiometrics, formatters (INR, dates), geolocation (Haversine formula), operations, reportingManager, salaryCalculator, shiftUtils
+    └── utils/                         — Helpers: access, dutyTypes, faceBiometrics, formatters (INR, dates), geolocation (Haversine formula), operations, reportingManager, salaryCalculator, shiftUtils, status
 ```
 
 ---
@@ -283,3 +284,11 @@ Admin initiates cycle (PayrollProcessing.tsx)
 **Files changed:** `backend/.../controller/{Attendance,Auth,Employee,Leave,OnDuty,Payroll,Settings,Center}Controller.java`, `backend/.../service/{Audit,Auth,Center,EmployeeServiceImpl,ZeptoMail}Service.java`, `backend/.../security/{AuthFilter,PortalUrlResolver}.java`, `backend/.../entity/{CompanySettings,Employee,Location}.java`, `backend/.../repository/*`, `backend/.../demo/{DataInitializer,EmployeeApplication}.java`, `src/components/common/*`, `src/components/layout/{AppLayout,AuthLayout,EmployeeMobileLayout,ErrorBoundary,ProtectedRoute,Sidebar}.tsx`, `src/features/admin/{AttendanceManagement,CompanySettings,EmployeeManagement,LeaveManagement,OnDutyManagement,PayrollProcessing,ReportsAnalytics}.tsx`, `src/features/admin/{reports,settings}/*`, `src/features/auth/*`, `src/features/employee/*`, `src/features/manager/*`, `src/hooks/useCenters.ts`, `src/services/api.ts`, `src/services/mockData.ts` (deleted), `src/utils/{dutyTypes,formatters,geolocation,operations,reportingManager,shiftUtils}.ts`
 
 **What & why:** Extracted center management (`CenterController`, `CenterService`, `useCenters`), centralized audit logging (`AuditService`), added `PortalUrlResolver`, split admin reports and settings into modular subcomponents (`reports/`, `settings/`), extracted `PageHeader`, `AuthLayout`, `dutyTypes`, and `reportingManager`, and removed `src/services/mockData.ts`.
+
+### 2026-11-12 (Evening) — UI Primitives Consolidation, Code Splitting & Admin Payroll Exclusion
+
+**Request:** Push the latest local code and deploy to AWS.
+
+**Files changed:** `backend/.../controller/PayrollController.java`, `src/App.tsx`, `src/components/attendance/*`, `src/components/common/{PasswordInput,StatTile,Textarea}.tsx` (new), `src/components/common/{Breadcrumb,Card,StatCard}.tsx` (deleted), `src/components/employee/MobilePrimitives.tsx` (new), `src/components/layout/*`, `src/features/*`, `src/hooks/useRouteBackGuard.ts` (deleted), `src/utils/{access,status}.ts` (new), `src/index.css`
+
+**What & why:** Excluded `ADMIN` owner accounts from payroll payslip generation in `PayrollController`, introduced route code-splitting in `App.tsx`, consolidated shared UI primitives (`StatTile`, `PasswordInput`, `Textarea`, `MobilePrimitives`) and helpers (`access.ts`, `status.ts`), and removed unused `Breadcrumb`, `Card`, `StatCard`, and `useRouteBackGuard`.

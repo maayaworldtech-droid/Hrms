@@ -3,6 +3,7 @@ import { Crosshair } from 'lucide-react';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
+import { Textarea } from '@/components/common/Textarea';
 import { Center, CenterInput, CenterType } from '@/types';
 
 interface CenterFormModalProps {
@@ -161,20 +162,20 @@ export const CenterFormModal: React.FC<CenterFormModalProps> = ({ isOpen, center
           <Button variant="outline" onClick={onClose} disabled={isSaving}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={() => handleSubmit()} isLoading={isSaving}>
+          <Button type="submit" form="center-form" isLoading={isSaving}>
             {center ? 'Save changes' : 'Add center'}
           </Button>
         </>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form id="center-form" onSubmit={handleSubmit} className="space-y-5" noValidate>
         <fieldset>
           <legend className="block text-sm font-medium text-slate-900 mb-1.5">Type</legend>
           <div className="grid grid-cols-2 gap-2">
             {(['CENTER', 'GAMING_ZONE'] as CenterType[]).map((type) => (
               <label
                 key={type}
-                className={`flex items-center gap-2 h-10 px-3 rounded-lg border cursor-pointer text-sm ${
+                className={`flex h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm focus-within:ring-2 focus-within:ring-brand-400/60 ${
                   form.centerType === type
                     ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium ring-1 ring-brand-600'
                     : 'border-slate-300 text-slate-700 hover:border-slate-400'
@@ -219,19 +220,7 @@ export const CenterFormModal: React.FC<CenterFormModalProps> = ({ isOpen, center
           />
         </div>
 
-        <div>
-          <label htmlFor="center-address" className="block text-sm font-medium text-slate-900 mb-1.5">
-            Address
-          </label>
-          <textarea
-            id="center-address"
-            rows={2}
-            value={form.address}
-            placeholder="Building, street and area"
-            onChange={(e) => update({ address: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-400/30"
-          />
-        </div>
+        <Textarea id="center-address" label="Address" rows={2} value={form.address} placeholder="Building, street and area" onChange={(e) => update({ address: e.target.value })} />
 
         <div className="pt-4 border-t border-slate-200 space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
