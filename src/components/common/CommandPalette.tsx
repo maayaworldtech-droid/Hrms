@@ -88,7 +88,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
       },
       {
         id: 'nav-reports',
-        title: 'Workforce Reports & Analytics',
+        title: 'Reports',
         category: 'Navigation',
         icon: BarChart3,
         action: () => navigate('/admin/reports'),
@@ -96,7 +96,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
       },
       {
         id: 'nav-settings',
-        title: 'Corporate Settings & Compliance',
+        title: 'Settings',
         category: 'Navigation',
         icon: Settings,
         action: () => navigate('/admin/settings'),
@@ -225,7 +225,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
     <div className="fixed inset-0 z-50 overflow-y-auto p-4 sm:p-6 md:p-20">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-slate-950/45 transition-opacity"
         onClick={onClose}
       />
 
@@ -233,7 +233,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
       <div className="relative mx-auto max-w-xl rounded-xl bg-white shadow-2xl border border-slate-200/90 overflow-hidden">
         {/* Search Input Bar */}
         <div className="flex items-center px-4 border-b border-slate-100">
-          <Search className="w-4 h-4 text-slate-400 shrink-0" />
+          <Search className="w-4 h-4 text-slate-500 shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -245,7 +245,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
             placeholder="Search pages, employees, actions, or switch roles..."
             className="w-full px-3 py-3.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none bg-transparent"
           />
-          <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 text-slate-400">
+          <kbd className="text-xs font-mono px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 text-slate-500">
             ESC
           </kbd>
         </div>
@@ -253,7 +253,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
         {/* Results List */}
         <div className="max-h-80 overflow-y-auto p-2 divide-y divide-slate-50">
           {filteredCommands.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-400">
+            <div className="py-8 text-center text-xs text-slate-500">
               No matching pages, actions, or employees found for "{query}".
             </div>
           ) : (
@@ -270,15 +270,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs transition-colors ${
                     isSelected
-                      ? 'bg-[var(--brand-50)] text-slate-900 font-medium'
+                      ? 'bg-brand-50 text-slate-900 font-medium'
                       : 'text-slate-700 hover:bg-slate-50'
                   }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-[var(--brand-600)]' : 'text-slate-400'}`} />
+                    <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-brand-600' : 'text-slate-500'}`} />
                     <span className="truncate">{item.title}</span>
                   </div>
-                  <span className="text-[10px] text-slate-400 font-mono shrink-0 ml-2">
+                  <span className="text-xs text-slate-500 font-mono shrink-0 ml-2">
                     {item.category}
                   </span>
                 </button>
@@ -288,16 +288,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
         </div>
 
         {/* Footer shortcuts */}
-        <div className="px-4 py-2 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+        <div className="px-4 py-2 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
           <div className="flex items-center gap-2">
             <span>Use</span>
-            <kbd className="px-1 py-0.2 rounded border bg-white border-slate-200 font-mono text-[9px]">↑</kbd>
-            <kbd className="px-1 py-0.2 rounded border bg-white border-slate-200 font-mono text-[9px]">↓</kbd>
+            <kbd className="px-1 py-0.2 rounded border bg-white border-slate-200 font-mono text-xs">↑</kbd>
+            <kbd className="px-1 py-0.2 rounded border bg-white border-slate-200 font-mono text-xs">↓</kbd>
             <span>to navigate</span>
-            <kbd className="px-1.5 py-0.2 rounded border bg-white border-slate-200 font-mono text-[9px]">↵</kbd>
+            <kbd className="px-1.5 py-0.2 rounded border bg-white border-slate-200 font-mono text-xs">↵</kbd>
             <span>to select</span>
           </div>
-          <span>Maaya World Operations</span>
+          <span>Maaya World operations</span>
         </div>
       </div>
     </div>

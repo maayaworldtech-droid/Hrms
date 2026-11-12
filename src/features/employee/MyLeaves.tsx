@@ -7,7 +7,7 @@ import { api } from '@/services/api';
 import { LeaveRequest, LeaveBalance } from '@/types';
 import { Modal } from '@/components/common/Modal';
 import { Input } from '@/components/common/Input';
-import { formatDate } from '@/utils/formatters';
+import { formatDate, formatLabel } from '@/utils/formatters';
 import { businessDate } from '@/utils/operations';
 import { Plus, Search, Calendar, CalendarDays } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
@@ -101,8 +101,8 @@ export const MyLeaves: React.FC = () => {
     try {
       await api.leaves.apply({
         employeeId,
-        employeeName: user?.name || 'Shyam Sundar',
-        departmentName: user?.department || 'Operations',
+        employeeName: user?.name || '',
+        departmentName: '',
         leaveType: values.leaveType,
         startDate: values.startDate,
         endDate: values.endDate,
@@ -164,7 +164,7 @@ export const MyLeaves: React.FC = () => {
       {/* Leave Balance Header Card (Direct Quota Rule) */}
       <section className="employee-card flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[var(--brand-50)] text-[var(--brand-600)] flex items-center justify-center shrink-0 border border-[var(--brand-200)]">
+          <div className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0 border border-brand-200">
             <CalendarDays className="w-5 h-5" />
           </div>
           <div>
@@ -174,7 +174,7 @@ export const MyLeaves: React.FC = () => {
               </span>
               <span className="text-xs font-semibold text-slate-600">days available</span>
             </div>
-            <span className="text-[11px] text-slate-500 block">Annual leave entitlement 2026</span>
+            <span className="text-xs text-slate-500 block">Annual leave entitlement 2026</span>
           </div>
         </div>
 
@@ -244,7 +244,7 @@ export const MyLeaves: React.FC = () => {
             <div key={req.id} className="employee-record-card space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                  {req.leaveType.replace('_', ' ')}
+                  {formatLabel(req.leaveType)}
                 </span>
                 <span
                   className={`employee-badge ${
@@ -255,7 +255,7 @@ export const MyLeaves: React.FC = () => {
                       : 'badge-danger'
                   }`}
                 >
-                  {req.status}
+                  {formatLabel(req.status)}
                 </span>
               </div>
 
@@ -263,7 +263,7 @@ export const MyLeaves: React.FC = () => {
                 <span className="font-semibold text-slate-800">
                   {formatDate(req.startDate)} – {formatDate(req.endDate)}
                 </span>
-                <span className="font-mono font-bold text-slate-900 tabular-nums">
+                <span className="tabular-nums font-bold text-slate-900 tabular-nums">
                   {req.days} day{req.days > 1 ? 's' : ''}
                 </span>
               </div>
@@ -273,7 +273,7 @@ export const MyLeaves: React.FC = () => {
               </p>
 
               {req.reviewerComments && (
-                <div className="text-[11px] text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                <div className="text-xs text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-200">
                   <span className="font-semibold block">Manager note:</span>
                   {req.reviewerComments}
                 </div>
@@ -292,18 +292,18 @@ export const MyLeaves: React.FC = () => {
       >
         <form onSubmit={handleSubmit(onApplySubmit)} className="space-y-3.5 text-xs">
           <div>
-            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
               Leave Category *
             </label>
             <select
               {...register('leaveType')}
-              className="w-full rounded-lg border border-slate-300 p-2 text-xs text-slate-900 bg-white outline-none focus:border-[var(--brand-400)]"
+              className="w-full rounded-lg border border-slate-300 p-2 text-xs text-slate-900 bg-white outline-none focus:border-brand-400"
             >
               <option value="CASUAL_LEAVE">Casual Leave (CL)</option>
               <option value="SICK_LEAVE">Sick Leave (SL)</option>
               <option value="EARNED_LEAVE">Earned Leave (EL)</option>
-              <option value="MATERNITY_LEAVE">Maternity Leave</option>
-              <option value="PATERNITY_LEAVE">Paternity Leave</option>
+              <option value="MATERNITY_LEAVE">Maternity leave</option>
+              <option value="PATERNITY_LEAVE">Paternity leave</option>
               <option value="LOSS_OF_PAY">Loss of Pay (LOP)</option>
             </select>
           </div>
@@ -324,22 +324,22 @@ export const MyLeaves: React.FC = () => {
           </div>
 
           <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
-            <span className="text-slate-600 font-medium">Computed Duration</span>
-            <span className="font-bold text-slate-900 font-mono text-sm">{computedDays} day{computedDays > 1 ? 's' : ''}</span>
+            <span className="text-slate-600 font-medium">Computed duration</span>
+            <span className="font-bold text-slate-900 tabular-nums text-sm">{computedDays} day{computedDays > 1 ? 's' : ''}</span>
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
               Reason for Absence *
             </label>
             <textarea
               {...register('reason')}
               rows={2}
               placeholder="Please provide details for leave application"
-              className="w-full rounded-lg border border-slate-300 p-2 text-xs text-slate-900 outline-none focus:border-[var(--brand-400)]"
+              className="w-full rounded-lg border border-slate-300 p-2 text-xs text-slate-900 outline-none focus:border-brand-400"
             />
             {errors.reason && (
-              <p className="text-[var(--accent-600)] text-[10px] mt-0.5">{errors.reason.message}</p>
+              <p className="text-accent-600 text-xs mt-0.5">{errors.reason.message}</p>
             )}
           </div>
 

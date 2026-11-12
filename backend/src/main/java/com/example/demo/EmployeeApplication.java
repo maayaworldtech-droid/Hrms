@@ -22,6 +22,6 @@ public class EmployeeApplication {
 		System.setProperty("java.net.preferIPv4Addresses", "true");
 
 		SpringApplication.run(EmployeeApplication.class, args);
-		System.out.println("Maaya World HRMS Enterprise Backend running successfully on port 8083.");
+		System.out.println("Maaya World HRMS backend is running.");
 	}
 }

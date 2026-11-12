@@ -4,9 +4,10 @@ import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { api } from '@/services/api';
 import { AttendanceRecord } from '@/types';
-import { formatDate, formatTime } from '@/utils/formatters';
+import { formatDate, formatTime, formatLabel } from '@/utils/formatters';
 import { businessDate, subtractMonthsFromDate, previousDayIso } from '@/utils/operations';
 import { ShieldCheck, AlertCircle, CalendarDays } from 'lucide-react';
+import { getShiftLabel } from '@/utils/shiftUtils';
 
 interface EmployeeAttendanceHistoryModalProps {
   employee: {
@@ -127,8 +128,8 @@ export const EmployeeAttendanceHistoryModal: React.FC<EmployeeAttendanceHistoryM
       isOpen={Boolean(employee)}
       onClose={onClose}
       title={`${employee.employeeName} — Attendance History`}
-      subtitle={`${employee.location || 'Hyderabad'} Center · ${
-        employee.shift === 'EVENING' ? 'Evening (1 PM – 9 PM)' : 'Morning (9 AM – 1 PM)'
+      subtitle={`${employee.location || 'No center assigned'} · ${
+        getShiftLabel(employee.shift)
       }`}
       size="lg"
     >
@@ -197,7 +198,7 @@ export const EmployeeAttendanceHistoryModal: React.FC<EmployeeAttendanceHistoryM
                   onClick={handleLoadPreviousMonth}
                   isLoading={isLoadingMore}
                 >
-                  Load Previous Month
+                  Load previous month
                 </Button>
               </div>
             )}
@@ -209,8 +210,8 @@ export const EmployeeAttendanceHistoryModal: React.FC<EmployeeAttendanceHistoryM
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold sticky top-0">
                   <tr>
                     <th className="py-2.5 px-3">Date</th>
-                    <th className="py-2.5 px-3">Punch In</th>
-                    <th className="py-2.5 px-3">Punch Out</th>
+                    <th className="py-2.5 px-3">Punch in</th>
+                    <th className="py-2.5 px-3">Punch out</th>
                     <th className="py-2.5 px-3">Hours</th>
                     <th className="py-2.5 px-3">Status</th>
                   </tr>
@@ -228,10 +229,10 @@ export const EmployeeAttendanceHistoryModal: React.FC<EmployeeAttendanceHistoryM
                           )}
                         </div>
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-800 whitespace-nowrap">
+                      <td className="py-2.5 px-3 tabular-nums text-slate-800 whitespace-nowrap">
                         {rec.checkIn ? formatTime(rec.checkIn) : '--:--'}
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-800 whitespace-nowrap">
+                      <td className="py-2.5 px-3 tabular-nums text-slate-800 whitespace-nowrap">
                         {rec.checkOut ? formatTime(rec.checkOut) : '--:--'}
                       </td>
                       <td className="py-2.5 px-3 tabular-nums text-slate-800 whitespace-nowrap">
@@ -239,7 +240,7 @@ export const EmployeeAttendanceHistoryModal: React.FC<EmployeeAttendanceHistoryM
                       </td>
                       <td className="py-2.5 px-3 whitespace-nowrap">
                         <Badge variant={statusVariant(rec.status)} size="sm">
-                          {rec.status === 'ON_DUTY' ? 'On Duty' : rec.status.replace('_', ' ')}
+                          {formatLabel(rec.status)}
                         </Badge>
                       </td>
                     </tr>
@@ -260,7 +261,7 @@ export const EmployeeAttendanceHistoryModal: React.FC<EmployeeAttendanceHistoryM
                 onClick={handleLoadMoreInWindow}
                 isLoading={isLoadingMore}
               >
-                Load More
+                Load more
               </Button>
             )}
             {!hasMore && hasOlderRecords && records.length > 0 && (
@@ -270,7 +271,7 @@ export const EmployeeAttendanceHistoryModal: React.FC<EmployeeAttendanceHistoryM
                 onClick={handleLoadPreviousMonth}
                 isLoading={isLoadingMore}
               >
-                Load Previous Month
+                Load previous month
               </Button>
             )}
           </div>

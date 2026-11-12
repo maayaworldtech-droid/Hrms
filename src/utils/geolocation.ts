@@ -1,3 +1,6 @@
+import { Center } from '@/types';
+
+/** Check-in geofence for one center, derived from the center record managed in Settings. */
 export interface VenueGeofence {
   name: string;
   shortName: string;
@@ -7,32 +10,21 @@ export interface VenueGeofence {
   allowedRadiusMeters: number;
 }
 
-export const VENUE_GEOFENCES: Record<string, VenueGeofence> = {
-  Hyderabad: {
-    name: 'Maaya World Hyderabad',
-    shortName: 'Hyderabad Center',
-    address: 'Prism Mall, Financial District, Gachibowli',
-    latitude: 17.4326,
-    longitude: 78.3411,
-    allowedRadiusMeters: 250,
-  },
-  Vizag: {
-    name: 'Maaya World Visakhapatnam',
-    shortName: 'Vizag Center',
-    address: 'Beach Road, Opp. TU 142 Aircraft Museum',
-    latitude: 17.7196,
-    longitude: 83.3328,
-    allowedRadiusMeters: 250,
-  },
-  Bhubaneswar: {
-    name: 'Maaya World Bhubaneswar',
-    shortName: 'Bhubaneswar Center',
-    address: 'KIIT Chowk, Patia Square',
-    latitude: 20.3541,
-    longitude: 85.8175,
-    allowedRadiusMeters: 250,
-  },
-};
+/**
+ * Builds the geofence for a center. Returns null when the center has no coordinates yet, so callers
+ * can tell the employee to contact the admin instead of silently checking against another center.
+ */
+export function centerToVenue(center: Center | undefined | null): VenueGeofence | null {
+  if (!center || center.latitude == null || center.longitude == null) return null;
+  return {
+    name: center.name,
+    shortName: center.name,
+    address: center.address,
+    latitude: center.latitude,
+    longitude: center.longitude,
+    allowedRadiusMeters: center.radiusMeters || 250,
+  };
+}
 
 /**
  * Calculate distance between two GPS coordinates using Haversine formula
@@ -64,19 +56,8 @@ export interface GeofenceCheckResult {
   venue: VenueGeofence;
 }
 
-export function checkVenueGeofence(
-  latitude: number,
-  longitude: number,
-  locationName: string = 'Hyderabad'
-): GeofenceCheckResult {
-  const venue = VENUE_GEOFENCES[locationName] || VENUE_GEOFENCES['Hyderabad'];
-  const distanceMeters = calculateDistanceMeters(
-    latitude,
-    longitude,
-    venue.latitude,
-    venue.longitude
-  );
-
+export function checkVenueGeofence(latitude: number, longitude: number, venue: VenueGeofence): GeofenceCheckResult {
+  const distanceMeters = calculateDistanceMeters(latitude, longitude, venue.latitude, venue.longitude);
   return {
     isWithinRadius: distanceMeters <= venue.allowedRadiusMeters,
     distanceMeters,
@@ -84,77 +65,3 @@ export function checkVenueGeofence(
     venue,
   };
 }
-
-export interface SimulatedLocationPreset {
-  id: string;
-  label: string;
-  description: string;
-  latitude: number;
-  longitude: number;
-  locationKey: string;
-  isInside: boolean;
-}
-
-export const TEST_LOCATION_PRESETS: Record<string, SimulatedLocationPreset[]> = {
-  Hyderabad: [
-    {
-      id: 'hyd-on-premise',
-      label: 'On-Premise (Prism Mall, Hyderabad)',
-      description: 'At venue entrance (~18m from GPS beacon)',
-      latitude: 17.4327,
-      longitude: 78.3412,
-      locationKey: 'Hyderabad',
-      isInside: true,
-    },
-    {
-      id: 'hyd-off-premise',
-      label: 'Off-Premise (Remote / Home)',
-      description: 'Outside venue radius (~14.2 km away in Begumpet)',
-      latitude: 17.3850,
-      longitude: 78.4867,
-      locationKey: 'Hyderabad',
-      isInside: false,
-    },
-  ],
-  Vizag: [
-    {
-      id: 'vzg-on-premise',
-      label: 'On-Premise (Beach Road, Vizag)',
-      description: 'At venue entrance (~15m from GPS beacon)',
-      latitude: 17.7197,
-      longitude: 83.3329,
-      locationKey: 'Vizag',
-      isInside: true,
-    },
-    {
-      id: 'vzg-off-premise',
-      label: 'Off-Premise (Remote / Home)',
-      description: 'Outside venue radius (~12.5 km away in Gajuwaka)',
-      latitude: 17.6868,
-      longitude: 83.2185,
-      locationKey: 'Vizag',
-      isInside: false,
-    },
-  ],
-  Bhubaneswar: [
-    {
-      id: 'bbsr-on-premise',
-      label: 'On-Premise (KIIT Chowk, Bhubaneswar)',
-      description: 'At venue entrance (~16m from GPS beacon)',
-      latitude: 20.3542,
-      longitude: 85.8176,
-      locationKey: 'Bhubaneswar',
-      isInside: true,
-    },
-    {
-      id: 'bbsr-off-premise',
-      label: 'Off-Premise (Remote / Home)',
-      description: 'Outside venue radius (~6.4 km away in Master Canteen)',
-      latitude: 20.2961,
-      longitude: 85.8245,
-      locationKey: 'Bhubaneswar',
-      isInside: false,
-    },
-  ],
-};
-

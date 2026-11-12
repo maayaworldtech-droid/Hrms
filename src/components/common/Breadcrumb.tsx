@@ -12,7 +12,7 @@ export const Breadcrumb: React.FC<{ items: BreadcrumbItem[] }> = ({ items }) => 
     <nav className="flex items-center space-x-1.5 text-xs text-slate-500 mb-4" aria-label="Breadcrumb">
       <Link
         to="/"
-        className="flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+        className="flex items-center text-slate-500 hover:text-slate-600 transition-colors"
       >
         <Home className="w-3.5 h-3.5" />
       </Link>

@@ -8,10 +8,11 @@ import { DataTable, Column } from '@/components/common/DataTable';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
-import { formatDate } from '@/utils/formatters';
+import { formatDate, formatLabel } from '@/utils/formatters';
 
 import  { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
+import { PageHeader } from '@/components/common/PageHeader';
 
 export const LeaveManagement: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -57,17 +58,17 @@ export const LeaveManagement: React.FC = () => {
       render: (row) => (
         <div>
           <div className="font-semibold text-slate-900">{row.employeeName}</div>
-          <div className="text-[11px] text-slate-500">{row.location || 'Hyderabad'} Center</div>
+          <div className="text-xs text-slate-500">{row.location || 'No center'}</div>
         </div>
       ),
     },
     {
       key: 'leaveType',
-      header: 'Leave Category',
+      header: 'Leave category',
       sortable: true,
       render: (row) => (
         <Badge variant="purple" size="sm">
-          {row.leaveType.replace('_', ' ')}
+          {formatLabel(row.leaveType)}
         </Badge>
       ),
     },
@@ -80,7 +81,7 @@ export const LeaveManagement: React.FC = () => {
           <div className="text-slate-800 font-medium">
             {formatDate(row.startDate)} to {formatDate(row.endDate)}
           </div>
-          <div className="text-[11px] text-slate-500">
+          <div className="text-xs text-slate-500">
             {row.days} day{row.days > 1 ? 's' : ''} total
           </div>
         </div>
@@ -97,7 +98,7 @@ export const LeaveManagement: React.FC = () => {
     },
     {
       key: 'appliedOn',
-      header: 'Applied On',
+      header: 'Applied on',
       sortable: true,
       render: (row) => formatDate(row.appliedOn),
     },
@@ -117,7 +118,7 @@ export const LeaveManagement: React.FC = () => {
           size="sm"
           dot
         >
-          {row.status}
+          {formatLabel(row.status)}
         </Badge>
       ),
     },
@@ -126,12 +127,7 @@ export const LeaveManagement: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Leave records</h1>
-        </div>
-      </div>
+      <PageHeader title="Leave" description="Leave requests from every center, with their approval status." />
 
       <OperationsFilters />
       {/* Tabs / Filters */}
@@ -140,11 +136,11 @@ export const LeaveManagement: React.FC = () => {
           onClick={() => setStatusFilter('ALL')}
           className={`p-3.5 rounded-xl border text-left transition-all ${
             statusFilter === 'ALL'
-              ? 'border-indigo-500 bg-indigo-50/40 shadow-xs'
+              ? 'border-brand-500 bg-brand-50/40 shadow-xs'
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
-          <span className="text-[11px] font-semibold text-slate-500 uppercase">All Applications</span>
+          <span className="text-xs font-semibold text-slate-500">All applications</span>
           <p className="text-xl font-bold text-slate-900 mt-1">{contextLeaves.length}</p>
         </button>
 
@@ -156,7 +152,7 @@ export const LeaveManagement: React.FC = () => {
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
-          <span className="text-[11px] font-semibold text-amber-600 uppercase">Awaiting manager</span>
+          <span className="text-xs font-semibold text-amber-600">Awaiting manager</span>
           <p className="text-xl font-bold text-amber-700 mt-1">{pendingCount}</p>
         </button>
 
@@ -168,7 +164,7 @@ export const LeaveManagement: React.FC = () => {
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
-          <span className="text-[11px] font-semibold text-emerald-600 uppercase">Approved</span>
+          <span className="text-xs font-semibold text-emerald-600">Approved</span>
           <p className="text-xl font-bold text-slate-900 mt-1">{approvedCount}</p>
         </button>
 
@@ -180,7 +176,7 @@ export const LeaveManagement: React.FC = () => {
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
-          <span className="text-[11px] font-semibold text-rose-600 uppercase">Declined</span>
+          <span className="text-xs font-semibold text-rose-600">Declined</span>
           <p className="text-xl font-bold text-slate-900 mt-1">{rejectedCount}</p>
         </button>
       </div>
@@ -201,7 +197,7 @@ export const LeaveManagement: React.FC = () => {
           isOpen={isReviewModalOpen}
           onClose={() => setIsReviewModalOpen(false)}
           title="Leave request details"
-          subtitle={`Requested by ${selectedLeave.employeeName} · ${selectedLeave.location || employees.find(employee => employee.id === selectedLeave.employeeId)?.location || 'Venue not specified'}`}
+          subtitle={`Requested by ${selectedLeave.employeeName} · ${selectedLeave.location || employees.find(employee => employee.id === selectedLeave.employeeId)?.location || 'Center not set'}`}
           size="md"
         >
           <div className="space-y-4 text-xs">
@@ -217,14 +213,14 @@ export const LeaveManagement: React.FC = () => {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Applied On:</span>
+                <span className="text-slate-500">Applied on:</span>
                 <span className="text-slate-700">{formatDate(selectedLeave.appliedOn)}</span>
               </div>
             </div>
 
-            <p className="ops-muted">{overlappingLeaveCount(selectedLeave, leaves, employees)} colleagues on the same venue shift have approved leave overlapping these dates.</p>
+            <p className="ops-muted">{overlappingLeaveCount(selectedLeave, leaves, employees)} colleagues at the same center and shift have approved leave overlapping these dates.</p>
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Reason Provided</label>
+              <label className="block font-bold text-slate-700 mb-1">Reason provided</label>
               <div className="p-3 rounded-lg border border-slate-200 bg-white text-slate-800 leading-relaxed">
                 {selectedLeave.reason}
               </div>

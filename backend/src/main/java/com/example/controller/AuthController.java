@@ -1,6 +1,7 @@
 package com.example.controller;
 
 import com.example.security.AuthFilter;
+import com.example.security.PortalUrlResolver;
 import com.example.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,7 +9,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.net.URI;
 import java.util.Map;
 
 @RestController
@@ -17,6 +17,9 @@ public class AuthController {
 
     @Autowired
     private AuthService authService;
+
+    @Autowired
+    private PortalUrlResolver portalUrlResolver;
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(@RequestBody Map<String, String> credentials) {
@@ -86,18 +89,6 @@ public class AuthController {
     }
 
     private String extractPortalUrl(HttpServletRequest request) {
-        if (request == null) return null;
-        String origin = request.getHeader("Origin");
-        if (origin != null && !origin.trim().isEmpty()) {
-            return origin.trim();
-        }
-        String referer = request.getHeader("Referer");
-        if (referer != null && !referer.trim().isEmpty()) {
-            try {
-                URI uri = URI.create(referer.trim());
-                return uri.getScheme() + "://" + uri.getAuthority();
-            } catch (Exception ignored) {}
-        }
-        return null;
+        return portalUrlResolver.resolveTrustedOrigin(request);
     }
 }

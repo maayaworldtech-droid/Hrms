@@ -151,12 +151,12 @@ export function DataTable<T extends Record<string, any>>({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-[#E4E7EC] shadow-xs overflow-hidden flex flex-col">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden flex flex-col">
       {/* Table Toolbar */}
-      <div className="p-3.5 sm:p-4 border-b border-[#E4E7EC] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white">
+      <div className="p-3.5 sm:p-4 border-b border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white">
         <div className="flex flex-1 items-center gap-2 max-w-md">
           <div className="relative w-full">
-            <Search className="w-4 h-4 text-[#667085] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               ref={searchInputRef}
               type="text"
@@ -168,7 +168,7 @@ export function DataTable<T extends Record<string, any>>({
               }}
               placeholder={searchPlaceholder}
               aria-label={searchPlaceholder}
-              className="w-full h-9 pl-9 pr-8 text-sm bg-[#F7F8FA] hover:bg-white border border-[#D0D5DD] rounded-lg text-[#101828] placeholder-[#667085] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#3B68F5]/20 focus:border-[#3B68F5] transition-all"
+              className="w-full h-9 pl-9 pr-8 text-sm bg-slate-50 hover:bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
             />
             {searchQuery ? (
               <button
@@ -177,13 +177,13 @@ export function DataTable<T extends Record<string, any>>({
                   onSearchChange?.('');
                   setCurrentPage(1);
                 }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#667085] hover:text-[#101828] p-0.5"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 p-0.5"
                 title="Clear search"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             ) : (
-              <kbd className="hidden sm:inline-block absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] px-1.5 py-0.5 text-[#667085] font-mono border border-[#D0D5DD] rounded bg-white shadow-xs">
+              <kbd className="hidden sm:inline-block absolute right-2.5 top-1/2 -translate-y-1/2 text-xs px-1.5 py-0.5 text-slate-500 tabular-nums border border-slate-300 rounded bg-white shadow-xs">
                 /
               </kbd>
             )}
@@ -201,7 +201,7 @@ export function DataTable<T extends Record<string, any>>({
               leftIcon={<Download className="w-3.5 h-3.5" />}
               title="Download CSV export"
             >
-              Export CSV
+              Download for Excel
             </Button>
           )}
 
@@ -210,12 +210,12 @@ export function DataTable<T extends Record<string, any>>({
       </div>
 
       {/* Table Body */}
-      {mobileRender && <div className="ops-mobile-list px-4 divide-y divide-[#E4E7EC]">
+      {mobileRender && <div className="ops-mobile-list px-4 divide-y divide-slate-200">
         {isLoading ? <p className="ops-empty" role="status">Loading records…</p> : paginatedData.length ? paginatedData.map((row, index) => <article key={row.id || index} className="py-4">{mobileRender(row)}</article>) : <div className="ops-empty"><p className="font-semibold">{emptyTitle}</p><p>{emptyDescription}</p>{searchQuery && <button className="ops-link" onClick={() => setSearchQuery('')}>Clear search</button>}</div>}
       </div>}
       <div className={mobileRender ? 'ops-desktop-table' : 'overflow-x-auto'}>
-        <table className="w-full text-left text-sm text-[#344054]">
-          <thead className="bg-[#F7F8FA] border-b border-[#E4E7EC] text-[13px] font-medium text-[#475467] sticky top-0 z-10">
+        <table className="w-full text-left text-sm text-slate-700">
+          <thead className="bg-slate-50 border-b border-slate-200 text-[13px] font-medium text-slate-600 sticky top-0 z-10">
             <tr>
               {columns.map((col) => (
                 <th
@@ -231,19 +231,19 @@ export function DataTable<T extends Record<string, any>>({
                   {col.sortable ? (
                     <button
                       onClick={() => handleSort(col.key)}
-                      className={`inline-flex items-center gap-1.5 hover:text-[#101828] transition-colors focus:outline-none ${
-                        sortKey === col.key ? 'text-[#2A4FE0] font-semibold' : ''
+                      className={`inline-flex items-center gap-1.5 hover:text-slate-900 transition-colors focus:outline-none ${
+                        sortKey === col.key ? 'text-brand-600 font-semibold' : ''
                       }`}
                     >
                       <span>{col.header}</span>
                       {sortKey === col.key ? (
                         sortOrder === 'asc' ? (
-                          <ArrowUp className="w-3.5 h-3.5 text-[#2A4FE0]" />
+                          <ArrowUp className="w-3.5 h-3.5 text-brand-600" />
                         ) : (
-                          <ArrowDown className="w-3.5 h-3.5 text-[#2A4FE0]" />
+                          <ArrowDown className="w-3.5 h-3.5 text-brand-600" />
                         )
                       ) : (
-                        <ArrowUpDown className="w-3.5 h-3.5 text-[#98A2B3]" />
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-500" />
                       )}
                     </button>
                   ) : (
@@ -254,13 +254,13 @@ export function DataTable<T extends Record<string, any>>({
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-[#E4E7EC]">
+          <tbody className="divide-y divide-slate-200">
             {isLoading ? (
               Array.from({ length: 4 }).map((_, idx) => (
                 <tr key={idx} className="animate-pulse">
                   {columns.map((_, cIdx) => (
                     <td key={cIdx} className="py-3.5 px-4">
-                      <div className="h-4 bg-[#F0F2F5] rounded w-3/4" />
+                      <div className="h-4 bg-slate-100 rounded w-3/4" />
                     </td>
                   ))}
                 </tr>
@@ -269,15 +269,15 @@ export function DataTable<T extends Record<string, any>>({
               <tr>
                 <td colSpan={columns.length} className="py-14 px-4 text-center">
                   <div className="flex flex-col items-center justify-center">
-                    <div className="w-10 h-10 rounded-full bg-[#F0F2F5] flex items-center justify-center text-[#667085] mb-3 border border-[#E4E7EC]">
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3 border border-slate-200">
                       <Filter className="w-4 h-4" />
                     </div>
-                    <p className="text-sm font-semibold text-[#101828]">{emptyTitle}</p>
-                    <p className="text-xs text-[#667085] mt-1 max-w-sm">{emptyDescription}</p>
+                    <p className="text-sm font-semibold text-slate-900">{emptyTitle}</p>
+                    <p className="text-xs text-slate-500 mt-1 max-w-sm">{emptyDescription}</p>
                     {searchQuery && (
                       <button
                         onClick={() => setSearchQuery('')}
-                        className="mt-3 text-xs text-[#2A4FE0] hover:underline font-medium"
+                        className="mt-3 text-xs text-brand-600 hover:underline font-medium"
                       >
                         Reset search filter
                       </button>
@@ -291,13 +291,13 @@ export function DataTable<T extends Record<string, any>>({
                   key={row.id || idx}
                   onClick={() => onRowClick?.(row)}
                   className={`h-12 transition-colors duration-100 ${
-                    onRowClick ? 'cursor-pointer hover:bg-[#F0F2F5]' : 'hover:bg-[#F7F8FA]'
+                    onRowClick ? 'cursor-pointer hover:bg-slate-100' : 'hover:bg-slate-50'
                   }`}
                 >
                   {columns.map((col) => (
                     <td
                       key={col.key}
-                      className={`py-3 px-4 text-[#344054] ${
+                      className={`py-3 px-4 text-slate-700 ${
                         col.align === 'center'
                           ? 'text-center'
                           : col.align === 'right'
@@ -317,7 +317,7 @@ export function DataTable<T extends Record<string, any>>({
 
       {/* Pagination Footer */}
       {!hidePagination && !isLoading && sortedData.length > 0 && (
-        <div className="p-3 px-4 bg-[#F7F8FA] border-t border-[#E4E7EC] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#475467]">
+        <div className="p-3 px-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
           <div className="flex items-center gap-2">
             <span className="tabular-nums">
               Showing {(currentPage - 1) * itemsPerPage + 1} to{' '}
@@ -331,7 +331,7 @@ export function DataTable<T extends Record<string, any>>({
                 setCurrentPage(1);
               }}
               aria-label="Records per page"
-              className="ml-2 bg-white border border-[#D0D5DD] rounded-md px-2 py-1 text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-[#3B68F5]/20 focus:border-[#3B68F5]"
+              className="ml-2 bg-white border border-slate-300 rounded-md px-2 py-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
             >
               {[...new Set([5, 10, pageSize, 20, 50])].sort((a,b) => a-b).map(size => <option key={size} value={size}>{size} / page</option>)}
             </select>
@@ -348,7 +348,7 @@ export function DataTable<T extends Record<string, any>>({
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <span className="px-2 text-[#101828] font-medium tabular-nums">
+            <span className="px-2 text-slate-900 font-medium tabular-nums">
               Page {currentPage} of {totalPages}
             </span>
             <Button

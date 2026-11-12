@@ -11,6 +11,8 @@ import {
   Department,
   CompanySettings,
   AuditLog,
+  Center,
+  CenterInput,
 } from '@/types';
 
 const API_BASE = '/api';
@@ -20,14 +22,16 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
   const authHeaders: Record<string, string> =
     token && token.includes('.') ? { Authorization: `Bearer ${token}` } : {};
 
+  // Spread options first so a caller-supplied `headers` object is merged, not allowed to replace
+  // the Authorization header wholesale.
   const response = await fetch(url, {
+    ...options,
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
       ...authHeaders,
-      ...options?.headers,
+      ...(options?.headers as Record<string, string> | undefined),
     },
-    ...options,
   });
 
   if (!response.ok) {
@@ -91,6 +95,39 @@ const normalizePayslip = (slip: any): Payslip => {
   };
 };
 
+const normalizeCenter = (c: any): Center => ({
+  id: String(c?.id ?? ''),
+  name: c?.name || '',
+  centerType: c?.centerType === 'GAMING_ZONE' ? 'GAMING_ZONE' : 'CENTER',
+  city: c?.city || '',
+  state: c?.state || '',
+  address: c?.address || '',
+  latitude: typeof c?.latitude === 'number' ? c.latitude : null,
+  longitude: typeof c?.longitude === 'number' ? c.longitude : null,
+  radiusMeters: Number(c?.radiusMeters) || 250,
+  staffCount: Number(c?.staffCount) || 0,
+  managers: Array.isArray(c?.managers)
+    ? c.managers.map((m: any) => ({
+        id: String(m.id),
+        fullName: m.fullName || m.email || '',
+        email: m.email || '',
+        phone: m.phone || '',
+        designation: m.designation || '',
+      }))
+    : [],
+});
+
+/**
+ * The backend returns ids as numbers while the app's Employee.id is a string. Normalising at the API
+ * boundary keeps every `employee.id === record.employeeId` comparison working (dashboards previously
+ * matched nothing and showed zero check-ins and zero leave).
+ */
+const withStringIds = <T,>(row: any): T =>
+  row && typeof row === 'object'
+    ? ({ ...row, id: row.id != null ? String(row.id) : row.id, employeeId: row.employeeId != null ? String(row.employeeId) : row.employeeId } as T)
+    : row;
+const listWithStringIds = <T,>(rows: any): T[] => (Array.isArray(rows) ? rows.map((r) => withStringIds<T>(r)) : []);
+
 const parseNumericId = (raw?: string | number | null): number | undefined => {
   if (raw === undefined || raw === null || raw === '') return undefined;
   const numeric = Number(String(raw).replace(/\D+/g, ''));
@@ -108,30 +145,30 @@ const mapEmployee = (emp: any, fallbackId?: string): Employee => {
     email: emp.email,
     phone: emp.phone || '',
     address: emp.address || '',
-    designation: emp.jobTitle || emp.designation || 'Specialist',
-    location: emp.location || 'Hyderabad',
+    designation: emp.jobTitle || emp.designation || '',
+    location: emp.location || '',
     shift: emp.shift || 'MORNING',
     managerId: emp.managerId != null ? String(emp.managerId) : undefined,
     managerName: emp.managerName || undefined,
-    monthlySalary: emp.monthlySalary || 35000,
-    ctcAnnual: emp.ctcAnnual || ((emp.monthlySalary || 35000) * 12),
-    joiningDate: emp.dateOfJoining || emp.joiningDate || '2024-01-15',
+    monthlySalary: emp.monthlySalary || 0,
+    ctcAnnual: emp.ctcAnnual || (emp.monthlySalary || 0) * 12,
+    joiningDate: emp.dateOfJoining || emp.joiningDate || '',
     employmentType: emp.employmentType || 'FULL_TIME',
     role: emp.role || 'EMPLOYEE',
     mustChangePassword: emp.mustChangePassword,
-    departmentName: emp.department || 'Engineering',
+    departmentName: emp.department || '',
     status: emp.status || 'ACTIVE',
     bankDetails: emp.bankDetails || {
-      accountNumber: emp.accountNumber || '918273645281',
-      ifscCode: emp.ifscCode || 'HDFC0001234',
-      bankName: emp.bankName || 'HDFC Bank',
-      panNumber: emp.panNumber || 'ABCPS1234F',
-      uanNumber: emp.uanNumber || '100928374699',
+      accountNumber: emp.accountNumber || '',
+      ifscCode: emp.ifscCode || '',
+      bankName: emp.bankName || '',
+      panNumber: emp.panNumber || '',
+      uanNumber: emp.uanNumber || '',
     },
     emergencyContact: emp.emergencyContact || {
-      name: emp.emergencyContactName || 'Ramesh Sharma',
+      name: emp.emergencyContactName || '',
       relationship: emp.emergencyContactRelationship || 'Spouse',
-      phone: emp.emergencyContactPhone || '+91 98765 00000',
+      phone: emp.emergencyContactPhone || '',
     },
     bloodGroup: emp.bloodGroup || '',
     emergencyContactName: emp.emergencyContactName || emp.emergencyContact?.name || '',
@@ -245,10 +282,10 @@ export const api = {
           email: u.email,
           role: u.role || 'EMPLOYEE',
           designation: u.jobTitle || u.designation || 'Staff',
-          department: u.department || 'General',
+          department: u.department || '',
           employeeId: u.employeeCode || `MW-${u.id}`,
-          joiningDate: u.dateOfJoining || u.joiningDate || '2024-01-15',
-          phone: u.phone || '+91 98765 43210',
+          joiningDate: u.dateOfJoining || u.joiningDate || '',
+          phone: u.phone || '',
           address: u.address || '',
           status: u.status || 'ACTIVE',
           mustChangePassword: u.mustChangePassword,
@@ -358,7 +395,7 @@ export const api = {
   // Attendance Endpoints
   attendance: {
     getAll: async (): Promise<AttendanceRecord[]> => {
-      return fetchJSON<AttendanceRecord[]>(`${API_BASE}/attendance`);
+      return listWithStringIds<AttendanceRecord>(await fetchJSON<any[]>(`${API_BASE}/attendance`));
     },
 
     getPaged: async (params: {
@@ -396,12 +433,13 @@ export const api = {
       }
       qs.set('page', String(params.page ?? 0));
       qs.set('size', String(params.size ?? 20));
-      return fetchJSON(`${API_BASE}/attendance/paged?${qs.toString()}`);
+      const res = await fetchJSON<any>(`${API_BASE}/attendance/paged?${qs.toString()}`);
+      return { ...res, items: listWithStringIds<AttendanceRecord>(res?.items) };
     },
 
     getByEmployee: async (employeeId: string | number): Promise<AttendanceRecord[]> => {
       const cleanId = String(employeeId).replace('emp-', '');
-      return fetchJSON<AttendanceRecord[]>(`${API_BASE}/attendance/employee/${cleanId}`);
+      return listWithStringIds<AttendanceRecord>(await fetchJSON<any[]>(`${API_BASE}/attendance/employee/${cleanId}`));
     },
 
     getEmployeeHistory: async (
@@ -422,7 +460,8 @@ export const api = {
       if (params?.toDate) qs.set('toDate', params.toDate);
       qs.set('page', String(params?.page ?? 0));
       qs.set('size', String(params?.size ?? 10));
-      return fetchJSON(`${API_BASE}/attendance/employee/${cleanId}/history?${qs.toString()}`);
+      const res = await fetchJSON<any>(`${API_BASE}/attendance/employee/${cleanId}/history?${qs.toString()}`);
+      return { ...res, items: listWithStringIds<AttendanceRecord>(res?.items) };
     },
 
     checkIn: async (
@@ -438,10 +477,12 @@ export const api = {
         cleanId = String(payloadOrId).replace('emp-', '');
         bodyData = { employeeId: cleanId, ...options };
       }
-      return fetchJSON<AttendanceRecord>(`${API_BASE}/attendance/check-in`, {
+      return withStringIds<AttendanceRecord>(
+        await fetchJSON<any>(`${API_BASE}/attendance/check-in`, {
         method: 'POST',
         body: JSON.stringify(bodyData),
-      });
+        })
+      );
     },
 
     checkOut: async (
@@ -457,35 +498,41 @@ export const api = {
         cleanId = String(payloadOrId).replace('emp-', '');
         bodyData = { employeeId: cleanId, ...options };
       }
-      return fetchJSON<AttendanceRecord>(`${API_BASE}/attendance/check-out`, {
+      return withStringIds<AttendanceRecord>(
+        await fetchJSON<any>(`${API_BASE}/attendance/check-out`, {
         method: 'POST',
         body: JSON.stringify(bodyData),
-      });
+        })
+      );
     },
 
     regularize: async (recordId: string | number, reason: string): Promise<AttendanceRecord> => {
-      return fetchJSON<AttendanceRecord>(`${API_BASE}/attendance/regularize`, {
+      return withStringIds<AttendanceRecord>(
+        await fetchJSON<any>(`${API_BASE}/attendance/regularize`, {
         method: 'POST',
         body: JSON.stringify({ recordId, reason }),
-      });
+        })
+      );
     },
 
     approveRegularization: async (recordId: string | number): Promise<AttendanceRecord> => {
-      return fetchJSON<AttendanceRecord>(`${API_BASE}/attendance/${recordId}/approve-regularization`, {
+      return withStringIds<AttendanceRecord>(
+        await fetchJSON<any>(`${API_BASE}/attendance/${recordId}/approve-regularization`, {
         method: 'PUT',
-      });
+        })
+      );
     },
   },
 
   // Leave Management Endpoints
   leaves: {
     getAll: async (): Promise<LeaveRequest[]> => {
-      return fetchJSON<LeaveRequest[]>(`${API_BASE}/leaves`);
+      return listWithStringIds<LeaveRequest>(await fetchJSON<any[]>(`${API_BASE}/leaves`));
     },
 
     getByEmployee: async (employeeId: string | number): Promise<LeaveRequest[]> => {
       const cleanId = String(employeeId).replace('emp-', '');
-      return fetchJSON<LeaveRequest[]>(`${API_BASE}/leaves/employee/${cleanId}`);
+      return listWithStringIds<LeaveRequest>(await fetchJSON<any[]>(`${API_BASE}/leaves/employee/${cleanId}`));
     },
 
     getBalances: async (employeeId: string | number): Promise<LeaveBalance> => {
@@ -495,10 +542,12 @@ export const api = {
 
     apply: async (request: Partial<LeaveRequest>): Promise<LeaveRequest> => {
       const cleanId = request.employeeId ? String(request.employeeId).replace('emp-', '') : undefined;
-      return fetchJSON<LeaveRequest>(`${API_BASE}/leaves/apply`, {
+      return withStringIds<LeaveRequest>(
+        await fetchJSON<any>(`${API_BASE}/leaves/apply`, {
         method: 'POST',
         body: JSON.stringify({ ...request, employeeId: cleanId }),
-      });
+        })
+      );
     },
 
     updateStatus: async (
@@ -507,10 +556,12 @@ export const api = {
       comments?: string,
       reviewer?: string
     ): Promise<LeaveRequest> => {
-      return fetchJSON<LeaveRequest>(`${API_BASE}/leaves/${id}/status`, {
+      return withStringIds<LeaveRequest>(
+        await fetchJSON<any>(`${API_BASE}/leaves/${id}/status`, {
         method: 'PUT',
         body: JSON.stringify({ status, comments, reviewer }),
-      });
+        })
+      );
     },
   },
 
@@ -518,13 +569,13 @@ export const api = {
   onDuty: {
     getAll: async (): Promise<OnDutyRequest[]> => {
       const list = await fetchJSON<any[]>(`${API_BASE}/on-duty`);
-      return (list || []).map((item) => ({ ...item, id: String(item.id) }));
+      return listWithStringIds<OnDutyRequest>(list);
     },
 
     getByEmployee: async (employeeId: string | number): Promise<OnDutyRequest[]> => {
       const cleanId = String(employeeId).replace('emp-', '');
       const list = await fetchJSON<any[]>(`${API_BASE}/on-duty/employee/${cleanId}`);
-      return (list || []).map((item) => ({ ...item, id: String(item.id) }));
+      return listWithStringIds<OnDutyRequest>(list);
     },
 
     apply: async (request: Partial<OnDutyRequest>): Promise<OnDutyRequest> => {
@@ -533,7 +584,7 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ ...request, employeeId: cleanId }),
       });
-      return { ...res, id: String(res.id) };
+      return withStringIds<OnDutyRequest>(res);
     },
 
     updateStatus: async (
@@ -546,7 +597,7 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify({ status, comments, reviewer }),
       });
-      return { ...res, id: String(res.id) };
+      return withStringIds<OnDutyRequest>(res);
     },
 
     claimExpense: async (
@@ -557,7 +608,7 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(expense),
       });
-      return { ...res, id: String(res.id) };
+      return withStringIds<OnDutyRequest>(res);
     },
 
     updateReimbursement: async (
@@ -570,7 +621,7 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify({ reimbursementStatus, comments, reviewer }),
       });
-      return { ...res, id: String(res.id) };
+      return withStringIds<OnDutyRequest>(res);
     },
   },
 
@@ -639,6 +690,54 @@ export const api = {
         body: JSON.stringify(adjustment),
       });
       return normalizePayslip(res);
+    },
+  },
+
+  // Centers (Maaya World Hyderabad, gaming zones, ...) and their managers
+  centers: {
+    getAll: async (): Promise<Center[]> => {
+      const list = await fetchJSON<any[]>(`${API_BASE}/centers`);
+      return (list || []).map(normalizeCenter);
+    },
+
+    create: async (input: CenterInput): Promise<Center> => {
+      const res = await fetchJSON<any>(`${API_BASE}/centers`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
+      return normalizeCenter(res);
+    },
+
+    update: async (id: string, input: Partial<CenterInput>): Promise<Center> => {
+      const res = await fetchJSON<any>(`${API_BASE}/centers/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(input),
+      });
+      return normalizeCenter(res);
+    },
+
+    delete: async (id: string): Promise<void> => {
+      await fetchJSON(`${API_BASE}/centers/${id}`, { method: 'DELETE' });
+    },
+
+    addManager: async (centerId: string, employeeId: string): Promise<Center> => {
+      const res = await fetchJSON<any>(`${API_BASE}/centers/${centerId}/managers`, {
+        method: 'POST',
+        body: JSON.stringify({ employeeId: String(employeeId).replace('emp-', '') }),
+      });
+      return normalizeCenter(res);
+    },
+
+    removeManager: async (
+      centerId: string,
+      employeeId: string,
+      action: 'demote' | 'deactivate'
+    ): Promise<Center> => {
+      const res = await fetchJSON<any>(
+        `${API_BASE}/centers/${centerId}/managers/${String(employeeId).replace('emp-', '')}?action=${action}`,
+        { method: 'DELETE' }
+      );
+      return normalizeCenter(res);
     },
   },
 

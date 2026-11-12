@@ -2,17 +2,18 @@ import { useOperationsFilters } from '@/hooks/useOperationsFilters';
 import { OperationsFilters } from '@/components/common/OperationsFilters';
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/services/api';
-import { getReportingManager } from '@/services/mockData';
+import { getReportingManager } from '@/utils/reportingManager';
 import { AttendanceRecord, Employee } from '@/types';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { EmployeeAttendanceHistoryModal } from '@/components/attendance/EmployeeAttendanceHistoryModal';
-import { formatDate, formatTime } from '@/utils/formatters';
+import { formatDate, formatTime, formatLabel } from '@/utils/formatters';
 import { Check } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
+import { PageHeader } from '@/components/common/PageHeader';
 
 const PAGE_SIZE = 20;
 
@@ -161,11 +162,11 @@ export const TeamAttendance: React.FC = () => {
               className="w-7 h-7 rounded-full object-cover border border-emerald-400 shrink-0"
             />
           ) : (
-            <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center font-bold text-[11px] shrink-0">
+            <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center font-bold text-xs shrink-0">
               {row.employeeName?.charAt(0) || 'E'}
             </div>
           )}
-          <span className="font-semibold text-slate-900 hover:text-indigo-700">{row.employeeName}</span>
+          <span className="font-semibold text-slate-900 hover:text-brand-700">{row.employeeName}</span>
         </div>
       ),
     },
@@ -177,16 +178,16 @@ export const TeamAttendance: React.FC = () => {
     },
     {
       key: 'checkIn',
-      header: 'Punch In',
+      header: 'Punch in',
       render: (row) => (
-        <span className="font-mono text-slate-800">{row.checkIn ? formatTime(row.checkIn) : '--:--'}</span>
+        <span className="tabular-nums text-slate-800">{row.checkIn ? formatTime(row.checkIn) : '--:--'}</span>
       ),
     },
     {
       key: 'checkOut',
-      header: 'Punch Out',
+      header: 'Punch out',
       render: (row) => (
-        <span className="font-mono text-slate-800">{row.checkOut ? formatTime(row.checkOut) : '--:--'}</span>
+        <span className="tabular-nums text-slate-800">{row.checkOut ? formatTime(row.checkOut) : '--:--'}</span>
       ),
     },
     {
@@ -214,7 +215,7 @@ export const TeamAttendance: React.FC = () => {
             size="sm"
             dot
           >
-            {row.status.replace('_', ' ')}
+            {formatLabel(row.status)}
           </Badge>
           {row.regularizationStatus === 'PENDING' && (
             <Button
@@ -225,7 +226,7 @@ export const TeamAttendance: React.FC = () => {
                 setSelectedRecord(row);
                 setIsModalOpen(true);
               }}
-              className="!py-0.5 !px-2 text-[11px] text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-300"
+              className="!py-0.5 !px-2 text-xs text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-300"
             >
               Review correction
             </Button>
@@ -237,15 +238,10 @@ export const TeamAttendance: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Team attendance</h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Check shift attendance or click a teammate row to view their previous 1-month records.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Team attendance"
+        description="Check-ins for your team. Select a person to see their last month."
+      />
 
       <OperationsFilters attendance venues={[...new Set(team.map((employee) => employee.location))]} />
       <DataTable
@@ -254,7 +250,7 @@ export const TeamAttendance: React.FC = () => {
           <div className="space-y-2" onClick={() => openEmployeeHistory(row)}>
             <div className="flex justify-between gap-3">
               <strong>{row.employeeName}</strong>
-              <span>{row.status.replaceAll('_', ' ')}</span>
+              <span>{formatLabel(row.status)}</span>
             </div>
             <p className="ops-muted">
               {formatDate(row.date)} · {row.location || team.find((employee) => employee.id === row.employeeId)?.location} ·{' '}
@@ -300,7 +296,7 @@ export const TeamAttendance: React.FC = () => {
               onClick={() => void loadPage(page + 1, true)}
               isLoading={isLoadingMore}
             >
-              Load More
+              Load more
             </Button>
           )}
         </div>
@@ -339,7 +335,7 @@ export const TeamAttendance: React.FC = () => {
                 onClick={() => handleApproveRegularization(selectedRecord.id)}
                 leftIcon={<Check className="w-4 h-4" />}
               >
-                Approve & Mark Present
+                Approve & mark present
               </Button>
             </div>
           </div>

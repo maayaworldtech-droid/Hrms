@@ -15,12 +15,14 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/on-duty")
 public class OnDutyController {
 
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Kolkata");
+    private static final Set<String> ALLOWED_STATUSES = Set.of("PENDING", "APPROVED", "REJECTED", "COMPLETED", "CANCELLED");
 
     @Autowired
     private OnDutyRequestRepository onDutyRequestRepository;
@@ -44,6 +46,13 @@ public class OnDutyController {
         Long authId = (Long) httpRequest.getAttribute(AuthFilter.ATTR_EMPLOYEE_ID);
         boolean isPrivileged = "ADMIN".equals(role) || "MANAGER".equals(role);
 
+        // An incoming id would overwrite an existing request; reimbursement outcome is never client-set
+        request.setId(null);
+        request.setReviewerComments(null);
+        request.setReimbursedBy(null);
+        request.setReimbursedOn(null);
+        request.setReimbursementComments(null);
+
         if (!isPrivileged) {
             if (request.getEmployeeId() == null) {
                 request.setEmployeeId(authId);
@@ -60,9 +69,8 @@ public class OnDutyController {
                 request.setStatus("PENDING");
             } else {
                 request.setStatus("APPROVED");
-                if (request.getReviewedOn() == null) {
-                    request.setReviewedOn(LocalDate.now(BUSINESS_ZONE).toString());
-                }
+                request.setReviewedOn(LocalDate.now(BUSINESS_ZONE).toString());
+                request.setReviewedBy(resolveReviewerName(httpRequest, request.getReviewedBy()));
             }
         }
 
@@ -90,23 +98,36 @@ public class OnDutyController {
     }
 
     @PutMapping("/{id}/status")
-    public ResponseEntity<OnDutyRequest> updateStatus(
+    public ResponseEntity<?> updateStatus(
             @PathVariable Long id,
-            @RequestBody Map<String, String> payload
+            @RequestBody Map<String, String> payload,
+            HttpServletRequest httpRequest
     ) {
         String status = payload.get("status"); // APPROVED, REJECTED, COMPLETED, CANCELLED
         String reviewerComments = payload.get("comments");
         String reviewer = payload.get("reviewer");
 
-        return onDutyRequestRepository.findById(id).map(req -> {
-            if (status != null) req.setStatus(status);
-            req.setReviewedOn(LocalDate.now(BUSINESS_ZONE).toString());
-            if (reviewer != null) req.setReviewedBy(reviewer);
-            if (reviewerComments != null) req.setReviewerComments(reviewerComments);
+        String cleanStatus = status != null ? status.trim().toUpperCase() : null;
+        if (cleanStatus != null && !ALLOWED_STATUSES.contains(cleanStatus)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Unsupported On Duty status: " + cleanStatus));
+        }
 
-            OnDutyRequest updated = onDutyRequestRepository.save(req);
-            return ResponseEntity.ok(updated);
-        }).orElseGet(() -> ResponseEntity.notFound().build());
+        Optional<OnDutyRequest> opt = onDutyRequestRepository.findById(id);
+        if (opt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        OnDutyRequest req = opt.get();
+        if (isSelfReviewByNonAdmin(httpRequest, req.getEmployeeId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("message", "You cannot review your own On Duty request."));
+        }
+
+        if (cleanStatus != null) req.setStatus(cleanStatus);
+        req.setReviewedOn(LocalDate.now(BUSINESS_ZONE).toString());
+        req.setReviewedBy(resolveReviewerName(httpRequest, reviewer));
+        if (reviewerComments != null) req.setReviewerComments(reviewerComments);
+
+        return ResponseEntity.ok(onDutyRequestRepository.save(req));
     }
 
     @PostMapping("/{id}/claim-expense")
@@ -127,6 +148,17 @@ public class OnDutyController {
                 && (authId == null || !authId.equals(req.getEmployeeId()))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("message", "You can only claim expenses on your own On Duty request."));
+        }
+
+        String odStatus = req.getStatus() != null ? req.getStatus().toUpperCase() : "PENDING";
+        if ("REJECTED".equals(odStatus) || "CANCELLED".equals(odStatus)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("message", "Expenses cannot be claimed on a " + odStatus.toLowerCase() + " On Duty request."));
+        }
+        if ("REIMBURSED".equalsIgnoreCase(req.getReimbursementStatus())) {
+            // Re-claiming would reset the status to PENDING and allow the same trip to be paid twice
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("message", "This expense has already been reimbursed."));
         }
 
         double amount = 0.0;
@@ -156,23 +188,53 @@ public class OnDutyController {
     }
 
     @PutMapping("/{id}/reimburse")
-    public ResponseEntity<OnDutyRequest> updateReimbursement(
+    public ResponseEntity<?> updateReimbursement(
             @PathVariable Long id,
-            @RequestBody Map<String, String> payload
+            @RequestBody Map<String, String> payload,
+            HttpServletRequest httpRequest
     ) {
         String status = payload.get("reimbursementStatus"); // REIMBURSED, REJECTED
         String reviewerComments = payload.get("comments");
         String reviewer = payload.get("reviewer");
 
-        return onDutyRequestRepository.findById(id).map(req -> {
-            if (status != null) req.setReimbursementStatus(status);
-            req.setReimbursedOn(LocalDate.now(BUSINESS_ZONE).toString());
-            if (reviewer != null) req.setReimbursedBy(reviewer);
-            if (reviewerComments != null) req.setReimbursementComments(reviewerComments);
+        String cleanStatus = status != null ? status.trim().toUpperCase() : null;
+        if (cleanStatus != null && !"REIMBURSED".equals(cleanStatus) && !"REJECTED".equals(cleanStatus)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Unsupported reimbursement status: " + cleanStatus));
+        }
 
-            OnDutyRequest updated = onDutyRequestRepository.save(req);
-            return ResponseEntity.ok(updated);
-        }).orElseGet(() -> ResponseEntity.notFound().build());
+        Optional<OnDutyRequest> opt = onDutyRequestRepository.findById(id);
+        if (opt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        OnDutyRequest req = opt.get();
+        if (isSelfReviewByNonAdmin(httpRequest, req.getEmployeeId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("message", "You cannot approve reimbursement of your own expense."));
+        }
+
+        if (cleanStatus != null) req.setReimbursementStatus(cleanStatus);
+        req.setReimbursedOn(LocalDate.now(BUSINESS_ZONE).toString());
+        req.setReimbursedBy(resolveReviewerName(httpRequest, reviewer));
+        if (reviewerComments != null) req.setReimbursementComments(reviewerComments);
+
+        return ResponseEntity.ok(onDutyRequestRepository.save(req));
+    }
+
+    private boolean isSelfReviewByNonAdmin(HttpServletRequest httpRequest, Long requestOwnerId) {
+        String role = (String) httpRequest.getAttribute(AuthFilter.ATTR_ROLE);
+        Long authId = (Long) httpRequest.getAttribute(AuthFilter.ATTR_EMPLOYEE_ID);
+        return !"ADMIN".equals(role) && authId != null && authId.equals(requestOwnerId);
+    }
+
+    /** Reviewer identity comes from the authenticated session, not from the request body. */
+    private String resolveReviewerName(HttpServletRequest httpRequest, String fallback) {
+        Long authId = (Long) httpRequest.getAttribute(AuthFilter.ATTR_EMPLOYEE_ID);
+        if (authId != null) {
+            Optional<String> name = employeeRepository.findById(authId).map(e -> e.getFullName());
+            if (name.isPresent()) return name.get();
+        }
+        String email = (String) httpRequest.getAttribute(AuthFilter.ATTR_EMAIL);
+        return email != null ? email : fallback;
     }
 }
 

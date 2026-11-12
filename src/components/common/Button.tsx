@@ -2,12 +2,38 @@ import React from 'react';
 import { Loader2 } from 'lucide-react';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost' | 'success';
+  variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'danger-ghost' | 'ghost' | 'success';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
 }
+
+/**
+ * The only source of button styling. Primary uses brand-600 (logo blue at a shade that keeps white
+ * text readable); everything else is neutral so one primary action per area stands out.
+ */
+const BASE =
+  'inline-flex items-center justify-center font-medium rounded-lg whitespace-nowrap select-none cursor-pointer ' +
+  'transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50 focus-visible:ring-offset-1 ' +
+  'disabled:opacity-50 disabled:cursor-not-allowed';
+
+const SIZES = {
+  sm: 'text-[13px] h-8 px-3 gap-1.5',
+  md: 'text-sm h-10 px-4 gap-2',
+  lg: 'text-sm h-11 px-5 gap-2',
+};
+
+const VARIANTS = {
+  primary:
+    'bg-brand-600 text-white border border-brand-700/40 shadow-xs shadow-brand-900/10 hover:bg-brand-700 active:bg-brand-800',
+  secondary: 'bg-white text-slate-800 border border-slate-300 shadow-xs hover:bg-slate-50 hover:border-slate-400 active:bg-slate-100',
+  outline: 'bg-white text-slate-700 border border-slate-300 shadow-xs hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100',
+  danger: 'bg-rose-600 text-white border border-rose-700/40 shadow-xs hover:bg-rose-700 active:bg-rose-800',
+  'danger-ghost': 'bg-transparent text-rose-700 border border-transparent hover:bg-rose-50 active:bg-rose-100',
+  ghost: 'bg-transparent text-slate-600 border border-transparent hover:bg-slate-100 hover:text-slate-900 active:bg-slate-200',
+  success: 'bg-emerald-600 text-white border border-emerald-700/40 shadow-xs hover:bg-emerald-700 active:bg-emerald-800',
+};
 
 export const Button: React.FC<ButtonProps> = ({
   children,
@@ -19,44 +45,19 @@ export const Button: React.FC<ButtonProps> = ({
   className = '',
   disabled,
   ...props
-}) => {
-  const baseStyles =
-    'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-150 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#3B68F5]/20 disabled:opacity-50 disabled:cursor-not-allowed select-none cursor-pointer active:scale-[0.98]';
-
-  const sizeStyles = {
-    sm: 'text-[13px] h-8 px-3 gap-1.5',
-    md: 'text-sm h-10 px-4 gap-2',
-    lg: 'text-base h-12 px-6 gap-2.5 rounded-xl',
-  };
-
-  const variantStyles = {
-    primary:
-      'bg-[#2A4FE0] hover:bg-[#233FB8] active:bg-[#20388F] text-white shadow-xs border border-transparent focus-visible:border-[#2A4FE0]',
-    secondary:
-      'bg-white hover:bg-[#F0F2F5] active:bg-[#E4E7EC] text-[#101828] border border-[#D0D5DD] shadow-xs focus-visible:border-[#2A4FE0]',
-    outline:
-      'bg-white hover:bg-[#F0F2F5] text-[#344054] hover:text-[#101828] border border-[#E4E7EC] shadow-xs focus-visible:border-[#2A4FE0]',
-    danger:
-      'bg-[#D92D20] hover:bg-[#B42318] text-white shadow-xs border border-transparent focus-visible:ring-red-500/20',
-    ghost:
-      'bg-transparent hover:bg-[#F0F2F5] text-[#475467] hover:text-[#101828] active:scale-[0.98]',
-    success:
-      'bg-[#12B76A] hover:bg-[#027A48] text-white shadow-xs border border-transparent focus-visible:ring-emerald-500/20',
-  };
-
-  return (
-    <button
-      className={`app-btn app-btn-${size} app-btn-${variant} ${baseStyles} ${sizeStyles[size]} ${variantStyles[variant]} ${className}`}
-      disabled={disabled || isLoading}
-      {...props}
-    >
-      {isLoading ? (
-        <Loader2 className="w-4 h-4 animate-spin shrink-0 text-current" />
-      ) : (
-        leftIcon && <span className="shrink-0">{leftIcon}</span>
-      )}
-      <span>{children}</span>
-      {!isLoading && rightIcon && <span className="shrink-0">{rightIcon}</span>}
-    </button>
-  );
-};
+}) => (
+  <button
+    className={`${BASE} ${SIZES[size]} ${VARIANTS[variant]} ${className}`}
+    disabled={disabled || isLoading}
+    aria-busy={isLoading || undefined}
+    {...props}
+  >
+    {isLoading ? (
+      <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden="true" />
+    ) : (
+      leftIcon && <span className="shrink-0 inline-flex">{leftIcon}</span>
+    )}
+    <span>{children}</span>
+    {!isLoading && rightIcon && <span className="shrink-0 inline-flex">{rightIcon}</span>}
+  </button>
+);

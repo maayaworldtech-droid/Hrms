@@ -241,7 +241,7 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
                               +{formatINR(bonusTotal)}
                             </span>
                           ) : (
-                            <span className="text-slate-400 font-mono text-xs">₹0</span>
+                            <span className="text-slate-500 tabular-nums text-xs">₹0</span>
                           )}
                         </td>
                         <td>{formatINR(slip.components?.totalDeductions ?? 0)}</td>
@@ -249,7 +249,7 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
                           {!complete && (
                             <button
                               type="button"
-                              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                              className="text-xs font-semibold text-brand-600 hover:text-brand-800 transition-colors"
                               onClick={() => openAdjustmentModal(slip)}
                             >
                               Add Bonus / Adjust
@@ -310,7 +310,7 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
                               +{formatINR(bonusTotal)}
                             </span>
                           ) : (
-                            <span className="text-slate-400 font-mono text-xs">₹0</span>
+                            <span className="text-slate-500 tabular-nums text-xs">₹0</span>
                           )}
                         </td>
                         <td>{formatINR(slip.components?.epfEmployee ?? 0)}</td>
@@ -331,7 +331,7 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
                             {!complete && (
                               <button
                                 type="button"
-                                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                                className="text-xs font-semibold text-brand-600 hover:text-brand-800 transition-colors"
                                 onClick={() => openAdjustmentModal(slip)}
                               >
                                 Adjust / Bonus
@@ -455,11 +455,11 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
 
             <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
               <div>
-                <span className="text-[11px] text-slate-500 block">Base Basic Pay</span>
+                <span className="text-xs text-slate-500 block">Base basic pay</span>
                 <span className="font-semibold text-slate-900">{formatINR(adjustingSlip.components?.basic || 0)}</span>
               </div>
               <div>
-                <span className="text-[11px] text-slate-500 block">Base HRA</span>
+                <span className="text-xs text-slate-500 block">Base HRA</span>
                 <span className="font-semibold text-slate-900">{formatINR(adjustingSlip.components?.hra || 0)}</span>
               </div>
             </div>
@@ -475,9 +475,9 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
                 value={bonusAmount}
                 onChange={(e) => setBonusAmount(Math.max(0, Number(e.target.value)))}
                 placeholder="e.g. 5000"
-                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-indigo-600"
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-brand-600"
               />
-              <span className="text-[11px] text-slate-500 mt-0.5 block">
+              <span className="text-xs text-slate-500 mt-0.5 block">
                 Festival bonus, performance bonus or one-time reward.
               </span>
             </div>
@@ -493,7 +493,7 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
                 value={incentivesAmount}
                 onChange={(e) => setIncentivesAmount(Math.max(0, Number(e.target.value)))}
                 placeholder="e.g. 2500"
-                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-indigo-600"
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-brand-600"
               />
             </div>
 
@@ -508,7 +508,7 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
                   step="500"
                   value={specialAmount}
                   onChange={(e) => setSpecialAmount(Math.max(0, Number(e.target.value)))}
-                  className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-indigo-600"
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-brand-600"
                 />
               </div>
 
@@ -522,52 +522,52 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
                   max="31"
                   value={lossOfPayDays}
                   onChange={(e) => setLossOfPayDays(Math.max(0, Number(e.target.value)))}
-                  className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-indigo-600"
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-brand-600"
                 />
               </div>
             </div>
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Adjustment Reason & Notes
+                Adjustment reason & notes
               </label>
               <textarea
                 rows={2}
                 value={adjustmentNotes}
                 onChange={(e) => setAdjustmentNotes(e.target.value)}
                 placeholder="e.g., Q3 Sales milestone bonus approved by management"
-                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-indigo-600"
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-brand-600"
               />
             </div>
 
             {/* Live Calculation Summary */}
             {(() => {
-              const basic = adjustingSlip.components?.basic || 0;
-              const hra = adjustingSlip.components?.hra || 0;
-              const conv = adjustingSlip.components?.conveyanceAllowance || 0;
-              const med = adjustingSlip.components?.medicalAllowance || 0;
-              const baseGross = basic + hra + conv + med + Number(specialAmount);
-              const newGross = baseGross + Number(bonusAmount) + Number(incentivesAmount);
-              const epf = adjustingSlip.components?.epfEmployee || 0;
-              const pt = adjustingSlip.components?.professionalTax || 0;
-              const tds = adjustingSlip.components?.tds || 0;
-              const health = adjustingSlip.components?.healthInsurance || 0;
+              // Mirrors PayrollController.adjustPayslip: the stored gross is authoritative, only the
+              // change in special allowance moves the base, and non-statutory custom deductions carry over.
+              const c = adjustingSlip.components;
               const payableDays = Math.max(1, adjustingSlip.payableDays || 30);
+              const prevBaseGross = Math.max(0, (c?.grossMonthly || 0) - (c?.bonus || 0) - (c?.incentives || 0));
+              const prevLopDays = adjustingSlip.lossOfPayDays || 0;
+              const prevLop = prevLopDays > 0 ? Math.round((prevBaseGross / payableDays) * prevLopDays) : 0;
+              const statutory = (c?.epfEmployee || 0) + (c?.professionalTax || 0) + (c?.tds || 0) + (c?.healthInsurance || 0);
+              const otherDeductions = Math.max(0, (c?.totalDeductions || 0) - statutory - prevLop);
+              const baseGross = Math.max(0, prevBaseGross + (Number(specialAmount) - (c?.specialAllowance || 0)));
+              const newGross = baseGross + Number(bonusAmount) + Number(incentivesAmount);
               const lopDeduction = lossOfPayDays > 0 ? Math.round((baseGross / payableDays) * lossOfPayDays) : 0;
-              const totalDed = epf + pt + tds + health + lopDeduction;
+              const totalDed = statutory + otherDeductions + lopDeduction;
               const newNet = Math.max(0, newGross - totalDed);
 
               return (
-                <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-lg space-y-1.5 text-xs">
+                <div className="p-3 bg-brand-50/50 border border-brand-100 rounded-lg space-y-1.5 text-xs">
                   <div className="flex justify-between text-slate-600">
                     <span>New Total Gross Pay:</span>
                     <span className="font-bold text-slate-900">{formatINR(newGross)}</span>
                   </div>
                   <div className="flex justify-between text-slate-600">
-                    <span>Total Deductions (Statutory + LOP):</span>
+                    <span>Total deductions (PF, tax and unpaid days):</span>
                     <span className="font-semibold text-slate-800">-{formatINR(totalDed)}</span>
                   </div>
-                  <div className="flex justify-between pt-1 border-t border-indigo-100 text-sm font-bold text-indigo-900">
+                  <div className="flex justify-between pt-1 border-t border-brand-100 text-sm font-bold text-brand-900">
                     <span>New Projected Net Pay:</span>
                     <span>{formatINR(newNet)}</span>
                   </div>
@@ -590,7 +590,7 @@ export const PayrollReview: React.FC<PayrollReviewProps> = ({
                 onClick={handleSaveAdjustment}
                 isLoading={isSavingAdjustment}
               >
-                Apply & Save Adjustment
+                Apply & save adjustment
               </Button>
             </div>
           </div>

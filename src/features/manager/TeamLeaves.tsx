@@ -3,16 +3,17 @@ import { OperationsFilters } from '@/components/common/OperationsFilters';
 import { overlappingLeaveCount } from '@/utils/operations';
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/services/api';
-import { getReportingManager } from '@/services/mockData';
+import { getReportingManager } from '@/utils/reportingManager';
 import { LeaveRequest, Employee } from '@/types';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
-import { formatDate } from '@/utils/formatters';
+import { formatDate, formatLabel } from '@/utils/formatters';
 import  { Check, X } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
+import { PageHeader } from '@/components/common/PageHeader';
 
 export const TeamLeaves: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -53,8 +54,8 @@ export const TeamLeaves: React.FC = () => {
       await api.leaves.updateStatus(
         selectedLeave.id,
         status,
-        comments.trim() || (status === 'APPROVED' ? 'Approved by Team Lead' : 'Declined for venue staffing requirements'),
-        user?.name || 'Venue manager'
+        comments.trim() || (status === 'APPROVED' ? 'Approved by center manager' : 'Declined: not enough staff at the center on these dates'),
+        user?.name || 'Manager'
       );
       dispatch(
         addToast({
@@ -90,7 +91,7 @@ export const TeamLeaves: React.FC = () => {
       header: 'Category',
       sortable: true,
       render: (row) => (
-        <Badge variant="purple" size="sm">{row.leaveType.replace('_', ' ')}</Badge>
+        <Badge variant="purple" size="sm">{formatLabel(row.leaveType)}</Badge>
       ),
     },
     {
@@ -100,7 +101,7 @@ export const TeamLeaves: React.FC = () => {
       render: (row) => (
         <div>
           <span className="text-slate-800 font-medium">{formatDate(row.startDate)} - {formatDate(row.endDate)}</span>
-          <div className="text-[11px] text-slate-500">{row.days} day{row.days > 1 ? 's' : ''}</div>
+          <div className="text-xs text-slate-500">{row.days} day{row.days > 1 ? 's' : ''}</div>
         </div>
       ),
     },
@@ -129,7 +130,7 @@ export const TeamLeaves: React.FC = () => {
           size="sm"
           dot
         >
-          {row.status}
+          {formatLabel(row.status)}
         </Badge>
       ),
     },
@@ -148,12 +149,12 @@ export const TeamLeaves: React.FC = () => {
                 setComments('');
                 setIsDecisionModalOpen(true);
               }}
-              className="!py-1 !px-2.5 text-xs text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
+              className="!py-1 !px-2.5 text-xs text-brand-700 bg-brand-50 hover:bg-brand-100 border-brand-200"
             >
-              Review Request
+              Review request
             </Button>
           ) : (
-            <span className="text-slate-400 text-xs">Decided</span>
+            <span className="text-slate-500 text-xs">Decided</span>
           )}
         </div>
       ),
@@ -162,21 +163,13 @@ export const TeamLeaves: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Team Leave Approvals</h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Review, authorize or decline leave applications submitted by your venue team
-          </p>
-        </div>
-      </div>
+      <PageHeader title="Leave approvals" description="Approve or decline leave requests from your team." />
 
       <OperationsFilters venues={[...new Set(team.map(employee => employee.location))]} />
       <DataTable
         key={[filters.venue,filters.shift,filters.status,filters.leaveDate].join(':')}
         data={filtered}
-        mobileRender={row => <div className="space-y-2"><div className="flex justify-between gap-3"><strong>{row.employeeName}</strong><span>{row.status.toLowerCase()}</span></div><p>{formatDate(row.startDate)} – {formatDate(row.endDate)} · {row.days} days</p><p className="ops-muted">{row.reason}</p><p className="ops-muted">{overlappingLeaveCount(row, teamLeaves, team)} colleagues on this venue shift have overlapping approved leave.</p>{row.status === 'PENDING' && <button className="ops-button secondary" onClick={() => { setSelectedLeave(row); setComments(''); setIsDecisionModalOpen(true); }}>Review request</button>}</div>}
+        mobileRender={row => <div className="space-y-2"><div className="flex justify-between gap-3"><strong>{row.employeeName}</strong><span>{row.status.toLowerCase()}</span></div><p>{formatDate(row.startDate)} – {formatDate(row.endDate)} · {row.days} days</p><p className="ops-muted">{row.reason}</p><p className="ops-muted">{overlappingLeaveCount(row, teamLeaves, team)} colleagues at this center and shift have overlapping approved leave.</p>{row.status === 'PENDING' && <button className="ops-button secondary" onClick={() => { setSelectedLeave(row); setComments(''); setIsDecisionModalOpen(true); }}>Review request</button>}</div>}
         columns={columns}
         searchPlaceholder="Filter team leave applications..."
         exportFileName="maaya_team_leaves"
@@ -206,9 +199,9 @@ export const TeamLeaves: React.FC = () => {
               </div>
             </div>
 
-            <p className="ops-muted">{overlappingLeaveCount(selectedLeave, teamLeaves, team)} colleagues on the same venue shift have approved leave overlapping these dates. Review staffing before deciding.</p>
+            <p className="ops-muted">{overlappingLeaveCount(selectedLeave, teamLeaves, team)} colleagues at the same center and shift have approved leave overlapping these dates. Review staffing before deciding.</p>
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Reason Provided</label>
+              <label className="block font-bold text-slate-700 mb-1">Reason provided</label>
               <div className="p-3 rounded-lg border border-slate-200 bg-white text-slate-800 leading-relaxed">
                 {selectedLeave.reason}
               </div>
@@ -221,7 +214,7 @@ export const TeamLeaves: React.FC = () => {
                 onChange={(e) => setComments(e.target.value)}
                 placeholder="Add a note (required when declining)..."
                 rows={3}
-                className="w-full rounded-lg border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-600"
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:border-brand-600"
               />
             </div>
 

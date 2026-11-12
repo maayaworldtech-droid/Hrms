@@ -5,7 +5,6 @@ import com.example.entity.LeaveBalance;
 import com.example.entity.Location;
 import com.example.repository.EmployeeRepository;
 import com.example.repository.LeaveBalanceRepository;
-import com.example.repository.LocationRepository;
 import com.example.security.PasswordHasher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -26,7 +25,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private LeaveBalanceRepository leaveBalanceRepository;
 
     @Autowired
-    private LocationRepository locationRepository;
+    private CenterService centerService;
 
     @Autowired
     private ZeptoMailService zeptoMailService;
@@ -85,8 +84,9 @@ public class EmployeeServiceImpl implements EmployeeService {
         employee.setEmail(normalizedEmail);
         Employee target = employee;
 
-        // Resolve existing Location row rather than creating duplicate rows
-        resolveAndAttachLocation(target, employee.getLocationName());
+        // Every employee belongs to an existing center; default to the head center when none is given
+        String requestedCenter = employee.getLocationName();
+        resolveAndAttachLocation(target, requestedCenter != null ? requestedCenter : CenterService.DEFAULT_CENTER_NAME);
 
         // Auto-generate employee code if missing or empty
         if (target.getEmployeeCode() == null || target.getEmployeeCode().trim().isEmpty()) {
@@ -193,7 +193,11 @@ public class EmployeeServiceImpl implements EmployeeService {
             if (updates.getFirstName() != null) existing.setFirstName(updates.getFirstName());
             if (updates.getLastName() != null) existing.setLastName(updates.getLastName());
             if (updates.getEmail() != null && !updates.getEmail().trim().isEmpty()) {
-                existing.setEmail(updates.getEmail().trim().toLowerCase());
+                String newEmail = updates.getEmail().trim().toLowerCase();
+                if (!newEmail.equalsIgnoreCase(existing.getEmail()) && employeeRepository.existsByEmailIgnoreCase(newEmail)) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "An employee with this email already exists.");
+                }
+                existing.setEmail(newEmail);
             }
             if (updates.getPhone() != null) existing.setPhone(updates.getPhone());
             if (updates.getAddress() != null) existing.setAddress(updates.getAddress());
@@ -240,11 +244,19 @@ public class EmployeeServiceImpl implements EmployeeService {
         });
     }
 
+    /**
+     * Attaches an existing center by name. Unknown names are rejected (400) rather than silently
+     * creating a new center row; centers are created only from Settings.
+     */
     private void resolveAndAttachLocation(Employee target, String locationName) {
-        if (locationName == null || locationName.trim().isEmpty()) return;
-        String cleanName = locationName.trim();
-        Location loc = locationRepository.findByNameIgnoreCase(cleanName)
-                .orElseGet(() -> locationRepository.save(new Location(cleanName)));
+        if (locationName == null || locationName.trim().isEmpty()) {
+            // Drop any transient Location the JSON setter may have created so it is never persisted
+            if (target.getLocation() != null && target.getLocation().getLocationId() == 0) {
+                target.setLocation(null);
+            }
+            return;
+        }
+        Location loc = centerService.require(locationName);
         target.setLocation(loc);
     }
 

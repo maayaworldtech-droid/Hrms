@@ -9,10 +9,14 @@ import com.example.repository.DepartmentRepository;
 import com.example.security.AuthFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -67,12 +71,27 @@ public class SettingsController {
         }
         current.setEnableGeoFencingAttendance(settings.isEnableGeoFencingAttendance());
 
+        // Shift timings: copy only what was sent, then validate the resulting pair of shifts
+        if (settings.rawMorningShiftStart() != null) current.setMorningShiftStart(settings.rawMorningShiftStart().trim());
+        if (settings.rawMorningShiftEnd() != null) current.setMorningShiftEnd(settings.rawMorningShiftEnd().trim());
+        if (settings.rawEveningShiftStart() != null) current.setEveningShiftStart(settings.rawEveningShiftStart().trim());
+        if (settings.rawEveningShiftEnd() != null) current.setEveningShiftEnd(settings.rawEveningShiftEnd().trim());
+        if (settings.rawLateGraceMinutes() != null) current.setLateGraceMinutes(settings.rawLateGraceMinutes());
+        validateShift("Morning", current.getMorningShiftStart(), current.getMorningShiftEnd());
+        validateShift("Evening", current.getEveningShiftStart(), current.getEveningShiftEnd());
+        if (current.getLateGraceMinutes() < 0 || current.getLateGraceMinutes() > 120) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Late allowance must be between 0 and 120 minutes.");
+        }
+
         CompanySettings saved = settingsRepository.save(current);
 
         AuditLog log = new AuditLog();
         log.setAction("SETTINGS_UPDATED");
         log.setModule("SETTINGS");
-        log.setDetails("Updated corporate settings, work hours (" + saved.getStandardWorkHoursPerDay() + "h/day), and geofence policy (" + saved.isEnableGeoFencingAttendance() + ")");
+        log.setDetails("Updated company settings. Shifts: morning " + saved.getMorningShiftStart() + "-" + saved.getMorningShiftEnd()
+                + ", evening " + saved.getEveningShiftStart() + "-" + saved.getEveningShiftEnd()
+                + ", late after " + saved.getLateGraceMinutes() + " min. Location check-in "
+                + (saved.isEnableGeoFencingAttendance() ? "on" : "off") + ".");
         String email = request != null ? (String) request.getAttribute(AuthFilter.ATTR_EMAIL) : null;
         String role = request != null ? (String) request.getAttribute(AuthFilter.ATTR_ROLE) : null;
         log.setActorName(email != null ? email : "Administrator");
@@ -119,5 +138,18 @@ public class SettingsController {
         m.put("type", type);
         m.put("isMandatory", mandatory);
         return m;
+    }
+
+    /** Shift times must be HH:mm (24-hour) and end after they start. */
+    private void validateShift(String label, String start, String end) {
+        try {
+            LocalTime s = LocalTime.parse(start);
+            LocalTime e = LocalTime.parse(end);
+            if (!e.isAfter(s)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, label + " shift must end after it starts.");
+            }
+        } catch (DateTimeParseException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, label + " shift times must look like 09:00 or 21:30.");
+        }
     }
 }

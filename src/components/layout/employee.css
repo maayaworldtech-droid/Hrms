@@ -10,7 +10,7 @@
    ========================================================================== */
 
 .employee-app {
-  --employee-brand: var(--brand-500);
+  --employee-brand: var(--brand-600);
   --employee-brand-hover: var(--brand-600);
   --employee-brand-subtle: var(--brand-50);
   --employee-brand-text: var(--brand-700);
@@ -90,7 +90,7 @@
 }
 
 .employee-avatar {
-  background: #0F172A;
+  background: var(--brand-600);
   color: #ffffff;
   font-weight: 600;
   font-size: 12px;
@@ -119,7 +119,7 @@
 /* --- Fixed Bottom Navigation Bar --- */
 .employee-nav {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   position: fixed;
   bottom: 0;
   left: 50%;
@@ -141,7 +141,7 @@
   justify-content: center;
   gap: 3px;
   color: #64748B;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   position: relative;
   border-radius: 8px;
@@ -154,12 +154,12 @@
 }
 
 .employee-nav a.is-active {
-  color: var(--brand-500);
+  color: var(--brand-600);
   font-weight: 600;
 }
 
 .employee-nav a.is-active svg {
-  color: var(--brand-500);
+  color: var(--brand-600);
   stroke-width: 2.2px;
 }
 
@@ -206,7 +206,6 @@
   display: block;
   font-size: 10px;
   font-weight: 600;
-  text-transform: uppercase;
   color: #64748B;
   letter-spacing: 0.03em;
   margin-bottom: 2px;
@@ -216,7 +215,7 @@
   font-size: 14px;
   font-weight: 700;
   color: #0F172A;
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
 }
@@ -229,7 +228,7 @@
   width: 100%;
   min-height: 46px;
   border-radius: 11px;
-  background: var(--brand-500);
+  background: var(--brand-600);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -327,9 +326,9 @@
 }
 
 .employee-filter-pill.is-active {
-  background: #0F172A;
+  background: var(--brand-600);
   color: #ffffff;
-  border-color: #0F172A;
+  border-color: var(--brand-600);
   font-weight: 600;
 }
 

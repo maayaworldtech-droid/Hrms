@@ -1,29 +1,60 @@
 @import "tailwindcss";
-@import "./components/layout/operations.css";
-@import "./components/layout/employee.css";
+/* Layered so Tailwind utilities passed to components can still override these styles */
+@import "./components/layout/operations.css" layer(components);
+@import "./components/layout/employee.css" layer(components);
+
+/* Brand colours as Tailwind utilities: bg-brand-600, text-brand-700, ring-brand-400/30, ... */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  --color-brand-50: #EFF7FC;
+  --color-brand-100: #D7ECF8;
+  --color-brand-200: #B0D9F2;
+  --color-brand-300: #7CC0E8;
+  --color-brand-400: #4A9BD9;
+  --color-brand-500: #3182C8;
+  --color-brand-600: #2568A8;
+  --color-brand-700: #1E5189;
+  --color-brand-800: #1A3F6A;
+  --color-brand-900: #162F4D;
+  --color-brand-950: #0E2236;
+
+  --color-accent-50: #FEF3F2;
+  --color-accent-100: #FDE4E1;
+  --color-accent-200: #FCC8C3;
+  --color-accent-300: #F9A49C;
+  --color-accent-400: #F06B5E;
+  --color-accent-500: #D94F3D;
+  --color-accent-600: #BE3C2E;
+  --color-accent-700: #9F3024;
+}
 
 /* ==========================================================================
    MAAYA WORLD HRMS — BRAND-DRIVEN DESIGN SYSTEM
-   Color palette extracted from Maaya World logo:
-     Primary: Sky Blue (#4A9BD9)  — trust, professionalism, clarity
-     Accent:  Coral Red (#D94F3D) — urgency, warmth, action
+   Colours come from the Maaya World logo:
+     Brand blue (logo #4A9BD9). Filled buttons, links and selected states use brand-600
+       (#2568A8, 5.8:1 on white); the lighter logo blue is too faint for text, so it is used
+       only for focus rings and small accents.
+     Coral (logo #D94F3D) is reserved for brand moments (logo, sign-in panel). It is never used
+       for actions, because next to the rose error colour it would read as a warning.
+   Neutrals are Tailwind slate everywhere; danger is rose, success emerald, warning amber.
    ========================================================================== */
 
 :root {
-  /* --- Neutral Scale (Warm Slate) --- */
+  /* --- Neutral scale: identical to Tailwind slate so CSS files and utilities match --- */
   --gray-0: #ffffff;
-  --gray-25: #FAFBFC;
-  --gray-50: #F5F6F8;
-  --gray-100: #ECEEF2;
-  --gray-200: #DFE1E7;
-  --gray-300: #C8CBD3;
-  --gray-400: #9DA3AE;
-  --gray-500: #6B7280;
-  --gray-600: #4B5563;
-  --gray-700: #374151;
-  --gray-800: #1F2937;
-  --gray-900: #111827;
-  --gray-950: #0B0F19;
+  --gray-25: #FCFDFE;
+  --gray-50: #F8FAFC;
+  --gray-100: #F1F5F9;
+  --gray-200: #E2E8F0;
+  --gray-300: #CBD5E1;
+  --gray-400: #94A3B8;
+  --gray-500: #64748B;
+  --gray-600: #475569;
+  --gray-700: #334155;
+  --gray-800: #1E293B;
+  --gray-900: #0F172A;
+  --gray-950: #020617;
 
   /* --- Brand Blue Scale (from logo sky blue) --- */
   --brand-50:  #EFF7FC;
@@ -111,7 +142,7 @@
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.04);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.06), 0 4px 6px -4px rgb(0 0 0 / 0.04);
   --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.08), 0 8px 10px -6px rgb(0 0 0 / 0.04);
-  --ring-focus: 0 0 0 3px rgb(74 155 217 / 0.2);
+  --ring-focus: 0 0 0 3px rgb(74 155 217 / 0.3);
 
   /* --- Transitions --- */
   --dur-fast: 120ms;
@@ -133,9 +164,9 @@
   --text-on-brand: #ffffff;
   --border-default: var(--gray-200);
   --border-strong: var(--gray-300);
-  --action-primary: var(--brand-500);
-  --action-primary-hover: var(--brand-600);
-  --action-primary-active: var(--brand-700);
+  --action-primary: var(--brand-600);
+  --action-primary-hover: var(--brand-700);
+  --action-primary-active: var(--brand-800);
   --link-color: var(--brand-600);
   --selected-bg: var(--brand-50);
   --selected-text: var(--brand-700);
@@ -152,12 +183,18 @@
     background-color: var(--bg-canvas);
     color: var(--text-primary);
     font-family: var(--font-sans);
-    font-size: var(--text-md);
+    font-size: 0.875rem;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     font-optical-sizing: auto;
-    line-height: 1.55;
+    line-height: 1.5;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--brand-400);
+    outline-offset: 2px;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -195,6 +232,7 @@
   color: var(--brand-900);
 }
 
+@layer components {
 /* ==========================================================================
    DESIGN SYSTEM UTILITIES
    ========================================================================== */
@@ -237,109 +275,6 @@
 .design-badge-danger  { background: var(--danger-50);  color: var(--danger-700); }
 .design-badge-info    { background: var(--brand-50);    color: var(--brand-700); }
 .design-badge-neutral { background: var(--gray-100);    color: var(--gray-700); }
-
-/* --- Common Button Component Styles --- */
-.app-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-sans);
-  font-weight: 600;
-  border-radius: var(--radius-md);
-  transition: all var(--dur-fast) var(--ease);
-  cursor: pointer;
-  user-select: none;
-  text-decoration: none;
-  line-height: 1;
-}
-
-.app-btn-sm {
-  height: 34px;
-  padding: 0 14px;
-  font-size: 13px;
-  gap: 6px;
-}
-
-.app-btn-md {
-  height: 40px;
-  padding: 0 16px;
-  font-size: 14px;
-  gap: 8px;
-}
-
-.app-btn-lg {
-  height: 46px;
-  padding: 0 20px;
-  font-size: 15px;
-  gap: 10px;
-}
-
-.app-btn-primary {
-  background-color: var(--brand-500);
-  color: #ffffff;
-  border: 1px solid var(--brand-600);
-  box-shadow: 0 1px 3px rgba(49, 130, 200, 0.3);
-}
-
-.app-btn-primary:hover:not(:disabled) {
-  background-color: var(--brand-600);
-  border-color: var(--brand-700);
-}
-
-.app-btn-primary:active:not(:disabled) {
-  background-color: var(--brand-700);
-  transform: scale(0.98);
-}
-
-.app-btn-secondary {
-  background-color: #ffffff;
-  color: var(--gray-800);
-  border: 1px solid var(--border-default);
-}
-
-.app-btn-secondary:hover:not(:disabled) {
-  background-color: var(--gray-50);
-  border-color: var(--border-strong);
-  color: var(--gray-900);
-}
-
-.app-btn-outline {
-  background-color: transparent;
-  color: var(--gray-700);
-  border: 1px solid var(--border-default);
-}
-
-.app-btn-outline:hover:not(:disabled) {
-  background-color: var(--gray-50);
-  color: var(--gray-900);
-}
-
-.app-btn-danger {
-  background-color: var(--danger-600);
-  color: #ffffff;
-  border: 1px solid var(--danger-700);
-}
-
-.app-btn-ghost {
-  background-color: transparent;
-  color: var(--gray-600);
-  border: 1px solid transparent;
-}
-
-.app-btn-ghost:hover:not(:disabled) {
-  background-color: var(--gray-100);
-  color: var(--gray-900);
-}
-
-.app-btn-success {
-  background-color: var(--success-600);
-  color: #ffffff;
-  border: 1px solid var(--success-700);
-}
-
-.app-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 /* --- Reduced motion --- */

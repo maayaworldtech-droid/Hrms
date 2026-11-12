@@ -1,69 +1,81 @@
 package com.example.demo;
 
-import com.example.entity.Department;
+import com.example.entity.CompanySettings;
 import com.example.entity.Employee;
 import com.example.entity.LeaveBalance;
-import com.example.repository.DepartmentRepository;
+import com.example.repository.CompanySettingsRepository;
 import com.example.repository.EmployeeRepository;
 import com.example.repository.LeaveBalanceRepository;
 import com.example.security.PasswordHasher;
+import com.example.service.CenterService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
+/**
+ * Startup checks. Creates no demo people or departments: the only account it ensures is the
+ * administrator, so someone can sign in and set everything else up from the admin panel.
+ */
 @Component
 public class DataInitializer {
+
+    private static final String ADMIN_EMAIL = "shyamsundaryedla1@gmail.com";
 
     @Autowired
     private EmployeeRepository employeeRepository;
 
     @Autowired
-    private DepartmentRepository departmentRepository;
+    private LeaveBalanceRepository leaveBalanceRepository;
 
     @Autowired
-    private LeaveBalanceRepository leaveBalanceRepository;
+    private CompanySettingsRepository settingsRepository;
+
+    @Autowired
+    private CenterService centerService;
 
     @EventListener(ApplicationReadyEvent.class)
     public void initData() {
-        System.out.println("Checking and initializing live database seeds...");
+        System.out.println("Running startup checks...");
 
-        // 1. Ensure Admin User: shyamsundaryedla1@gmail.com
-        String adminEmail = "shyamsundaryedla1@gmail.com";
-        Optional<Employee> adminOpt = employeeRepository.findByEmailIgnoreCase(adminEmail);
+        // Centers: one-time rename of legacy short names to "Maaya World ..." and geofence setup
+        centerService.migrateLegacyCenters();
+
+        ensureAdministrator();
+        clearLegacyPlaceholderSettings();
+
+        // Anyone without a center (e.g. a freshly created admin) is assigned to the head center
+        centerService.assignUnassignedEmployees();
+
+        System.out.println("Startup checks complete.");
+    }
+
+    /** Creates the administrator account if missing; never overwrites details on an existing one. */
+    private void ensureAdministrator() {
+        Optional<Employee> adminOpt = employeeRepository.findByEmailIgnoreCase(ADMIN_EMAIL);
         Employee admin;
         if (adminOpt.isEmpty()) {
             admin = new Employee();
-            admin.setEmail(adminEmail);
+            admin.setEmail(ADMIN_EMAIL);
             admin.setFirstName("Shyam Sundar");
             admin.setLastName("Yedla");
             admin.setEmployeeCode(resolveAvailableCode("MW-1000"));
             admin.setRole("ADMIN");
             admin.setPassword(PasswordHasher.hash("Admin@12345"));
             admin.setMustChangePassword(false);
-            admin.setPhone("+91 98765 43210");
-            admin.setAddress("Floor 5, Cyber Gateway, HITEC City, Hyderabad, Telangana 500081");
-            admin.setJobTitle("HR Administrator & Operations Lead");
-            admin.setDepartment("Executive Management");
+            admin.setJobTitle("Administrator");
             admin.setEmploymentType("FULL_TIME");
             admin.setStatus("ACTIVE");
             admin.setShift("MORNING");
-            admin.setDateOfJoining("2024-01-15");
-            admin.setMonthlySalary(125000.0);
-            admin.setCtcAnnual(1500000.0);
-            admin.setBankName("HDFC Bank");
-            admin.setAccountNumber("50100987654321");
-            admin.setIfscCode("HDFC0001234");
-            admin.setPanNumber("ABCDE1234F");
-            admin.setUanNumber("100987654321");
-            admin.setEmergencyContactName("Kavitha Yedla");
-            admin.setEmergencyContactPhone("+91 98765 43211");
-            admin.setEmergencyContactRelationship("Spouse");
+            admin.setDateOfJoining(LocalDate.now(ZoneId.of("Asia/Kolkata")).toString());
             admin = employeeRepository.save(admin);
-            System.out.println("Created administrator account for: " + adminEmail);
+            System.out.println("Created administrator account for: " + ADMIN_EMAIL);
         } else {
             admin = adminOpt.get();
             admin.setRole("ADMIN");
@@ -74,96 +86,53 @@ public class DataInitializer {
                 admin.setPassword(PasswordHasher.hash(admin.getPassword()));
             }
             employeeRepository.save(admin);
-            System.out.println("Verified administrator role for: " + adminEmail);
         }
 
-        // Initialize Leave Balance for admin
         if (leaveBalanceRepository.findByEmployeeId(admin.getId()).isEmpty()) {
             LeaveBalance lb = new LeaveBalance();
             lb.setEmployeeId(admin.getId());
             leaveBalanceRepository.save(lb);
         }
-
-        // 2. Ensure Departments
-        seedDepartment("Engineering", "ENG", "Kiran Varma", "kiran.varma@maayaworld.com", 24, 7500000.0);
-        seedDepartment("Product & Design", "DES", "Ananya Reddy", "ananya.reddy@maayaworld.com", 8, 3000000.0);
-        seedDepartment("Human Resources", "HR", "Shyam Sundar Yedla", adminEmail, 4, 1500000.0);
-        seedDepartment("Finance & Accounts", "FIN", "Suresh Nair", "suresh.nair@maayaworld.com", 6, 2200000.0);
-        seedDepartment("Sales & Operations", "OPS", "Rahul Sen", "rahul.sen@maayaworld.com", 12, 4000000.0);
-
-        // 3. Ensure Team Manager (Rajesh Kumar) and Staff (Priya Sharma)
-        seedStaffIfMissing(
-                "rajesh.kumar@maayaworld.com", "Rajesh", "Kumar", "MW-1002", "MANAGER", "Manager@12345",
-                "Senior Engineering Manager", "Engineering", 85000.0, "Hyderabad", "+91 98765 11223"
-        );
-        seedStaffIfMissing(
-                "priya.sharma@maayaworld.com", "Priya", "Sharma", "MW-1003", "EMPLOYEE", "Welcome@2026",
-                "Senior Software Engineer", "Engineering", 65000.0, "Hyderabad", "+91 99887 76655"
-        );
-
-        System.out.println("Live PostgreSQL database initialization complete!");
     }
 
-    private void seedDepartment(String name, String code, String headName, String headEmail, int count, double budget) {
-        if (departmentRepository.findByName(name).isEmpty()) {
-            Department d = new Department();
-            d.setName(name);
-            d.setCode(code);
-            d.setHeadName(headName);
-            d.setHeadEmail(headEmail);
-            d.setEmployeeCount(count);
-            d.setBudgetAllocated(budget);
-            departmentRepository.save(d);
+    /**
+     * Earlier versions filled company settings with made-up registration numbers and an office address.
+     * Clear a field only when it still holds that exact placeholder, so anything the admin typed survives.
+     */
+    private void clearLegacyPlaceholderSettings() {
+        settingsRepository.findAll().stream().findFirst().ifPresent(settings -> {
+            int cleared = 0;
+            cleared += clearIfPlaceholder(settings::getLegalEntityName, settings::setLegalEntityName);
+            cleared += clearIfPlaceholder(settings::getCorporateTaxId, settings::setCorporateTaxId);
+            cleared += clearIfPlaceholder(settings::getPfRegistrationNo, settings::setPfRegistrationNo);
+            cleared += clearIfPlaceholder(settings::getEsiRegistrationNo, settings::setEsiRegistrationNo);
+            cleared += clearIfPlaceholder(settings::getRegisteredAddress, settings::setRegisteredAddress);
+            cleared += clearIfPlaceholder(settings::getContactEmail, settings::setContactEmail);
+            cleared += clearIfPlaceholder(settings::getContactPhone, settings::setContactPhone);
+            if (cleared > 0) {
+                settingsRepository.save(settings);
+                System.out.println("Cleared " + cleared + " placeholder company setting(s); fill them in from Settings.");
+            }
+        });
+    }
+
+    private int clearIfPlaceholder(Supplier<String> getter, Consumer<String> setter) {
+        String value = getter.get();
+        if (value != null && CompanySettings.LEGACY_SEED_VALUES.contains(value.trim())) {
+            setter.accept("");
+            return 1;
         }
+        return 0;
     }
 
     private String resolveAvailableCode(String preferredCode) {
         if (!employeeRepository.existsByEmployeeCode(preferredCode)) {
             return preferredCode;
         }
-        int suffix = 1005;
+        int suffix = 1001;
         while (employeeRepository.existsByEmployeeCode("MW-" + suffix)) {
             suffix++;
         }
         return "MW-" + suffix;
-    }
-
-    private void seedStaffIfMissing(
-            String email, String first, String last, String code, String role, String pwd,
-            String title, String dept, double salary, String loc, String phone
-    ) {
-        if (employeeRepository.findByEmailIgnoreCase(email).isEmpty()) {
-            Employee emp = new Employee();
-            emp.setEmail(email);
-            emp.setFirstName(first);
-            emp.setLastName(last);
-            emp.setEmployeeCode(resolveAvailableCode(code));
-            emp.setRole(role);
-            emp.setPassword(PasswordHasher.hash(pwd));
-            emp.setMustChangePassword(false);
-            emp.setJobTitle(title);
-            emp.setDepartment(dept);
-            emp.setMonthlySalary(salary);
-            emp.setCtcAnnual(salary * 12);
-            emp.setPhone(phone);
-            emp.setAddress("Cyber Hills, Madhapur, Hyderabad, Telangana 500081");
-            emp.setDateOfJoining("2024-06-01");
-            emp.setEmploymentType("FULL_TIME");
-            emp.setStatus("ACTIVE");
-            emp.setShift("MORNING");
-            emp.setBankName("HDFC Bank");
-            emp.setAccountNumber("918273645281");
-            emp.setIfscCode("HDFC0001234");
-            emp.setPanNumber("ABCPS1234F");
-            emp.setUanNumber("100928374699");
-            emp.setEmergencyContactName("Ramesh Sharma");
-            emp.setEmergencyContactPhone("+91 98765 00000");
-            emp.setEmergencyContactRelationship("Spouse");
-
-            Employee saved = employeeRepository.save(emp);
-            LeaveBalance lb = new LeaveBalance();
-            lb.setEmployeeId(saved.getId());
-            leaveBalanceRepository.save(lb);
-        }
     }
 }

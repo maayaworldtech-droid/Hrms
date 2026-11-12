@@ -1,8 +1,10 @@
 package com.example.controller;
 
 import com.example.entity.AttendanceRecord;
+import com.example.entity.CompanySettings;
 import com.example.entity.Employee;
 import com.example.repository.AttendanceRepository;
+import com.example.repository.CompanySettingsRepository;
 import com.example.repository.EmployeeRepository;
 import com.example.security.AuthFilter;
 import jakarta.persistence.EntityManager;
@@ -43,6 +45,9 @@ public class AttendanceController {
 
     @Autowired
     private EmployeeRepository employeeRepository;
+
+    @Autowired
+    private CompanySettingsRepository settingsRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -153,12 +158,11 @@ public class AttendanceController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Cannot record attendance for another employee"));
         }
 
-        String date = payload.get("date") != null && !payload.get("date").toString().isBlank()
-                ? payload.get("date").toString().trim()
-                : LocalDate.now(BUSINESS_ZONE).toString();
-        String time = payload.get("time") != null && !payload.get("time").toString().isBlank()
-                ? payload.get("time").toString().trim()
-                : LocalTime.now(BUSINESS_ZONE).format(TIME_FORMATTER);
+        String date = resolvePunchDate(request, employeeId, payload);
+        String time = resolvePunchTime(request, employeeId, payload);
+        if (date == null || time == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Invalid date or time. Expected YYYY-MM-DD and HH:mm[:ss]."));
+        }
 
         Optional<Employee> empOpt = employeeRepository.findById(employeeId);
         if (empOpt.isEmpty()) {
@@ -204,12 +208,11 @@ public class AttendanceController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Cannot record check-out for another employee"));
         }
 
-        String date = payload.get("date") != null && !payload.get("date").toString().isBlank()
-                ? payload.get("date").toString().trim()
-                : LocalDate.now(BUSINESS_ZONE).toString();
-        String time = payload.get("time") != null && !payload.get("time").toString().isBlank()
-                ? payload.get("time").toString().trim()
-                : LocalTime.now(BUSINESS_ZONE).format(TIME_FORMATTER);
+        String date = resolvePunchDate(request, employeeId, payload);
+        String time = resolvePunchTime(request, employeeId, payload);
+        if (date == null || time == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Invalid date or time. Expected YYYY-MM-DD and HH:mm[:ss]."));
+        }
 
         Optional<AttendanceRecord> existingOpt = attendanceRepository.findByEmployeeIdAndDate(employeeId, date);
         if (existingOpt.isEmpty() || existingOpt.get().getCheckIn() == null || existingOpt.get().getCheckIn().isBlank()) {
@@ -295,6 +298,42 @@ public class AttendanceController {
         return authId != null && authId.equals(targetEmployeeId);
     }
 
+    /**
+     * Client-supplied punch date/time is honoured only when an Admin/Manager records attendance on behalf
+     * of another employee. Self punches always use server time in the business zone, so employees cannot
+     * backdate attendance or avoid LATE marking, and devices outside IST still record the correct time.
+     */
+    private boolean mayOverridePunchTime(HttpServletRequest request, Long targetEmployeeId) {
+        String role = (String) request.getAttribute(AuthFilter.ATTR_ROLE);
+        Long authId = (Long) request.getAttribute(AuthFilter.ATTR_EMPLOYEE_ID);
+        boolean privileged = "ADMIN".equals(role) || "MANAGER".equals(role);
+        return privileged && authId != null && !authId.equals(targetEmployeeId);
+    }
+
+    private String resolvePunchDate(HttpServletRequest request, Long employeeId, Map<String, Object> payload) {
+        Object raw = payload.get("date");
+        if (mayOverridePunchTime(request, employeeId) && raw != null && !raw.toString().isBlank()) {
+            try {
+                return LocalDate.parse(raw.toString().trim()).toString();
+            } catch (DateTimeParseException e) {
+                return null;
+            }
+        }
+        return LocalDate.now(BUSINESS_ZONE).toString();
+    }
+
+    private String resolvePunchTime(HttpServletRequest request, Long employeeId, Map<String, Object> payload) {
+        Object raw = payload.get("time");
+        if (mayOverridePunchTime(request, employeeId) && raw != null && !raw.toString().isBlank()) {
+            try {
+                return parseTimeFlexible(raw.toString()).format(TIME_FORMATTER);
+            } catch (DateTimeParseException e) {
+                return null;
+            }
+        }
+        return LocalTime.now(BUSINESS_ZONE).format(TIME_FORMATTER);
+    }
+
     private void applyAuditPayload(AttendanceRecord record, Map<String, Object> payload) {
         if (payload.get("latitude") != null) {
             try { record.setLatitude(Double.valueOf(payload.get("latitude").toString())); } catch (Exception ignored) {}
@@ -328,10 +367,12 @@ public class AttendanceController {
     private String resolveArrivalStatus(String shift, String checkInTimeStr) {
         try {
             LocalTime checkIn = parseTimeFlexible(checkInTimeStr);
-            LocalTime shiftStart = "EVENING".equalsIgnoreCase(shift)
-                    ? LocalTime.of(13, 0)
-                    : LocalTime.of(9, 0);
-            LocalTime graceCutoff = shiftStart.plusMinutes(15);
+            // Shift start and late allowance come from Settings (defaults 09:00 / 13:00, 15 minutes)
+            CompanySettings settings = settingsRepository.findAll().stream().findFirst().orElseGet(CompanySettings::new);
+            LocalTime shiftStart = LocalTime.parse("EVENING".equalsIgnoreCase(shift)
+                    ? settings.getEveningShiftStart()
+                    : settings.getMorningShiftStart());
+            LocalTime graceCutoff = shiftStart.plusMinutes(settings.getLateGraceMinutes());
             return checkIn.isAfter(graceCutoff) ? "LATE" : "PRESENT";
         } catch (Exception e) {
             return "PRESENT";

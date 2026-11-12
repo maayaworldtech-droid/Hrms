@@ -4,16 +4,20 @@ import { useAppDispatch, useAppSelector } from '@/store';
 import { logout } from '@/store/slices/authSlice';
 import { markAllNotificationsAsRead } from '@/store/slices/uiSlice';
 import maayaLogo from '@/assets/logo-new.png';
-import { Home, CalendarDays, User, Bell, X, ChevronRight, LogOut } from 'lucide-react';
+import { Home, Clock, CalendarDays, Wallet, User, Bell, X, ChevronRight, LogOut } from 'lucide-react';
 import './employee.css';
+import { useShiftTimes } from '@/utils/shiftUtils';
 
 const destinations = [
-  { label: 'Attendance', path: 'attendance', icon: CalendarDays },
   { label: 'Home', path: 'dashboard', icon: Home },
+  { label: 'Attendance', path: 'attendance', icon: Clock },
+  { label: 'Leave', path: 'leaves', icon: CalendarDays },
+  { label: 'Payslips', path: 'salary', icon: Wallet },
   { label: 'Profile', path: 'profile', icon: User },
 ];
 
 export const EmployeeMobileLayout: React.FC = () => {
+  useShiftTimes();
   const { user } = useAppSelector((state) => state.auth);
   const { notifications } = useAppSelector((state) => state.ui);
   const dispatch = useAppDispatch();
@@ -59,7 +63,7 @@ export const EmployeeMobileLayout: React.FC = () => {
             >
               <Bell size={20} strokeWidth={1.6} />
               {unread > 0 && (
-                <span className="absolute top-2 right-2 w-2 h-2 bg-[var(--brand-500)] rounded-full ring-2 ring-white" />
+                <span className="absolute top-2 right-2 w-2 h-2 bg-brand-500 rounded-full ring-2 ring-white" />
               )}
             </button>
 
@@ -112,7 +116,7 @@ export const EmployeeMobileLayout: React.FC = () => {
         >
           <div className="flex items-center justify-between gap-3 mb-4">
             <h2 className="text-sm font-semibold text-slate-900">
-              {open === 'account' ? 'My Account' : 'Notifications'}
+              {open === 'account' ? 'My account' : 'Notifications'}
             </h2>
             <button
               autoFocus
@@ -128,13 +132,13 @@ export const EmployeeMobileLayout: React.FC = () => {
             <div className="space-y-3">
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
                 <p className="text-xs font-semibold text-slate-900">{user?.name}</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">{user?.email}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{user?.email}</p>
                 <div className="flex items-center gap-1.5 mt-2">
-                  <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-200 text-slate-700">
+                  <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-200 text-slate-700">
                     {user?.employeeId}
                   </span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-[var(--brand-50)] text-[var(--brand-700)]">
-                    {user?.department || 'Operations'}
+                  <span className="px-2 py-0.5 rounded text-xs font-medium bg-brand-50 text-brand-700">
+                    {user?.location || user?.designation || 'Staff'}
                   </span>
                 </div>
               </div>
@@ -146,21 +150,21 @@ export const EmployeeMobileLayout: React.FC = () => {
                   navigate('/employee/profile');
                 }}
               >
-                <User size={16} className="text-slate-400" />
-                <span className="text-left">My Profile</span>
-                <ChevronRight size={16} className="text-slate-400" />
+                <User size={16} className="text-slate-500" />
+                <span className="text-left">My profile</span>
+                <ChevronRight size={16} className="text-slate-500" />
               </button>
 
               <button
-                className="employee-history-link w-full text-xs text-[var(--accent-600)] hover:bg-[var(--accent-50)]"
+                className="employee-history-link w-full text-xs text-accent-600 hover:bg-accent-50"
                 onClick={() => {
                   setOpen(null);
                   dispatch(logout());
                   navigate('/login');
                 }}
               >
-                <LogOut size={16} className="text-[var(--accent-500)]" />
-                <span className="text-left font-medium">Sign Out</span>
+                <LogOut size={16} className="text-accent-500" />
+                <span className="text-left font-medium">Sign out</span>
               </button>
             </div>
           ) : notifications.length === 0 ? (

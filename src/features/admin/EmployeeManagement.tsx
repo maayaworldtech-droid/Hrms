@@ -1,4 +1,4 @@
-import { MOCK_USERS, getReportingManager } from '@/services/mockData';
+import { getReportingManager } from '@/utils/reportingManager';
 import { EmployeeDetailsPanel } from '@/components/common/EmployeeDetailsPanel';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useForm } from 'react-hook-form';
@@ -45,7 +45,9 @@ import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 
 import { useRouteBackGuard } from '@/hooks/useRouteBackGuard';
+import { useCenters, findCenter } from '@/hooks/useCenters';
 import { DynamicSalaryItem } from '@/types';
+import { getShiftLabel } from '@/utils/shiftUtils';
 
 const INDIAN_STATES = [
   'Andhra Pradesh',
@@ -135,8 +137,8 @@ const onboardingSchema = z
     email: z
       .string()
       .trim()
-      .min(1, 'Corporate email is required')
-      .email('Valid corporate email address required'),
+      .min(1, 'Email is required')
+      .email('Enter a valid email address'),
     phone: z
       .string()
       .trim()
@@ -182,9 +184,8 @@ const onboardingSchema = z
       .regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit phone number'),
 
     // Step 2: Work Location & Compensation
-    location: z.enum(['Hyderabad', 'Vizag', 'Bhubaneswar'], {
-      errorMap: () => ({ message: 'Please select a center location' }),
-    }),
+    designation: z.string().trim().max(60, 'Keep the job title under 60 characters').optional().or(z.literal('')),
+    location: z.string().trim().min(1, 'Please select a center'),
     shift: z.enum(['MORNING', 'EVENING'], {
       errorMap: () => ({ message: 'Please select an operational shift' }),
     }),
@@ -260,14 +261,15 @@ const employeeSchema = z
   .object({
     firstName: z.string().min(2, 'First name is required'),
     lastName: z.string().min(2, 'Last name is required'),
-    email: z.string().email('Valid corporate email required'),
+    email: z.string().email('Enter a valid email address'),
     phone: z.string().min(10, 'Valid 10-digit phone number required'),
     bloodGroup: z.string().optional(),
     emergencyContactName: z.string().optional(),
     emergencyContactRelationship: z.string().optional(),
     emergencyContactPhone: z.string().optional(),
     address: z.string().min(5, 'Residential address is required (min 5 chars)'),
-    location: z.enum(['Hyderabad', 'Vizag', 'Bhubaneswar']),
+    designation: z.string().trim().max(60, 'Keep the job title under 60 characters').optional().or(z.literal('')),
+    location: z.string().trim().min(1, 'Please select a center'),
     shift: z.enum(['MORNING', 'EVENING']),
     managerId: z.string(),
     joiningDate: z.string().min(1, 'Joining date required'),
@@ -300,6 +302,11 @@ type EmployeeFormValues = z.infer<typeof employeeSchema>;
 export const EmployeeManagement: React.FC = () => {
   const dispatch = useAppDispatch();
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const { centers } = useCenters();
+  const centerSelectOptions = centers.map((c) => ({
+    value: c.name,
+    label: c.address ? `${c.name} (${c.address.split(',')[0]})` : c.name,
+  }));
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
@@ -571,6 +578,7 @@ export const EmployeeManagement: React.FC = () => {
       emergencyContactName: '',
       emergencyContactRelationship: '',
       emergencyContactPhone: '',
+      designation: '',
       location: '' as any,
       shift: '' as any,
       managerId: '',
@@ -627,7 +635,7 @@ export const EmployeeManagement: React.FC = () => {
     const def = AVAILABLE_SALARY_COMPONENTS.find((c) => c.code === selectedComponentToAdd);
     if (!def) return;
 
-    const annualSalaryVal = Number(watchAdd('annualSalary')) || 420000;
+    const annualSalaryVal = Number(watchAdd('annualSalary')) || 0;
     const currentMonthlyGross = Math.round(annualSalaryVal / 12);
     let defaultAmt = 0;
 
@@ -682,7 +690,7 @@ export const EmployeeManagement: React.FC = () => {
   };
 
   const handleGenerateStandardBreakdown = () => {
-    const annualSalaryVal = Number(watchAdd('annualSalary')) || 420000;
+    const annualSalaryVal = Number(watchAdd('annualSalary')) || 0;
     const currentMonthlyGross = Math.round(annualSalaryVal / 12);
     const medical = currentMonthlyGross > 1250 ? 1250 : 0;
     const basic = Math.max(0, currentMonthlyGross - medical);
@@ -758,14 +766,15 @@ export const EmployeeManagement: React.FC = () => {
       email: emp.email,
       phone: emp.phone,
       address: emp.address || '',
-      location: (emp.location as 'Hyderabad' | 'Vizag' | 'Bhubaneswar') || 'Hyderabad',
+      designation: emp.designation || '',
+      location: findCenter(centers, emp.location)?.name || '',
       shift: emp.shift || 'MORNING',
       managerId: getReportingManager(emp).id || '',
       joiningDate: emp.joiningDate,
-      monthlySalary: emp.monthlySalary || Math.round((emp.ctcAnnual || 360000) / 12),
+      monthlySalary: emp.monthlySalary || Math.round((emp.ctcAnnual || 0) / 12),
       accountNumber: emp.bankDetails?.accountNumber || '',
       confirmAccountNumber: emp.bankDetails?.accountNumber || '',
-      bankName: emp.bankDetails?.bankName || 'HDFC Bank',
+      bankName: emp.bankDetails?.bankName || '',
       ifscCode: emp.bankDetails?.ifscCode || '',
       panNumber: emp.bankDetails?.panNumber || '',
       uanNumber: emp.bankDetails?.uanNumber || '',
@@ -854,11 +863,11 @@ export const EmployeeManagement: React.FC = () => {
         phone: values.phone,
         bloodGroup: values.bloodGroup,
         address: fullAddress,
-        designation: 'Specialist',
+        designation: values.designation?.trim() || '',
         location: values.location,
         shift: values.shift,
         managerId: values.managerId || undefined,
-        managerName: employees.find((e) => e.id === values.managerId)?.fullName || (values.managerId === MOCK_USERS.manager.id ? MOCK_USERS.manager.name : undefined),
+        managerName: employees.find((e) => e.id === values.managerId)?.fullName,
         monthlySalary: finalMonthlySalary,
         ctcAnnual: finalAnnualSalary,
         joiningDate: values.joiningDate,
@@ -912,10 +921,11 @@ export const EmployeeManagement: React.FC = () => {
         email: values.email,
         phone: values.phone,
         address: values.address,
+        designation: values.designation?.trim() || '',
         location: values.location,
         shift: values.shift,
         managerId: values.managerId,
-        managerName: employees.find((e) => e.id === values.managerId)?.fullName || (values.managerId === MOCK_USERS.manager.id ? MOCK_USERS.manager.name : undefined),
+        managerName: employees.find((e) => e.id === values.managerId)?.fullName,
         monthlySalary: values.monthlySalary,
         ctcAnnual: values.monthlySalary * 12,
         joiningDate: values.joiningDate,
@@ -961,8 +971,8 @@ export const EmployeeManagement: React.FC = () => {
     }
   };
 
-  const managers = [...new Map([{ id: MOCK_USERS.manager.id, name: MOCK_USERS.manager.name }, ...employees.filter(employee => employee.role === 'MANAGER').map(employee => ({ id: employee.id, name: employee.fullName }))].map(manager => [manager.id, manager])).values()];
-  const unassigned = employees.filter(employee => employee.id !== MOCK_USERS.admin.id && employee.id !== MOCK_USERS.manager.id && employee.role !== 'ADMIN' && !getReportingManager(employee).id).length;
+  const managers = employees.filter(employee => employee.role === 'MANAGER' && employee.status !== 'TERMINATED').map(employee => ({ id: employee.id, name: employee.fullName }));
+  const unassigned = employees.filter(employee => employee.role !== 'ADMIN' && employee.role !== 'MANAGER' && !getReportingManager(employee).id).length;
 
   // Filtered dataset by Location and Shift
   const filteredEmployees = useMemo(() => {
@@ -979,14 +989,14 @@ export const EmployeeManagement: React.FC = () => {
       header: 'Employee ID',
       sortable: true,
       render: (row) => (
-        <span className="font-mono text-xs font-semibold text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+        <span className="tabular-nums text-xs font-semibold text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
           {row.employeeCode}
         </span>
       ),
     },
     {
       key: 'fullName',
-      header: 'Employee Details',
+      header: 'Employee details',
       sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2.5">
@@ -998,14 +1008,14 @@ export const EmployeeManagement: React.FC = () => {
               title="Registered Face ID"
             />
           ) : (
-            <div className="w-7 h-7 rounded-md bg-slate-900 text-white flex items-center justify-center font-bold text-[11px] shrink-0">
+            <div className="w-8 h-8 rounded-full bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100 flex items-center justify-center font-semibold text-xs shrink-0">
               {row.firstName?.[0] || 'M'}
               {row.lastName?.[0] || 'W'}
             </div>
           )}
           <div className="min-w-0">
             <div className="font-semibold text-slate-900 truncate">{row.fullName}</div>
-            <div className="text-[11px] text-slate-400 font-mono mt-0.5 truncate">
+            <div className="text-xs text-slate-500 tabular-nums mt-0.5 truncate">
               {row.email}
             </div>
           </div>
@@ -1014,36 +1024,36 @@ export const EmployeeManagement: React.FC = () => {
     },
     {
       key: 'location',
-      header: 'Location',
+      header: 'Center',
       sortable: true,
       render: (row) => (
         <div className="flex items-center gap-1.5 text-slate-700">
-          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
           <span className="font-medium text-xs">{row.location}</span>
         </div>
       ),
     },
     {
       key: 'shift',
-      header: 'Shift Timing',
+      header: 'Shift timing',
       sortable: true,
       render: (row) => (
         <div className="flex items-center gap-1.5 text-slate-700">
-          <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
           <span className="text-xs">
-            {row.shift === 'EVENING' ? 'Evening (1 PM – 9 PM)' : 'Morning (9 AM – 1 PM)'}
+            {getShiftLabel(row.shift)}
           </span>
         </div>
       ),
     },
     {
       key: 'monthlySalary',
-      header: 'Monthly Salary',
+      header: 'Monthly salary',
       sortable: true,
       align: 'right',
       render: (row) => (
-        <span className="font-mono font-semibold text-slate-900 tabular-nums">
-          {formatINR(row.monthlySalary || Math.round((row.ctcAnnual || 360000) / 12))}
+        <span className="tabular-nums font-semibold text-slate-900 tabular-nums">
+          {row.monthlySalary || row.ctcAnnual ? formatINR(row.monthlySalary || Math.round(row.ctcAnnual / 12)) : 'Not set'}
         </span>
       ),
     },
@@ -1060,7 +1070,7 @@ export const EmployeeManagement: React.FC = () => {
               setSelectedEmployee(row);
               setIsViewModalOpen(true);
             }}
-            className="!h-7 !w-7 !p-0 text-slate-400 hover:text-indigo-600"
+            className="!h-7 !w-7 !p-0 text-slate-500 hover:text-brand-600"
             title="View Employee File"
           >
             <Eye className="w-3.5 h-3.5" />
@@ -1069,7 +1079,7 @@ export const EmployeeManagement: React.FC = () => {
             variant="ghost"
             size="sm"
             onClick={() => handleDelete(row)}
-            className="!h-7 !w-7 !p-0 text-slate-400 hover:text-rose-600"
+            className="!h-7 !w-7 !p-0 text-slate-500 hover:text-rose-600"
             title="Deactivate"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -1084,24 +1094,26 @@ export const EmployeeManagement: React.FC = () => {
       <select
         value={selectedLocationFilter}
         onChange={(e) => setSelectedLocationFilter(e.target.value)}
-        aria-label="Location filter"
-        className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        aria-label="Center filter"
+        className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-brand-500"
       >
-        <option value="ALL">All Centers ({employees.length})</option>
-        <option value="Hyderabad">Hyderabad ({employees.filter((e) => e.location === 'Hyderabad').length})</option>
-        <option value="Vizag">Vizag ({employees.filter((e) => e.location === 'Vizag').length})</option>
-        <option value="Bhubaneswar">Bhubaneswar ({employees.filter((e) => e.location === 'Bhubaneswar').length})</option>
+        <option value="ALL">All centers ({employees.length})</option>
+        {centers.map((c) => (
+          <option key={c.id} value={c.name}>
+            {c.name} ({employees.filter((e) => e.location === c.name).length})
+          </option>
+        ))}
       </select>
 
       <select
         value={selectedShiftFilter}
         onChange={(e) => setSelectedShiftFilter(e.target.value)}
         aria-label="Shift filter"
-        className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-brand-500"
       >
-        <option value="ALL">All Shifts</option>
-        <option value="MORNING">Morning Shift (9 AM – 1 PM)</option>
-        <option value="EVENING">Evening Shift (1 PM – 9 PM)</option>
+        <option value="ALL">All shifts</option>
+        <option value="MORNING">{getShiftLabel('MORNING')}</option>
+        <option value="EVENING">{getShiftLabel('EVENING')}</option>
       </select>
     </div>
   );
@@ -1127,9 +1139,7 @@ export const EmployeeManagement: React.FC = () => {
             </Button>
             <div className="h-5 w-px bg-slate-200 hidden sm:block" />
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-slate-900 font-sans">
-                Onboard New Employee
-              </h1>
+              <h1 className="text-xl font-semibold tracking-tight text-slate-900">Add employee</h1>
             </div>
           </div>
 
@@ -1139,7 +1149,7 @@ export const EmployeeManagement: React.FC = () => {
             </span>
             <div className="w-28 h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
               <div
-                className="h-full bg-[#3182C8] transition-all duration-300"
+                className="h-full bg-brand-500 transition-all duration-300"
                 style={{ width: currentStep === 1 ? '25%' : currentStep === 2 ? '50%' : currentStep === 3 ? '75%' : '100%' }}
               />
             </div>
@@ -1166,17 +1176,17 @@ export const EmployeeManagement: React.FC = () => {
                     }}
                     disabled={item.step > currentStep}
                     className={`flex items-center gap-3 text-left transition-colors ${isCurrent
-                      ? 'text-sky-700 font-semibold'
+                      ? 'text-brand-700 font-semibold'
                       : isCompleted
                         ? 'text-slate-700 hover:text-slate-900 cursor-pointer'
-                        : 'text-slate-400 cursor-not-allowed opacity-60'
+                        : 'text-slate-500 cursor-not-allowed opacity-60'
                       }`}
                   >
                     <div
                       className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all shrink-0 ${isCompleted
                         ? 'bg-emerald-600 text-white'
                         : isCurrent
-                          ? 'bg-[#3182C8] text-white ring-4 ring-sky-100'
+                          ? 'bg-brand-600 text-white ring-4 ring-brand-100'
                           : 'bg-slate-100 text-slate-500 border border-slate-300'
                         }`}
                     >
@@ -1206,7 +1216,7 @@ export const EmployeeManagement: React.FC = () => {
               <div className="space-y-5">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900 mb-1.5">
-                    Personal & Contact Details
+                    Personal & contact details
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Input
@@ -1222,7 +1232,7 @@ export const EmployeeManagement: React.FC = () => {
                       {...registerAdd('lastName')}
                     />
                     <Input
-                      label="Corporate Email"
+                      label="Email (used to sign in)"
                       type="email"
                       required
                       error={errorsAdd.email?.message}
@@ -1251,7 +1261,7 @@ export const EmployeeManagement: React.FC = () => {
 
                 <div className="border-t border-slate-100 pt-4">
                   <h3 className="text-sm font-semibold text-slate-900 mb-1.5">
-                    Emergency Contact Details
+                    Emergency contact details
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <Input
@@ -1283,7 +1293,7 @@ export const EmployeeManagement: React.FC = () => {
 
                 <div className="border-t border-slate-100 pt-4">
                   <h3 className="text-sm font-semibold text-slate-900 mb-1.5">
-                    Residential Address
+                    Residential address
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="sm:col-span-3">
@@ -1326,18 +1336,19 @@ export const EmployeeManagement: React.FC = () => {
               <div className="space-y-5">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900 mb-1.5">
-                    Work Location & Operational Shift
+                    Center & shift
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input
+                      label="Job title"
+                      placeholder="e.g. Guest experience crew"
+                      error={errorsAdd.designation?.message}
+                      {...registerAdd('designation')}
+                    />
                     <Select
-                      label="Center Location"
+                      label="Center"
                       required
-                      options={[
-                        { value: '', label: 'Select Center Location' },
-                        { value: 'Hyderabad', label: 'Hyderabad (Prism Mall)' },
-                        { value: 'Vizag', label: 'Vizag (Beach Road)' },
-                        { value: 'Bhubaneswar', label: 'Bhubaneswar (KIIT Chowk)' },
-                      ]}
+                      options={[{ value: '', label: 'Select center' }, ...centerSelectOptions]}
                       error={errorsAdd.location?.message}
                       {...registerAdd('location')}
                     />
@@ -1346,8 +1357,8 @@ export const EmployeeManagement: React.FC = () => {
                       required
                       options={[
                         { value: '', label: 'Select Shift Timing' },
-                        { value: 'MORNING', label: 'Morning Shift (9:00 AM – 1:00 PM)' },
-                        { value: 'EVENING', label: 'Evening Shift (1:00 PM – 9:00 PM)' },
+                        { value: 'MORNING', label: getShiftLabel('MORNING') },
+                        { value: 'EVENING', label: getShiftLabel('EVENING') },
                       ]}
                       error={errorsAdd.shift?.message}
                       {...registerAdd('shift')}
@@ -1370,7 +1381,7 @@ export const EmployeeManagement: React.FC = () => {
 
                 <div className="border-t border-slate-100 pt-4">
                   <h3 className="text-sm font-semibold text-slate-900 mb-1.5">
-                    Compensation & Joining Schedule
+                    Compensation & joining schedule
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Input
@@ -1400,10 +1411,10 @@ export const EmployeeManagement: React.FC = () => {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <h3 className="text-sm font-semibold text-slate-900">
-                        Dynamic Salary Breakdown Structure
+                        Dynamic salary breakdown structure
                       </h3>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        Salary fields differ per employee. Select and add applicable statutory or custom components (Basic Pay, PF, PT, TDS) below.
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Salary fields differ per employee. Add the pay items that apply to this person (basic pay, PF, professional tax, income tax and so on).
                       </p>
                     </div>
                     <Button
@@ -1422,7 +1433,7 @@ export const EmployeeManagement: React.FC = () => {
                     <select
                       value={selectedComponentToAdd}
                       onChange={(e) => setSelectedComponentToAdd(e.target.value)}
-                      className="flex-1 rounded-lg border border-slate-300 p-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-600 bg-white"
+                      className="flex-1 rounded-lg border border-slate-300 p-2 text-xs text-slate-900 focus:outline-none focus:border-brand-600 bg-white"
                     >
                       <option value="">Choose salary component to add (e.g. Basic Pay, PF, PT, TDS)...</option>
                       <optgroup label="Earnings & Allowances">
@@ -1448,7 +1459,7 @@ export const EmployeeManagement: React.FC = () => {
                       disabled={!selectedComponentToAdd}
                       leftIcon={<Plus className="w-3.5 h-3.5" />}
                     >
-                      Add Component
+                      Add component
                     </Button>
                   </div>
 
@@ -1461,7 +1472,7 @@ export const EmployeeManagement: React.FC = () => {
                           <div key={comp.id} className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div className="flex items-center gap-2.5 min-w-0 flex-1">
                               <span
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded tracking-wide shrink-0 ${isEarning
+                                className={`text-xs font-bold px-2 py-0.5 rounded tracking-wide shrink-0 ${isEarning
                                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                     : 'bg-rose-50 text-rose-700 border border-rose-200'
                                   }`}
@@ -1474,7 +1485,7 @@ export const EmployeeManagement: React.FC = () => {
                                   value={comp.name}
                                   onChange={(e) => handleUpdateComponentName(comp.id, e.target.value)}
                                   placeholder="Component Name"
-                                  className="font-medium text-xs text-slate-900 border border-slate-200 rounded px-2 py-1 w-44 focus:outline-none focus:border-indigo-600"
+                                  className="font-medium text-xs text-slate-900 border border-slate-200 rounded px-2 py-1 w-44 focus:outline-none focus:border-brand-600"
                                 />
                               ) : (
                                 <span className="font-semibold text-xs text-slate-800 truncate">
@@ -1484,8 +1495,8 @@ export const EmployeeManagement: React.FC = () => {
                             </div>
 
                             <div className="flex items-center gap-2 shrink-0">
-                              <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden px-2 py-1 bg-white focus-within:border-indigo-600">
-                                <span className="text-slate-400 text-xs font-semibold mr-1">₹</span>
+                              <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden px-2 py-1 bg-white focus-within:border-brand-600">
+                                <span className="text-slate-500 text-xs font-semibold mr-1">₹</span>
                                 <input
                                   type="number"
                                   min="0"
@@ -1499,7 +1510,7 @@ export const EmployeeManagement: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => handleRemoveComponent(comp.id)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                                className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
                                 title="Remove Component"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -1512,7 +1523,7 @@ export const EmployeeManagement: React.FC = () => {
                   ) : (
                     <div className="p-4 border border-dashed border-slate-200 rounded-lg text-center text-slate-500 bg-slate-50/50">
                       <p className="text-xs">No individual salary breakdown components selected yet.</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
+                      <p className="text-xs text-slate-500 mt-0.5">
                         Choose components from the dropdown above or click "Auto-Populate Template" to start customizing.
                       </p>
                     </div>
@@ -1521,19 +1532,19 @@ export const EmployeeManagement: React.FC = () => {
                   {/* Live Calculation Summary */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs">
                     <div>
-                      <span className="text-[10px] text-slate-500 block uppercase tracking-wider font-semibold">Total Gross</span>
+                      <span className="text-xs text-slate-500 block font-semibold">Total gross</span>
                       <span className="font-bold text-slate-900">{formatINR(totalGrossFromComponents)}</span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-slate-500 block uppercase tracking-wider font-semibold">Total Deductions</span>
+                      <span className="text-xs text-slate-500 block font-semibold">Total deductions</span>
                       <span className="font-semibold text-rose-700">-{formatINR(totalDeductionsFromComponents)}</span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-slate-500 block uppercase tracking-wider font-semibold">Net Take-Home</span>
+                      <span className="text-xs text-slate-500 block font-semibold">Net take-Home</span>
                       <span className="font-bold text-emerald-700">{formatINR(netTakeHomeFromComponents)}</span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-slate-500 block uppercase tracking-wider font-semibold">Annual CTC</span>
+                      <span className="text-xs text-slate-500 block font-semibold">Annual CTC</span>
                       <span className="font-semibold text-slate-900">{formatINR(annualCtcPreview)}</span>
                     </div>
                   </div>
@@ -1571,7 +1582,7 @@ export const EmployeeManagement: React.FC = () => {
               <div className="space-y-5">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900 mb-1.5">
-                    Banking Credentials & Statutory Registration
+                    Bank, PAN and PF details
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="sm:col-span-2">
@@ -1618,9 +1629,9 @@ export const EmployeeManagement: React.FC = () => {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <h3 className="text-sm font-semibold text-slate-900">
-                      Facial Biometric Registration
+                      Facial biometric registration
                     </h3>
-                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                       Required for Attendance
                     </span>
                   </div>
@@ -1638,12 +1649,12 @@ export const EmployeeManagement: React.FC = () => {
                         void startCamera();
                       }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${enrollmentMode === 'CAMERA'
-                        ? 'bg-slate-900 text-white shadow-xs'
+                        ? 'bg-brand-600 text-white shadow-xs'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                     >
                       <Camera className="w-3.5 h-3.5" />
-                      <span>Live Camera Capture</span>
+                      <span>Live camera capture</span>
                     </button>
                     <button
                       type="button"
@@ -1652,12 +1663,12 @@ export const EmployeeManagement: React.FC = () => {
                         stopCamera();
                       }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${enrollmentMode === 'UPLOAD'
-                        ? 'bg-slate-900 text-white shadow-xs'
+                        ? 'bg-brand-600 text-white shadow-xs'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                     >
                       <Upload className="w-3.5 h-3.5" />
-                      <span>Upload Face Photo</span>
+                      <span>Upload face photo</span>
                     </button>
                   </div>
                 )}
@@ -1683,11 +1694,11 @@ export const EmployeeManagement: React.FC = () => {
 
                       {!cameraActive && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-slate-900">
-                          <Camera className="w-8 h-8 text-slate-400 mb-2" />
-                          <span className="text-xs font-semibold text-slate-200">Camera Offline</span>
-                          <p className="text-[11px] text-slate-400 mt-0.5">{cameraError || 'Click below to activate webcam'}</p>
+                          <Camera className="w-8 h-8 text-slate-500 mb-2" />
+                          <span className="text-xs font-semibold text-slate-200">Camera offline</span>
+                          <p className="text-xs text-slate-500 mt-0.5">{cameraError || 'Click below to activate webcam'}</p>
                           <Button type="button" size="sm" variant="primary" onClick={() => void startCamera()} className="mt-3">
-                            Start Camera
+                            Start camera
                           </Button>
                         </div>
                       )}
@@ -1696,9 +1707,9 @@ export const EmployeeManagement: React.FC = () => {
                         <div className="absolute bottom-2.5 inset-x-2.5 bg-slate-950/85 border border-slate-800 rounded-lg px-3 py-1.5 flex items-center justify-between text-xs">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <span className={`w-2 h-2 rounded-full shrink-0 ${faceCentered ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                            <span className="truncate text-[11px] font-medium text-white">{faceStatusMessage}</span>
+                            <span className="truncate text-xs font-medium text-white">{faceStatusMessage}</span>
                           </div>
-                          <span className={`text-[11px] font-semibold shrink-0 ${faceCentered ? 'text-emerald-300' : 'text-amber-300'}`}>
+                          <span className={`text-xs font-semibold shrink-0 ${faceCentered ? 'text-emerald-300' : 'text-amber-300'}`}>
                             {faceCentered ? 'Ready' : 'Aligning'}
                           </span>
                         </div>
@@ -1709,14 +1720,11 @@ export const EmployeeManagement: React.FC = () => {
                       <div className="flex justify-center pt-1">
                         <Button
                           type="button"
-                          variant="primary"
+                          variant={faceCentered ? 'success' : 'primary'}
                           onClick={() => void handleCaptureFromCamera()}
                           leftIcon={<Camera className="w-4 h-4" />}
                           disabled={!cameraActive}
-                          className={`!h-10 px-6 font-semibold transition-all ${faceCentered
-                            ? '!bg-emerald-600 hover:!bg-emerald-700 !text-white shadow-xs'
-                            : '!bg-slate-900 hover:!bg-slate-800 !text-white shadow-xs'
-                            }`}
+                          className="px-6"
                         >
                           {faceCentered
                             ? 'Capture Face Biometrics'
@@ -1734,12 +1742,12 @@ export const EmployeeManagement: React.FC = () => {
                       <Upload className="w-6 h-6" />
                     </div>
                     <div className="text-xs font-semibold text-slate-900 mb-1">
-                      Upload Employee Face Portrait
+                      Upload employee face portrait
                     </div>
-                    <p className="text-[11px] text-slate-500 mb-4">
+                    <p className="text-xs text-slate-500 mb-4">
                       Select a clear front-facing portrait photo (JPG, PNG, WebP).
                     </p>
-                    <label className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 cursor-pointer transition-colors shadow-xs">
+                    <label className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold hover:bg-slate-800 cursor-pointer transition-colors shadow-xs">
                       <span>{isAnalyzingFace ? 'Analyzing Biometrics...' : 'Choose Photo File'}</span>
                       <input
                         type="file"
@@ -1765,9 +1773,9 @@ export const EmployeeManagement: React.FC = () => {
                         <div className="text-xs font-semibold text-slate-900 truncate">
                           {watchAdd('firstName') || 'Employee'} {watchAdd('lastName') || ''}
                         </div>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Face Registered</span>
+                          <span>Face registered</span>
                         </span>
                       </div>
                     </div>
@@ -1808,7 +1816,7 @@ export const EmployeeManagement: React.FC = () => {
                     }
                   }}
                 >
-                  Cancel & Exit
+                  Cancel & exit
                 </Button>
               )}
 
@@ -1850,7 +1858,7 @@ export const EmployeeManagement: React.FC = () => {
                     isLoading={isSubmittingAdd}
                     disabled={!enrolledFacePhoto}
                   >
-                    Confirm & Onboard Employee
+                    Confirm & onboard employee
                   </Button>
                 )}
               </div>
@@ -1863,22 +1871,19 @@ export const EmployeeManagement: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header matching Zoho Inspiration */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-sans">
-            Employee Directory
-          </h1>
+          <h1 className="text-xl font-semibold tracking-tight text-slate-900">Employees</h1>
+          <p className="mt-1 text-sm text-slate-600">Everyone working across Maaya World centers.</p>
         </div>
         <Button
           variant="primary"
-          size="sm"
           onClick={() => {
             resetOnboardingWizard(true);
           }}
           leftIcon={<UserPlus className="w-4 h-4" />}
         >
-          Add Employee
+          Add employee
         </Button>
       </div>
 
@@ -1937,7 +1942,7 @@ export const EmployeeManagement: React.FC = () => {
           <form onSubmit={handleSubmitEdit(onEditSubmit)} className="space-y-4 text-xs">
             {/* Basic Info */}
             <div>
-              <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
+              <h4 className="text-xs font-bold text-slate-500 mb-3">
                 1. Basic Information
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -1975,25 +1980,27 @@ export const EmployeeManagement: React.FC = () => {
 
             {/* Placement Details */}
             <div className="border-t border-slate-100 pt-4">
-              <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
+              <h4 className="text-xs font-bold text-slate-500 mb-3">
                 2. Placement & Compensation
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                <Input
+                  label="Job title"
+                  placeholder="e.g. Guest experience crew"
+                  error={errorsEdit.designation?.message}
+                  {...registerEdit('designation')}
+                />
                 <Select
-                  label="Center Location"
-                  options={[
-                    { value: 'Hyderabad', label: 'Hyderabad (Prism Mall)' },
-                    { value: 'Vizag', label: 'Vizag (Beach Road)' },
-                    { value: 'Bhubaneswar', label: 'Bhubaneswar (KIIT Chowk)' },
-                  ]}
+                  label="Center"
+                  options={[{ value: '', label: 'Select center' }, ...centerSelectOptions]}
                   error={errorsEdit.location?.message}
                   {...registerEdit('location')}
                 />
                 <Select
                   label="Shift Timing"
                   options={[
-                    { value: 'MORNING', label: 'Morning (9:00 AM – 1:00 PM)' },
-                    { value: 'EVENING', label: 'Evening (1:00 PM – 9:00 PM)' },
+                    { value: 'MORNING', label: getShiftLabel('MORNING') },
+                    { value: 'EVENING', label: getShiftLabel('EVENING') },
                   ]}
                   error={errorsEdit.shift?.message}
                   {...registerEdit('shift')}
@@ -2024,8 +2031,8 @@ export const EmployeeManagement: React.FC = () => {
 
             {/* Banking Details */}
             <div className="border-t border-slate-100 pt-4">
-              <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
-                3. Banking & Statutory Credentials
+              <h4 className="text-xs font-bold text-slate-500 mb-3">
+                3. Bank, PAN and PF details
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="sm:col-span-2">
@@ -2075,7 +2082,7 @@ export const EmployeeManagement: React.FC = () => {
                 variant="primary"
                 isLoading={isSubmittingEdit}
               >
-                Save Changes
+                Save changes
               </Button>
             </div>
           </form>
@@ -2105,9 +2112,9 @@ export const EmployeeManagement: React.FC = () => {
                   <div>
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-900">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Facial Biometrics Registered</span>
+                      <span>Facial biometrics registered</span>
                     </div>
-                    <p className="text-[11px] text-emerald-700 mt-0.5">
+                    <p className="text-xs text-emerald-700 mt-0.5">
                       Enrolled as single source of truth for daily attendance verification.
                     </p>
                   </div>
@@ -2115,24 +2122,24 @@ export const EmployeeManagement: React.FC = () => {
               )}
               <div className="flex items-center justify-between px-3.5 py-2.5">
                 <span className="text-slate-500 font-medium">Employee ID</span>
-                <span className="font-mono font-medium text-slate-900">{onboardSuccessData.employee.employeeCode}</span>
+                <span className="tabular-nums font-medium text-slate-900">{onboardSuccessData.employee.employeeCode}</span>
               </div>
               <div className="flex items-center justify-between px-3.5 py-2.5">
-                <span className="text-slate-500 font-medium">Full Name</span>
+                <span className="text-slate-500 font-medium">Full name</span>
                 <span className="font-medium text-slate-900">{onboardSuccessData.employee.fullName}</span>
               </div>
               <div className="flex items-center justify-between px-3.5 py-2.5">
-                <span className="text-slate-500 font-medium">Corporate Email</span>
+                <span className="text-slate-500 font-medium">Email</span>
                 <span className="font-medium text-slate-900">{onboardSuccessData.email}</span>
               </div>
               <div className="flex items-center justify-between px-3.5 py-2.5">
-                <span className="text-slate-500 font-medium">Center Location</span>
+                <span className="text-slate-500 font-medium">Center</span>
                 <span className="font-medium text-slate-900">{onboardSuccessData.employee.location}</span>
               </div>
               <div className="flex items-center justify-between px-3.5 py-2.5">
-                <span className="text-slate-500 font-medium">Temporary Password</span>
+                <span className="text-slate-500 font-medium">Temporary password</span>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono font-medium text-slate-900 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
+                  <span className="tabular-nums font-medium text-slate-900 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
                     {onboardSuccessData.tempPassword}
                   </span>
                   <button

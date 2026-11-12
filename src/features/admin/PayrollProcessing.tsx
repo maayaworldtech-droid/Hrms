@@ -1,16 +1,17 @@
 import { PayrollReview } from '@/components/common/PayrollReview';
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/services/api';
-import { PayrollRun, Payslip } from '@/types';
+import { CompanySettings, PayrollRun, Payslip } from '@/types';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
-import { formatINR, formatDate, numberToIndianWords } from '@/utils/formatters';
+import { formatINR, formatDate, numberToIndianWords, formatLabel } from '@/utils/formatters';
 import  { Banknote, Printer, Calendar } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 import maayaLogo from '@/assets/logo-new.png';
+import { PageHeader } from '@/components/common/PageHeader';
 
 export const PayrollProcessing: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -21,6 +22,11 @@ export const PayrollProcessing: React.FC = () => {
   const [selectedRun, setSelectedRun] = useState<PayrollRun | null>(null);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
+  // Company name, address and tax ID on payslips come from Settings, never hardcoded
+  const [company, setCompany] = useState<CompanySettings | null>(null);
+  useEffect(() => {
+    api.settings.get().then(setCompany).catch(() => setCompany(null));
+  }, []);
   const [isPayslipModalOpen, setIsPayslipModalOpen] = useState(false);
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
   const [newRunMonth, setNewRunMonth] = useState(() => new Date().toLocaleDateString('en-US', {month: 'long', timeZone: 'Asia/Kolkata'}));
@@ -84,16 +90,16 @@ export const PayrollProcessing: React.FC = () => {
   const columns: Column<PayrollRun>[] = [
     {
       key: 'month',
-      header: 'Pay Cycle',
+      header: 'Pay cycle',
       sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">
+          <div className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-100 text-brand-600 flex items-center justify-center font-bold text-xs">
             <Calendar className="w-4 h-4" />
           </div>
           <div>
             <span className="font-bold text-slate-900">{row.month} {row.year}</span>
-            <div className="text-[11px] text-slate-500">Processed: {formatDate(row.processedAt)}</div>
+            <div className="text-xs text-slate-500">Processed: {formatDate(row.processedAt)}</div>
           </div>
         </div>
       ),
@@ -106,7 +112,7 @@ export const PayrollProcessing: React.FC = () => {
     },
     {
       key: 'totalGrossPay',
-      header: 'Total Gross Pay',
+      header: 'Total gross pay',
       sortable: true,
       render: (row) => (
         <span className="font-semibold text-slate-800">{formatINR(row.totalGrossPay)}</span>
@@ -114,18 +120,18 @@ export const PayrollProcessing: React.FC = () => {
     },
     {
       key: 'totalDeductions',
-      header: 'Total Deductions',
+      header: 'Total deductions',
       sortable: true,
       render: (row) => (
-        <span className="font-semibold text-rose-600 font-mono">{formatINR(row.totalDeductions)}</span>
+        <span className="text-slate-700 tabular-nums">{formatINR(row.totalDeductions)}</span>
       ),
     },
     {
       key: 'totalNetPay',
-      header: 'Net Payout',
+      header: 'Net payout',
       sortable: true,
       render: (row) => (
-        <span className="font-bold text-emerald-700 font-mono">{formatINR(row.totalNetPay)}</span>
+        <span className="font-semibold text-slate-900 tabular-nums">{formatINR(row.totalNetPay)}</span>
       ),
     },
     {
@@ -144,7 +150,7 @@ export const PayrollProcessing: React.FC = () => {
           size="sm"
           dot
         >
-          {row.status}
+          {formatLabel(row.status)}
         </Badge>
       ),
     },
@@ -161,9 +167,9 @@ export const PayrollProcessing: React.FC = () => {
               setSelectedRun(row);
               setIsRegisterModalOpen(true);
             }}
-            className="!py-1 !px-2.5 text-xs text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
+            className="!py-1 !px-2.5 text-xs text-brand-700 bg-brand-50 hover:bg-brand-100 border-brand-200"
           >
-            Review Register
+            Review register
           </Button>
         </div>
       ),
@@ -172,19 +178,15 @@ export const PayrollProcessing: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Payroll</h1>
-        </div>
-        <Button
-          variant="primary"
-          onClick={() => setIsRunModalOpen(true)}
-          leftIcon={<Banknote className="w-4 h-4" />}
-        >
-          Run New Payroll Cycle
-        </Button>
-      </div>
+      <PageHeader
+        title="Payroll"
+        description="Work out monthly salaries, review payslips, then mark the month as paid."
+        actions={
+          <Button variant="primary" onClick={() => setIsRunModalOpen(true)} leftIcon={<Banknote className="w-4 h-4" />}>
+            Run payroll
+          </Button>
+        }
+      />
 
       {/* Main Runs Table */}
       <DataTable
@@ -205,11 +207,11 @@ export const PayrollProcessing: React.FC = () => {
       >
         <div className="space-y-4 text-xs">
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Pay Cycle Month</label>
+            <label className="block font-semibold text-slate-700 mb-1">Pay cycle month</label>
             <select
               value={newRunMonth}
               onChange={(e) => setNewRunMonth(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-indigo-600"
+              className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-brand-600"
             >
               {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map(
                 (m) => (
@@ -220,12 +222,12 @@ export const PayrollProcessing: React.FC = () => {
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Fiscal Year</label>
+            <label className="block font-semibold text-slate-700 mb-1">Fiscal year</label>
             <input
               type="number"
               value={newRunYear}
               onChange={(e) => setNewRunYear(Number(e.target.value))}
-              className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-indigo-600"
+              className="w-full rounded-lg border border-slate-300 p-2.5 text-sm text-slate-900 focus:outline-none focus:border-brand-600"
             />
           </div>
 
@@ -236,7 +238,7 @@ export const PayrollProcessing: React.FC = () => {
               Cancel
             </Button>
             <Button variant="primary" size="sm" disabled={saving || !Number.isInteger(newRunYear) || newRunYear < 2000 || newRunYear > 2100} onClick={handleCreateRun}>
-              Generate Payroll Draft
+              Generate payroll draft
             </Button>
           </div>
         </div>
@@ -248,7 +250,7 @@ export const PayrollProcessing: React.FC = () => {
           isOpen={isRegisterModalOpen}
           onClose={() => setIsRegisterModalOpen(false)}
           title={`Salary Register: ${selectedRun.month} ${selectedRun.year}`}
-          subtitle={`${selectedRun.totalEmployees} employees | Status: ${selectedRun.status}`}
+          subtitle={`${selectedRun.totalEmployees} employees | Status: ${formatLabel(selectedRun.status)}`}
           size="2xl"
         >
           <PayrollReview
@@ -284,30 +286,32 @@ export const PayrollProcessing: React.FC = () => {
                   <div className="h-8 w-auto flex items-center justify-center">
                     <img src={maayaLogo} alt="Maaya World" className="h-7 w-auto object-contain" />
                   </div>
-                  <span className="text-base font-bold text-slate-900">Maaya World Pvt. Ltd.</span>
+                  <span className="text-base font-bold text-slate-900">{company?.legalEntityName || company?.companyName || 'Maaya World'}</span>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1 max-w-sm">
-                  Maaya World Towers, Level 8, Outer Ring Road, Bellandur, Bangalore, Karnataka - 560103
-                </p>
-                <p className="text-[10px] text-slate-400 font-mono mt-0.5">Corporate Tax ID: 29AABCM9876F1Z2</p>
+                {company?.registeredAddress && (
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm">{company.registeredAddress}</p>
+                )}
+                {company?.corporateTaxId && (
+                  <p className="text-xs text-slate-500 tabular-nums mt-0.5">GSTIN / PAN: {company.corporateTaxId}</p>
+                )}
               </div>
               <div className="text-right">
-                <Badge variant="purple" size="md">PAYSLIP</Badge>
+                <Badge variant="neutral" size="md">Payslip</Badge>
                 <div className="text-xs font-bold text-slate-900 mt-1.5">{selectedPayslip.month} {selectedPayslip.year}</div>
-                <span className="text-[10px] text-slate-500 font-mono">Ref: {selectedPayslip.id}</span>
+                <span className="text-xs text-slate-500 tabular-nums">Ref: {selectedPayslip.id}</span>
               </div>
             </div>
 
             {/* Employee Particulars Grid */}
             <div className="grid grid-cols-2 gap-x-6 gap-y-2 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
               <div><span className="text-slate-500">Employee Name:</span> <strong className="text-slate-900">{selectedPayslip.employeeName}</strong></div>
-              <div><span className="text-slate-500">Employee ID:</span> <strong className="font-mono text-slate-900">{selectedPayslip.employeeCode}</strong></div>
-              <div><span className="text-slate-500">Center Location:</span> <strong className="text-slate-900">{selectedPayslip.location || 'Hyderabad Center'}</strong></div>
+              <div><span className="text-slate-500">Employee ID:</span> <strong className="tabular-nums text-slate-900">{selectedPayslip.employeeCode}</strong></div>
+              <div><span className="text-slate-500">Center:</span> <strong className="text-slate-900">{selectedPayslip.location || 'Not recorded'}</strong></div>
               <div><span className="text-slate-500">Company:</span> <span className="text-slate-800">Maaya World</span></div>
-              <div><span className="text-slate-500">Bank Account:</span> <span className="font-mono text-slate-800">{selectedPayslip.bankAccount}</span></div>
+              <div><span className="text-slate-500">Bank Account:</span> <span className="tabular-nums text-slate-800">{selectedPayslip.bankAccount}</span></div>
               <div><span className="text-slate-500">Bank Name:</span> <span className="text-slate-800">{selectedPayslip.bankName}</span></div>
-              <div><span className="text-slate-500">PAN Number:</span> <span className="font-mono text-slate-800">{selectedPayslip.panNumber}</span></div>
-              <div><span className="text-slate-500">UAN (EPFO):</span> <span className="font-mono text-slate-800">{selectedPayslip.uanNumber}</span></div>
+              <div><span className="text-slate-500">PAN Number:</span> <span className="tabular-nums text-slate-800">{selectedPayslip.panNumber}</span></div>
+              <div><span className="text-slate-500">UAN (EPFO):</span> <span className="tabular-nums text-slate-800">{selectedPayslip.uanNumber}</span></div>
             </div>
 
             {/* Earnings & Deductions Tables */}
@@ -315,18 +319,18 @@ export const PayrollProcessing: React.FC = () => {
               {/* Earnings */}
               <div className="rounded-xl border border-slate-200 overflow-hidden">
                 <div className="bg-slate-100 p-2.5 font-bold text-slate-900 flex justify-between">
-                  <span>Earnings Component</span>
+                  <span>Earnings component</span>
                   <span>Amount (INR)</span>
                 </div>
                 <div className="p-3 space-y-2 divide-y divide-slate-100">
-                  <div className="flex justify-between pt-1"><span>Basic Salary</span><span className="font-mono">{formatINR(selectedPayslip.components?.basic || 0)}</span></div>
-                  <div className="flex justify-between pt-1"><span>House Rent Allowance</span><span className="font-mono">{formatINR(selectedPayslip.components?.hra || 0)}</span></div>
-                  <div className="flex justify-between pt-1"><span>Special Allowance</span><span className="font-mono">{formatINR(selectedPayslip.components?.specialAllowance || 0)}</span></div>
-                  <div className="flex justify-between pt-1"><span>Conveyance Allowance</span><span className="font-mono">{formatINR(selectedPayslip.components?.conveyanceAllowance || 0)}</span></div>
-                  <div className="flex justify-between pt-1"><span>Medical Allowance</span><span className="font-mono">{formatINR(selectedPayslip.components?.medicalAllowance || 0)}</span></div>
+                  <div className="flex justify-between pt-1"><span>Basic salary</span><span className="tabular-nums">{formatINR(selectedPayslip.components?.basic || 0)}</span></div>
+                  <div className="flex justify-between pt-1"><span>House rent allowance</span><span className="tabular-nums">{formatINR(selectedPayslip.components?.hra || 0)}</span></div>
+                  <div className="flex justify-between pt-1"><span>Special allowance</span><span className="tabular-nums">{formatINR(selectedPayslip.components?.specialAllowance || 0)}</span></div>
+                  <div className="flex justify-between pt-1"><span>Conveyance allowance</span><span className="tabular-nums">{formatINR(selectedPayslip.components?.conveyanceAllowance || 0)}</span></div>
+                  <div className="flex justify-between pt-1"><span>Medical allowance</span><span className="tabular-nums">{formatINR(selectedPayslip.components?.medicalAllowance || 0)}</span></div>
                   <div className="flex justify-between pt-2 font-bold text-slate-900 bg-slate-50 px-2 py-1 rounded">
                     <span>Gross Earnings (A)</span>
-                    <span className="font-mono">{formatINR(selectedPayslip.components?.grossMonthly || 0)}</span>
+                    <span className="tabular-nums">{formatINR(selectedPayslip.components?.grossMonthly || 0)}</span>
                   </div>
                 </div>
               </div>
@@ -334,35 +338,35 @@ export const PayrollProcessing: React.FC = () => {
               {/* Deductions */}
               <div className="rounded-xl border border-slate-200 overflow-hidden">
                 <div className="bg-slate-100 p-2.5 font-bold text-slate-900 flex justify-between">
-                  <span>Deductions Component</span>
+                  <span>Deductions component</span>
                   <span>Amount (INR)</span>
                 </div>
                 <div className="p-3 space-y-2 divide-y divide-slate-100">
-                  <div className="flex justify-between pt-1"><span>Provident Fund (EPF)</span><span className="font-mono text-rose-600">{formatINR(selectedPayslip.components?.epfEmployee || 0)}</span></div>
-                  <div className="flex justify-between pt-1"><span>Professional Tax (PT)</span><span className="font-mono text-rose-600">{formatINR(selectedPayslip.components?.professionalTax || 0)}</span></div>
-                  <div className="flex justify-between pt-1"><span>Health Insurance</span><span className="font-mono text-rose-600">{formatINR(selectedPayslip.components?.healthInsurance || 0)}</span></div>
-                  <div className="flex justify-between pt-1"><span>TDS / Income Tax</span><span className="font-mono text-rose-600">{formatINR(selectedPayslip.components?.tds || 0)}</span></div>
+                  <div className="flex justify-between pt-1"><span>Provident Fund (EPF)</span><span className="tabular-nums text-slate-700">{formatINR(selectedPayslip.components?.epfEmployee || 0)}</span></div>
+                  <div className="flex justify-between pt-1"><span>Professional Tax (PT)</span><span className="tabular-nums text-slate-700">{formatINR(selectedPayslip.components?.professionalTax || 0)}</span></div>
+                  <div className="flex justify-between pt-1"><span>Health insurance</span><span className="tabular-nums text-slate-700">{formatINR(selectedPayslip.components?.healthInsurance || 0)}</span></div>
+                  <div className="flex justify-between pt-1"><span>TDS / Income Tax</span><span className="tabular-nums text-slate-700">{formatINR(selectedPayslip.components?.tds || 0)}</span></div>
                   <div className="flex justify-between pt-2 font-bold text-slate-900 bg-slate-50 px-2 py-1 rounded">
                     <span>Total Deductions (B)</span>
-                    <span className="font-mono text-rose-600">{formatINR(selectedPayslip.components?.totalDeductions || 0)}</span>
+                    <span className="tabular-nums text-slate-700">{formatINR(selectedPayslip.components?.totalDeductions || 0)}</span>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Net Salary Payable */}
-            <div className="p-4 rounded-xl bg-slate-900 text-white flex items-center justify-between">
+            <div className="p-4 rounded-xl bg-brand-900 text-white flex items-center justify-between">
               <div>
-                <span className="text-slate-400 text-xs uppercase tracking-wider">Net Amount Credited</span>
-                <p className="text-xl font-bold font-mono text-emerald-400 mt-0.5">
+                <span className="text-slate-500 text-xs">Net amount credited</span>
+                <p className="text-xl font-bold tabular-nums text-white mt-0.5">
                   {formatINR(selectedPayslip.components?.netMonthly || 0)}
                 </p>
-                <p className="text-[11px] text-slate-300 italic mt-1">
+                <p className="text-xs text-slate-300 italic mt-1">
                   {numberToIndianWords(selectedPayslip.components?.netMonthly || 0)}
                 </p>
               </div>
               <Badge variant="success" size="md">
-                Status: {selectedPayslip.paymentStatus} via {selectedPayslip.paymentMode}
+                Status: {formatLabel(selectedPayslip.paymentStatus)} via {selectedPayslip.paymentMode}
               </Badge>
             </div>
 

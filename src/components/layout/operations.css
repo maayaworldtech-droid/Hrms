@@ -114,7 +114,6 @@
   font-weight: 500;
   color: var(--text-tertiary);
   letter-spacing: 0.02em;
-  text-transform: uppercase;
 }
 
 .ops-summary strong {
@@ -190,7 +189,7 @@
   gap: 6px;
   padding: 7px 14px;
   border-radius: var(--radius-md);
-  background: var(--brand-500);
+  background: var(--brand-600);
   color: white;
   font-weight: 500;
   font-size: 13px;
@@ -278,7 +277,6 @@
   background: var(--gray-25);
   white-space: nowrap;
   letter-spacing: 0.02em;
-  text-transform: uppercase;
 }
 
 .ops-table :is(th, td) {

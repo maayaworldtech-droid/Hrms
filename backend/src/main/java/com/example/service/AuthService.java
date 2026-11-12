@@ -56,8 +56,8 @@ public class AuthService {
     }
 
     private static final int MAX_RESET_ATTEMPTS = 5;
+    // Reset codes are only ever looked up by email, so each guess counts against that email's attempt limit
     private final Map<String, ResetTokenEntry> emailToResetToken = new ConcurrentHashMap<>();
-    private final Map<String, ResetTokenEntry> codeToResetToken = new ConcurrentHashMap<>();
     private final SecureRandom secureRandom = new SecureRandom();
 
     public Map<String, Object> authenticate(String email, String password) {
@@ -169,17 +169,11 @@ public class AuthService {
         }
 
         Employee emp = empOpt.get();
-        ResetTokenEntry previous = emailToResetToken.remove(cleanEmail);
-        if (previous != null) {
-            codeToResetToken.remove(previous.getCode(), previous);
-        }
-
         String code = String.format("%06d", secureRandom.nextInt(1000000));
         long expiresAt = System.currentTimeMillis() + (15 * 60 * 1000L);
 
         ResetTokenEntry entry = new ResetTokenEntry(cleanEmail, code, expiresAt);
         emailToResetToken.put(cleanEmail, entry);
-        codeToResetToken.put(code, entry);
 
         boolean emailSent = zeptoMailService.sendPasswordResetEmail(emp.getEmail(), emp.getFullName(), code, portalUrl);
 
@@ -192,6 +186,11 @@ public class AuthService {
 
     public Map<String, Object> resetPassword(String email, String code, String newPassword) {
         Map<String, Object> response = new HashMap<>();
+        if (email == null || email.trim().isEmpty()) {
+            response.put("success", false);
+            response.put("message", "Email address is required");
+            return response;
+        }
         if (code == null || code.trim().isEmpty()) {
             response.put("success", false);
             response.put("message", "Verification code is required");
@@ -205,12 +204,8 @@ public class AuthService {
 
         evictExpiredResetTokens();
         String cleanCode = code.trim();
-        String cleanEmail = (email != null && !email.trim().isEmpty()) ? email.trim().toLowerCase() : null;
-
-        // Bind lookup strictly to email when email is provided
-        ResetTokenEntry entry = cleanEmail != null
-                ? emailToResetToken.get(cleanEmail)
-                : codeToResetToken.get(cleanCode);
+        String cleanEmail = email.trim().toLowerCase();
+        ResetTokenEntry entry = emailToResetToken.get(cleanEmail);
 
         if (entry == null || entry.isExpired()) {
             response.put("success", false);
@@ -219,8 +214,7 @@ public class AuthService {
         }
 
         if (entry.incrementAttempts() > MAX_RESET_ATTEMPTS) {
-            emailToResetToken.remove(entry.getEmail());
-            codeToResetToken.remove(entry.getCode(), entry);
+            emailToResetToken.remove(entry.getEmail(), entry);
             response.put("success", false);
             response.put("message", "Too many invalid attempts. Please request a new verification code.");
             return response;
@@ -244,8 +238,7 @@ public class AuthService {
         emp.setMustChangePassword(false);
         employeeRepository.save(emp);
 
-        emailToResetToken.remove(entry.getEmail());
-        codeToResetToken.remove(entry.getCode(), entry);
+        emailToResetToken.remove(entry.getEmail(), entry);
 
         response.put("success", true);
         response.put("message", "Password has been successfully updated. You may now sign in.");
@@ -255,6 +248,5 @@ public class AuthService {
 
     private void evictExpiredResetTokens() {
         emailToResetToken.entrySet().removeIf(e -> e.getValue().isExpired());
-        codeToResetToken.entrySet().removeIf(e -> e.getValue().isExpired());
     }
 }

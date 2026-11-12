@@ -35,14 +35,14 @@ const ToastItem: React.FC<{ toast: ToastMessage; onClose: () => void }> = ({
     success: <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />,
     error: <XCircle className="w-5 h-5 text-rose-500 shrink-0" />,
     warning: <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />,
-    info: <Info className="w-5 h-5 text-indigo-500 shrink-0" />,
+    info: <Info className="w-5 h-5 text-brand-600 shrink-0" />,
   };
 
   const borders = {
     success: 'border-emerald-200 bg-white',
     error: 'border-rose-200 bg-white',
     warning: 'border-amber-200 bg-white',
-    info: 'border-indigo-200 bg-white',
+    info: 'border-brand-200 bg-white',
   };
 
   return (
@@ -56,7 +56,7 @@ const ToastItem: React.FC<{ toast: ToastMessage; onClose: () => void }> = ({
       </div>
       <button
         onClick={onClose}
-        className="text-slate-400 hover:text-slate-600 p-0.5 rounded transition-colors focus:outline-none"
+        className="text-slate-500 hover:text-slate-600 p-0.5 rounded transition-colors focus:outline-none"
       >
         <X className="w-4 h-4" />
       </button>

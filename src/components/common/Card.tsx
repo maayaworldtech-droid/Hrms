@@ -6,23 +6,17 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   hoverable?: boolean;
 }
 
-export const Card: React.FC<CardProps> = ({
-  children,
-  className = '',
-  hoverable = false,
-  ...props
-}) => {
-  return (
-    <div
-      className={`bg-white rounded-xl border border-[#E4E7EC] shadow-xs overflow-hidden transition-all duration-200 ${
-        hoverable ? 'hover:border-[#D0D5DD] hover:shadow-sm hover:-translate-y-0.5 cursor-pointer' : ''
-      } ${className}`}
-      {...props}
-    >
-      {children}
-    </div>
-  );
-};
+/** A standalone surface. Do not nest cards; group inside a card with dividers or spacing instead. */
+export const Card: React.FC<CardProps> = ({ children, className = '', hoverable = false, ...props }) => (
+  <div
+    className={`bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden ${
+      hoverable ? 'transition-colors hover:border-slate-300 cursor-pointer' : ''
+    } ${className}`}
+    {...props}
+  >
+    {children}
+  </div>
+);
 
 export const CardHeader: React.FC<{
   title: string;
@@ -30,39 +24,29 @@ export const CardHeader: React.FC<{
   action?: React.ReactNode;
   className?: string;
   icon?: React.ReactNode;
-}> = ({ title, subtitle, action, className = '', icon }) => {
-  return (
-    <div className={`p-5 sm:p-6 border-b border-[#F0F2F5] flex items-start justify-between gap-4 ${className}`}>
-      <div className="flex items-center gap-3">
-        {icon && (
-          <div className="w-9 h-9 rounded-lg bg-[#EEF4FF] text-[#2A4FE0] flex items-center justify-center shrink-0 border border-[#BDD3FF]/50">
-            {icon}
-          </div>
-        )}
-        <div>
-          <h3 className="text-base font-semibold text-[#101828] tracking-tight">{title}</h3>
-          {subtitle && <p className="text-xs text-[#475467] mt-0.5">{subtitle}</p>}
+}> = ({ title, subtitle, action, className = '', icon }) => (
+  <div className={`px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-4 ${className}`}>
+    <div className="flex items-center gap-3 min-w-0">
+      {icon && (
+        <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
+          {icon}
         </div>
+      )}
+      <div className="min-w-0">
+        <h3 className="text-base font-semibold text-slate-900 tracking-tight">{title}</h3>
+        {subtitle && <p className="text-sm text-slate-500 mt-0.5">{subtitle}</p>}
       </div>
-      {action && <div className="shrink-0">{action}</div>}
     </div>
-  );
-};
+    {action && <div className="shrink-0">{action}</div>}
+  </div>
+);
 
-export const CardContent: React.FC<{
-  children: React.ReactNode;
-  className?: string;
-}> = ({ children, className = '' }) => {
-  return <div className={`p-5 sm:p-6 ${className}`}>{children}</div>;
-};
+export const CardContent: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
+  <div className={`p-5 ${className}`}>{children}</div>
+);
 
-export const CardFooter: React.FC<{
-  children: React.ReactNode;
-  className?: string;
-}> = ({ children, className = '' }) => {
-  return (
-    <div className={`px-5 py-3.5 sm:px-6 bg-[#F7F8FA] border-t border-[#F0F2F5] flex items-center justify-between text-xs text-[#475467] ${className}`}>
-      {children}
-    </div>
-  );
-};
+export const CardFooter: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
+  <div className={`px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-sm text-slate-600 ${className}`}>
+    {children}
+  </div>
+);

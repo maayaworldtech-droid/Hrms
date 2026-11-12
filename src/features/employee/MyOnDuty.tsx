@@ -28,15 +28,8 @@ import {
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
+import { DUTY_TYPES, dutyTypeLabel } from '@/utils/dutyTypes';
 
-const DUTY_TYPES: { value: OnDutyType; label: string; description: string }[] = [
-  { value: 'BANK_DEPOSIT', label: 'Bank Deposit / Cash Handling', description: 'Depositing cash, cheques, or bank transactions' },
-  { value: 'PROCUREMENT', label: 'Procurement / Purchases', description: 'Purchasing office supplies, equipment, or materials' },
-  { value: 'CLIENT_VISIT', label: 'Client / Site Visit', description: 'Meeting clients, partners, or off-site branch visits' },
-  { value: 'DELIVERY', label: 'Delivery / Courier Handling', description: 'Dispatching or receiving urgent documents or goods' },
-  { value: 'OFFICIAL_ERRAND', label: 'Official Outdoor Errand', description: 'Government office, statutory or administrative errands' },
-  { value: 'OTHER', label: 'Other Outdoor Duty', description: 'Other authorized external company duty' },
-];
 
 const applyOnDutySchema = z.object({
   dutyDate: z.string().min(1, 'Duty date is required'),
@@ -151,8 +144,8 @@ export const MyOnDuty: React.FC = () => {
     try {
       await api.onDuty.apply({
         employeeId,
-        employeeName: user?.name || 'Shyam Sundar',
-        departmentName: user?.department || 'Operations',
+        employeeName: user?.name || '',
+        departmentName: '',
         dutyDate: values.dutyDate,
         startTime: values.startTime,
         endTime: values.endTime,
@@ -256,20 +249,7 @@ export const MyOnDuty: React.FC = () => {
   }, [requests, statusFilter, searchQuery]);
 
   const formatDutyType = (type: OnDutyType) => {
-    switch (type) {
-      case 'BANK_DEPOSIT':
-        return 'Bank Deposit';
-      case 'PROCUREMENT':
-        return 'Purchases';
-      case 'CLIENT_VISIT':
-        return 'Client Visit';
-      case 'DELIVERY':
-        return 'Delivery / Courier';
-      case 'OFFICIAL_ERRAND':
-        return 'Official Errand';
-      default:
-        return 'On Duty';
-    }
+    return dutyTypeLabel(type);
   };
 
   return (
@@ -282,7 +262,7 @@ export const MyOnDuty: React.FC = () => {
         </div>
         <button
           onClick={() => setIsApplyModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-2 bg-[var(--brand-600)] text-white text-xs font-semibold rounded-lg hover:bg-[var(--brand-700)] transition-colors cursor-pointer shadow-sm"
+          className="flex items-center gap-1.5 px-3 py-2 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition-colors cursor-pointer shadow-sm"
         >
           <Plus className="w-4 h-4" />
           <span>Apply OD</span>
@@ -297,7 +277,7 @@ export const MyOnDuty: React.FC = () => {
             onClick={() => setStatusFilter(filter)}
             className={`px-3 py-1.5 rounded-lg font-medium transition-colors shrink-0 cursor-pointer ${
               statusFilter === filter
-                ? 'bg-slate-900 text-white'
+                ? 'bg-brand-600 text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
             }`}
           >
@@ -311,7 +291,7 @@ export const MyOnDuty: React.FC = () => {
 
       {/* Search Bar */}
       <div className="relative">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
         <input
           type="text"
           placeholder="Search by reason, type, or expense…"
@@ -330,7 +310,7 @@ export const MyOnDuty: React.FC = () => {
         <div className="p-8 text-center bg-white border border-slate-200 rounded-xl space-y-2">
           <Briefcase className="w-8 h-8 text-slate-300 mx-auto" />
           <p className="text-xs font-semibold text-slate-800">No On Duty requests found</p>
-          <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+          <p className="text-xs text-slate-500 max-w-xs mx-auto">
             Need to deposit money, run an official errand, or purchase supplies? Apply above.
           </p>
         </div>
@@ -344,10 +324,10 @@ export const MyOnDuty: React.FC = () => {
               {/* Row 1: Badges & Date */}
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-800">
+                  <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-800">
                     {formatDutyType(req.dutyType)}
                   </span>
-                  <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                  <span className="text-xs font-medium text-slate-500 flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5" />
                     {formatDate(req.dutyDate)}
                   </span>
@@ -355,17 +335,17 @@ export const MyOnDuty: React.FC = () => {
 
                 {/* Status Badge */}
                 {req.status === 'PENDING' && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                    Pending Approval
+                  <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                    Pending approval
                   </span>
                 )}
                 {req.status === 'APPROVED' && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                     Approved
                   </span>
                 )}
                 {req.status === 'REJECTED' && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                  <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
                     Rejected
                   </span>
                 )}
@@ -374,7 +354,7 @@ export const MyOnDuty: React.FC = () => {
               {/* Row 2: Time Window & Reason */}
               <div className="space-y-1">
                 <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
-                  <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                   <span>{req.startTime} – {req.endTime}</span>
                 </div>
                 <p className="text-xs text-slate-800 font-normal leading-relaxed">
@@ -384,7 +364,7 @@ export const MyOnDuty: React.FC = () => {
 
               {/* Row 3: Manager Review Notes (if any) */}
               {req.reviewerComments && (
-                <div className="p-2.5 bg-slate-50 border border-slate-100 rounded-lg text-[11px] space-y-0.5">
+                <div className="p-2.5 bg-slate-50 border border-slate-100 rounded-lg text-xs space-y-0.5">
                   <span className="text-slate-500 font-medium">Manager Feedback ({req.reviewedBy || 'Reviewer'}):</span>
                   <p className="text-slate-700">{req.reviewerComments}</p>
                 </div>
@@ -398,23 +378,23 @@ export const MyOnDuty: React.FC = () => {
                       <Receipt className="w-3.5 h-3.5 text-slate-500" />
                       <span>Spent: ₹{req.expenseAmount.toLocaleString('en-IN')}</span>
                       {req.reimbursementStatus === 'PENDING' && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                          Reimbursement Pending
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                          Reimbursement pending
                         </span>
                       )}
                       {req.reimbursementStatus === 'REIMBURSED' && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                           Reimbursed
                         </span>
                       )}
                       {req.reimbursementStatus === 'REJECTED' && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-rose-50 text-rose-700 border border-rose-200">
-                          Claim Rejected
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">
+                          Claim rejected
                         </span>
                       )}
                     </div>
                     {req.expenseDescription && (
-                      <p className="text-[11px] text-slate-500 line-clamp-1">
+                      <p className="text-xs text-slate-500 line-clamp-1">
                         {req.expenseDescription}
                       </p>
                     )}
@@ -423,10 +403,10 @@ export const MyOnDuty: React.FC = () => {
                   {req.billPhoto && (
                     <button
                       onClick={() => setPreviewBillUrl(req.billPhoto || null)}
-                      className="flex items-center gap-1 px-2.5 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded text-[11px] font-medium text-slate-700 cursor-pointer transition-colors"
+                      className="flex items-center gap-1 px-2.5 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded text-xs font-medium text-slate-700 cursor-pointer transition-colors"
                     >
                       <Eye className="w-3.5 h-3.5" />
-                      <span>View Bill</span>
+                      <span>View bill</span>
                     </button>
                   )}
                 </div>
@@ -434,7 +414,7 @@ export const MyOnDuty: React.FC = () => {
                 /* No expense yet: Offer Claim button if OD is approved */
                 req.status === 'APPROVED' && (
                   <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-[11px] text-slate-500">Spent money during this duty?</span>
+                    <span className="text-xs text-slate-500">Spent money during this duty?</span>
                     <button
                       onClick={() => {
                         setClaimTarget(req);
@@ -442,10 +422,10 @@ export const MyOnDuty: React.FC = () => {
                         setClaimDesc('');
                         setClaimBillPhoto(null);
                       }}
-                      className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-[var(--brand-600)] hover:bg-[var(--brand-50)] rounded transition-colors cursor-pointer"
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-brand-600 hover:bg-brand-50 rounded transition-colors cursor-pointer"
                     >
                       <Receipt className="w-3.5 h-3.5" />
-                      <span>Upload Bill & Claim</span>
+                      <span>Upload bill & claim</span>
                     </button>
                   </div>
                 )
@@ -470,7 +450,7 @@ export const MyOnDuty: React.FC = () => {
           {/* Duty Date */}
           <div>
             <label className="block font-semibold text-slate-700 mb-1">
-              Duty Date <span className="text-rose-500">*</span>
+              Duty date <span className="text-rose-500">*</span>
             </label>
             <input
               type="date"
@@ -478,7 +458,7 @@ export const MyOnDuty: React.FC = () => {
               className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs text-slate-800 focus:outline-none focus:border-slate-400"
             />
             {errors.dutyDate && (
-              <p className="text-[11px] text-rose-500 mt-1">{errors.dutyDate.message}</p>
+              <p className="text-xs text-rose-500 mt-1">{errors.dutyDate.message}</p>
             )}
           </div>
 
@@ -486,7 +466,7 @@ export const MyOnDuty: React.FC = () => {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Start Time <span className="text-rose-500">*</span>
+                Start time <span className="text-rose-500">*</span>
               </label>
               <input
                 type="time"
@@ -494,13 +474,13 @@ export const MyOnDuty: React.FC = () => {
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs text-slate-800 focus:outline-none focus:border-slate-400"
               />
               {errors.startTime && (
-                <p className="text-[11px] text-rose-500 mt-1">{errors.startTime.message}</p>
+                <p className="text-xs text-rose-500 mt-1">{errors.startTime.message}</p>
               )}
             </div>
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                End Time <span className="text-rose-500">*</span>
+                End time <span className="text-rose-500">*</span>
               </label>
               <input
                 type="time"
@@ -508,7 +488,7 @@ export const MyOnDuty: React.FC = () => {
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs text-slate-800 focus:outline-none focus:border-slate-400"
               />
               {errors.endTime && (
-                <p className="text-[11px] text-rose-500 mt-1">{errors.endTime.message}</p>
+                <p className="text-xs text-rose-500 mt-1">{errors.endTime.message}</p>
               )}
             </div>
           </div>
@@ -516,7 +496,7 @@ export const MyOnDuty: React.FC = () => {
           {/* Work / Assignment Type */}
           <div>
             <label className="block font-semibold text-slate-700 mb-1">
-              Duty Category <span className="text-rose-500">*</span>
+              Duty category <span className="text-rose-500">*</span>
             </label>
             <select
               {...register('dutyType')}
@@ -533,16 +513,16 @@ export const MyOnDuty: React.FC = () => {
           {/* Reason / Purpose */}
           <div>
             <label className="block font-semibold text-slate-700 mb-1">
-              Reason & Destination Details <span className="text-rose-500">*</span>
+              Reason & destination details <span className="text-rose-500">*</span>
             </label>
             <textarea
               rows={3}
-              placeholder="e.g., Depositing ₹75,000 cash at HDFC Bank Madhapur branch for payroll reserve..."
+              placeholder="e.g. Depositing yesterday's ticket cash at the bank"
               {...register('reason')}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs text-slate-800 focus:outline-none focus:border-slate-400 resize-none"
             />
             {errors.reason && (
-              <p className="text-[11px] text-rose-500 mt-1">{errors.reason.message}</p>
+              <p className="text-xs text-rose-500 mt-1">{errors.reason.message}</p>
             )}
           </div>
 
@@ -552,7 +532,7 @@ export const MyOnDuty: React.FC = () => {
               <input
                 type="checkbox"
                 {...register('hasExpense')}
-                className="w-4 h-4 rounded text-[var(--brand-600)] border-slate-300 focus:ring-0"
+                className="w-4 h-4 rounded text-brand-600 border-slate-300 focus:ring-0"
               />
               <span className="font-semibold text-slate-800">
                 Incurred an expense? (Attach bill for reimbursement)
@@ -576,7 +556,7 @@ export const MyOnDuty: React.FC = () => {
 
                 <div>
                   <label className="block font-medium text-slate-700 mb-1">
-                    Expense Purpose
+                    Expense purpose
                   </label>
                   <input
                     type="text"
@@ -600,7 +580,7 @@ export const MyOnDuty: React.FC = () => {
                   {formBillPhoto && (
                     <div className="mt-2 flex items-center gap-2 p-2 bg-white border border-slate-200 rounded">
                       <img src={formBillPhoto} alt="Bill preview" className="w-10 h-10 object-cover rounded" />
-                      <span className="text-[11px] text-emerald-700 font-medium">Receipt attached successfully</span>
+                      <span className="text-xs text-emerald-700 font-medium">Receipt attached successfully</span>
                     </div>
                   )}
                 </div>
@@ -624,7 +604,7 @@ export const MyOnDuty: React.FC = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-2 bg-[var(--brand-600)] text-white text-xs font-semibold rounded-lg hover:bg-[var(--brand-700)] transition-colors cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50"
             >
               {isSubmitting ? 'Submitting…' : 'Submit On Duty'}
             </button>
@@ -662,7 +642,7 @@ export const MyOnDuty: React.FC = () => {
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Expense Description <span className="text-rose-500">*</span>
+                Expense description <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
@@ -687,7 +667,7 @@ export const MyOnDuty: React.FC = () => {
               {claimBillPhoto && (
                 <div className="mt-2 flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded">
                   <img src={claimBillPhoto} alt="Bill receipt" className="w-12 h-12 object-cover rounded" />
-                  <span className="text-[11px] text-emerald-700 font-medium">Receipt ready for upload</span>
+                  <span className="text-xs text-emerald-700 font-medium">Receipt ready for upload</span>
                 </div>
               )}
             </div>
@@ -704,7 +684,7 @@ export const MyOnDuty: React.FC = () => {
                 type="button"
                 disabled={isSubmittingClaim}
                 onClick={handlePostDutyClaimSubmit}
-                className="px-4 py-2 bg-[var(--brand-600)] text-white text-xs font-semibold rounded-lg hover:bg-[var(--brand-700)] transition-colors cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50"
               >
                 {isSubmittingClaim ? 'Submitting…' : 'Submit Claim'}
               </button>
@@ -734,7 +714,7 @@ export const MyOnDuty: React.FC = () => {
                 onClick={() => setPreviewBillUrl(null)}
                 className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded cursor-pointer"
               >
-                Close Preview
+                Close preview
               </button>
             </div>
           </div>

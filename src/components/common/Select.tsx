@@ -21,19 +21,19 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <div className="w-full">
         {label && (
-          <label htmlFor={selectId} className="block text-sm font-medium text-[#101828] mb-1.5">
+          <label htmlFor={selectId} className="block text-sm font-medium text-slate-800 mb-1.5">
             {label}
-            {props.required && <span className="text-[#F04438] ml-1">*</span>}
+            {props.required && <span className="text-rose-600 ml-0.5">*</span>}
           </label>
         )}
         <div className="relative">
           <select
             id={selectId}
             ref={ref}
-            className={`w-full h-10 appearance-none rounded-lg border bg-white pl-3 pr-9 py-2 text-sm text-[#101828] shadow-xs transition-colors duration-150 focus:outline-none disabled:bg-[#F7F8FA] disabled:text-[#98A2B3] disabled:cursor-not-allowed ${
+            className={`w-full h-10 appearance-none rounded-lg border bg-white pl-3 pr-9 py-2 text-sm text-slate-900 shadow-xs transition-colors duration-150 focus:outline-none disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed ${
               error
-                ? 'border-[#F04438] focus:border-[#F04438] focus:ring-4 focus:ring-red-500/20'
-                : 'border-[#D0D5DD] hover:border-[#98A2B3] focus:border-[#3B68F5] focus:ring-4 focus:ring-[#3B68F5]/20'
+                ? 'border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-400/25'
+                : 'border-slate-300 hover:border-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-400/30'
             } ${className}`}
             {...props}
           >
@@ -48,14 +48,14 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
               </option>
             ))}
           </select>
-          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-[#667085]">
+          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-500">
             <ChevronDown className="w-4 h-4" />
           </div>
         </div>
         {error ? (
-          <p className="mt-1.5 text-xs text-[#B42318] font-medium">{error}</p>
+          <p className="mt-1.5 text-xs text-rose-700 font-medium">{error}</p>
         ) : helperText ? (
-          <p className="mt-1.5 text-xs text-[#667085]">{helperText}</p>
+          <p className="mt-1.5 text-xs text-slate-500">{helperText}</p>
         ) : null}
       </div>
     );

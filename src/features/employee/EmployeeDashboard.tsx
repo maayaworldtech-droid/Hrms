@@ -94,7 +94,7 @@ export const EmployeeDashboard: React.FC = () => {
   if (error || !employee) {
     return (
       <div className="employee-empty" role="alert">
-        <ShieldCheck className="w-10 h-10 text-[var(--accent-500)]" />
+        <ShieldCheck className="w-10 h-10 text-accent-500" />
         <h3 className="text-sm font-semibold text-slate-900 mt-2">Unable to connect</h3>
         <p className="text-xs text-slate-500 mt-1">Please check connection and retry.</p>
         <button className="employee-secondary-btn mt-3" onClick={load}>
@@ -110,7 +110,7 @@ export const EmployeeDashboard: React.FC = () => {
 
   const currentHour = new Date().getHours();
   const greeting =
-    currentHour < 12 ? 'Good Morning' : currentHour < 17 ? 'Good Afternoon' : 'Good Evening';
+    currentHour < 12 ? 'Good morning' : currentHour < 17 ? 'Good afternoon' : 'Good evening';
 
   const statusLine = completed
     ? `Shift completed · ${attendance.workHours ? `${attendance.workHours}h logged` : 'Punched out'}`
@@ -131,7 +131,7 @@ export const EmployeeDashboard: React.FC = () => {
       <section className="bg-white border border-slate-200 rounded-xl px-4 py-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex items-center justify-between gap-3">
         <div className="min-w-0">
           <span className="text-xs font-medium text-slate-500 block">
-            {employee.departmentName || 'Operations'} · {employee.employeeCode}
+            {employee.designation || employee.location || 'Staff'} · {employee.employeeCode}
           </span>
           <p className="text-sm font-semibold text-slate-900 truncate mt-0.5">{statusLine}</p>
         </div>
@@ -139,7 +139,7 @@ export const EmployeeDashboard: React.FC = () => {
           type="button"
           disabled={completed}
           onClick={() => setScanOpen(true)}
-          className="px-4 py-2.5 rounded-lg bg-[var(--brand-500)] hover:bg-[var(--brand-600)] disabled:bg-slate-100 disabled:text-slate-500 text-white text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer disabled:cursor-default shadow-xs"
+          className="px-4 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:bg-slate-100 disabled:text-slate-500 text-white text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer disabled:cursor-default shadow-xs"
         >
           {completed ? (
             <>
@@ -149,12 +149,12 @@ export const EmployeeDashboard: React.FC = () => {
           ) : working ? (
             <>
               <Clock className="w-4 h-4" />
-              <span>Check Out</span>
+              <span>Check out</span>
             </>
           ) : (
             <>
               <ScanFace className="w-4 h-4" />
-              <span>Check In</span>
+              <span>Check in</span>
             </>
           )}
         </button>
@@ -164,9 +164,9 @@ export const EmployeeDashboard: React.FC = () => {
       <section className="grid grid-cols-2 gap-3" aria-label="Primary actions">
         <Link
           to="/employee/attendance"
-          className="bg-white border border-slate-200 rounded-xl py-4 px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col items-center justify-center gap-2.5 hover:border-[var(--brand-300)] transition-colors"
+          className="bg-white border border-slate-200 rounded-xl py-4 px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col items-center justify-center gap-2.5 hover:border-brand-300 transition-colors"
         >
-          <span className="w-10 h-10 rounded-xl bg-[var(--brand-50)] text-[var(--brand-600)] flex items-center justify-center">
+          <span className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
             <UserCheck className="w-5 h-5" strokeWidth={1.75} />
           </span>
           <span className="text-sm font-semibold text-slate-800">Attendance</span>
@@ -174,9 +174,9 @@ export const EmployeeDashboard: React.FC = () => {
 
         <Link
           to="/employee/salary"
-          className="bg-white border border-slate-200 rounded-xl py-4 px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col items-center justify-center gap-2.5 hover:border-[var(--brand-300)] transition-colors"
+          className="bg-white border border-slate-200 rounded-xl py-4 px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col items-center justify-center gap-2.5 hover:border-brand-300 transition-colors"
         >
-          <span className="w-10 h-10 rounded-xl bg-[var(--brand-50)] text-[var(--brand-600)] flex items-center justify-center">
+          <span className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
             <FileText className="w-5 h-5" strokeWidth={1.75} />
           </span>
           <span className="text-sm font-semibold text-slate-800">Payslips</span>
@@ -184,9 +184,9 @@ export const EmployeeDashboard: React.FC = () => {
 
         <Link
           to="/employee/on-duty"
-          className="bg-white border border-slate-200 rounded-xl py-4 px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col items-center justify-center gap-2.5 hover:border-[var(--brand-300)] transition-colors"
+          className="bg-white border border-slate-200 rounded-xl py-4 px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col items-center justify-center gap-2.5 hover:border-brand-300 transition-colors"
         >
-          <span className="w-10 h-10 rounded-xl bg-[var(--brand-50)] text-[var(--brand-600)] flex items-center justify-center">
+          <span className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
             <Briefcase className="w-5 h-5" strokeWidth={1.75} />
           </span>
           <span className="text-sm font-semibold text-slate-800">On Duty (OD)</span>
@@ -194,33 +194,33 @@ export const EmployeeDashboard: React.FC = () => {
 
         <Link
           to="/employee/leaves"
-          className="bg-white border border-slate-200 rounded-xl py-4 px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col items-center justify-center gap-2.5 hover:border-[var(--brand-300)] transition-colors"
+          className="bg-white border border-slate-200 rounded-xl py-4 px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col items-center justify-center gap-2.5 hover:border-brand-300 transition-colors"
         >
-          <span className="w-10 h-10 rounded-xl bg-[var(--brand-50)] text-[var(--brand-600)] flex items-center justify-center">
+          <span className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
             <CalendarDays className="w-5 h-5" strokeWidth={1.75} />
           </span>
-          <span className="text-sm font-semibold text-slate-800">Leave History</span>
+          <span className="text-sm font-semibold text-slate-800">Leave history</span>
         </Link>
       </section>
 
       {/* More Action Section */}
       <section className="space-y-2.5">
-        <h2 className="text-sm font-bold text-slate-900">More Action</h2>
+        <h2 className="text-sm font-semibold text-slate-900">Quick actions</h2>
         <div className="grid grid-cols-2 gap-3">
           <Link
             to="/employee/leaves?apply=true"
-            className="bg-slate-200/70 border border-slate-300/70 rounded-xl py-4 px-3 flex flex-col items-center justify-center gap-2 hover:bg-slate-200 hover:border-slate-300 transition-colors"
+            className="bg-white border border-slate-200 rounded-xl py-4 px-3 flex flex-col items-center justify-center gap-2 shadow-xs hover:border-brand-300 hover:bg-brand-50/40 transition-colors"
           >
             <CalendarPlus className="w-6 h-6 text-slate-700" strokeWidth={1.75} />
-            <span className="text-sm font-semibold text-slate-800">Apply Leaves</span>
+            <span className="text-sm font-semibold text-slate-800">Apply for leave</span>
           </Link>
 
           <Link
             to="/employee/on-duty?tab=EXPENSES"
-            className="bg-slate-200/70 border border-slate-300/70 rounded-xl py-4 px-3 flex flex-col items-center justify-center gap-2 hover:bg-slate-200 hover:border-slate-300 transition-colors"
+            className="bg-white border border-slate-200 rounded-xl py-4 px-3 flex flex-col items-center justify-center gap-2 shadow-xs hover:border-brand-300 hover:bg-brand-50/40 transition-colors"
           >
             <Receipt className="w-6 h-6 text-slate-700" strokeWidth={1.75} />
-            <span className="text-sm font-semibold text-slate-800">Errand Claims</span>
+            <span className="text-sm font-semibold text-slate-800">Claim expenses</span>
           </Link>
         </div>
       </section>
@@ -228,10 +228,10 @@ export const EmployeeDashboard: React.FC = () => {
       {/* Attendance Summary Section */}
       <section className="space-y-2.5">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-slate-900">Attendance Summary</h2>
+          <h2 className="text-sm font-semibold text-slate-900">Recent attendance</h2>
           <Link
             to="/employee/attendance"
-            className="text-xs font-semibold text-[var(--brand-600)] hover:text-[var(--brand-700)]"
+            className="text-xs font-semibold text-brand-600 hover:text-brand-700"
           >
             View all
           </Link>
@@ -257,15 +257,15 @@ export const EmployeeDashboard: React.FC = () => {
                 : isWarning
                 ? 'bg-amber-50 text-amber-800 border border-amber-200'
                 : isLatest
-                ? 'bg-[var(--brand-500)] text-white'
-                : 'bg-[var(--brand-50)] text-[var(--brand-600)] border border-[var(--brand-200)]';
+                ? 'bg-brand-600 text-white'
+                : 'bg-brand-50 text-brand-600 border border-brand-200';
 
               return (
                 <div
                   key={rec.id || rec.date}
                   className={`rounded-xl px-3.5 py-3 flex items-center justify-between gap-2.5 border transition-colors ${
                     isLatest
-                      ? 'bg-[var(--brand-50)] border-[var(--brand-300)]'
+                      ? 'bg-brand-50 border-brand-300'
                       : 'bg-white border-slate-200'
                   }`}
                 >
@@ -273,20 +273,20 @@ export const EmployeeDashboard: React.FC = () => {
                     <span className="block text-sm font-bold text-slate-900 leading-tight">
                       {dayNum}
                     </span>
-                    <span className="block text-xs font-medium text-slate-500 uppercase leading-tight">
+                    <span className="block text-xs font-medium text-slate-500 leading-tight">
                       {weekday}
                     </span>
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <span className="block text-xs text-slate-500">Punch In</span>
+                    <span className="block text-xs text-slate-500">Punch in</span>
                     <span className="block text-xs font-bold text-slate-900 tabular-nums">
                       {rec.checkIn ? formatTime(rec.checkIn) : '--:--'}
                     </span>
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <span className="block text-xs text-slate-500">Punch Out</span>
+                    <span className="block text-xs text-slate-500">Punch out</span>
                     <span className="block text-xs font-bold text-slate-900 tabular-nums">
                       {rec.checkOut ? formatTime(rec.checkOut) : '--:--'}
                     </span>

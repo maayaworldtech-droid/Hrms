@@ -1,6 +1,6 @@
 # Maaya World HRMS — Codebase Graph
 
-_Last updated: 2026-11-11 · Maintained by: Antigravity coding agent_
+_Last updated: 2026-11-12 · Maintained by: Antigravity coding agent_
 
 ## Overview
 
@@ -32,12 +32,12 @@ d:\Hrms/
 │   ├── mvnw / mvnw.cmd                — Maven wrappers
 │   └── src/main/
 │       ├── java/com/example/
-│       │   ├── controller/            — Spring REST Controllers (Auth, Employee, Attendance, Leave, OnDuty, Payroll, Settings)
+│       │   ├── controller/            — Spring REST Controllers (Auth, Center, Employee, Attendance, Leave, OnDuty, Payroll, Settings)
 │       │   ├── demo/                  — Main class (EmployeeApplication) & seed data (DataInitializer)
-│       │   ├── entity/                — JPA Hibernate Entities (Employee, AttendanceRecord, LeaveRequest, OnDutyRequest, Payslip, AuditLog, etc.)
+│       │   ├── entity/                — JPA Hibernate Entities (Employee, AttendanceRecord, LeaveRequest, OnDutyRequest, Payslip, AuditLog, Location, etc.)
 │       │   ├── repository/            — Spring Data JPA Repositories
-│       │   ├── security/              — AuthFilter (Bearer RBAC), AuthTokenService (HMAC-SHA256), PasswordHasher (PBKDF2)
-│       │   └── service/               — Business logic (EmployeeServiceImpl, AuthService, ZeptoMailService)
+│       │   ├── security/              — AuthFilter (Bearer RBAC), AuthTokenService (HMAC-SHA256), PasswordHasher (PBKDF2), PortalUrlResolver
+│       │   └── service/               — Business logic (EmployeeServiceImpl, AuthService, CenterService, AuditService, ZeptoMailService)
 │       └── resources/
 │           └── application.properties — DB URL (PostgreSQL 5432/hrms_db), port 8083, env-backed ZeptoMail & auth secrets
 │
@@ -48,21 +48,20 @@ d:\Hrms/
     ├── assets/                        — Logos, brand vectors, and media
     ├── components/
     │   ├── attendance/                — Biometric webcam/geofence modal & 1-month paginated history modal (BiometricAttendanceModal.tsx, EmployeeAttendanceHistoryModal.tsx)
-    │   ├── common/                    — Shared UI: Button, Input, Modal, DataTable, OperationsDashboard, StatCard, etc.
-    │   └── layout/                    — Shells: AppLayout (Desktop Admin/Manager), EmployeeMobileLayout (Mobile-First Shell), Sidebar, Header
+    │   ├── common/                    — Shared UI: Button, Input, Modal, DataTable, PageHeader, OperationsDashboard, StatCard, etc.
+    │   └── layout/                    — Shells: AppLayout (Desktop Admin/Manager), EmployeeMobileLayout (Mobile-First Shell), AuthLayout, Sidebar, Header
     ├── features/
-    │   ├── admin/                     — Admin screens: Dashboard, EmployeeManagement, Attendance, Leaves, Payroll, Reports, Settings
+    │   ├── admin/                     — Admin screens: Dashboard, EmployeeManagement, Attendance, Leaves, Payroll, Reports (`reports/`), Settings (`settings/`)
     │   ├── auth/                      — Auth screens: Login, ForgotPassword, ResetPassword
     │   ├── employee/                  — Employee screens: Dashboard, MyAttendance, MyLeaves, MySalary, Profile
     │   └── manager/                   — Manager screens: Dashboard, TeamAttendance, TeamLeaves
-    ├── hooks/                         — Custom React hooks (e.g. useOperationsFilters)
+    ├── hooks/                         — Custom React hooks (`useOperationsFilters`, `useCenters`, etc.)
     ├── services/
-    │   ├── api.ts                     — Centralized API service layer calling `/api` endpoints
-    │   └── mockData.ts                — Fallback demo data, reporting manager helper, location lists
+    │   └── api.ts                     — Centralized API service layer calling `/api` endpoints
     ├── store/                         — Redux Toolkit store setup
     │   └── slices/                    — authSlice (session & roles), uiSlice (toasts & mobile/sidebar toggles)
     ├── types/                         — Domain TypeScript interfaces and types
-    └── utils/                         — Helpers: faceBiometrics, formatters (INR, dates), geolocation (Haversine formula), operations, salaryCalculator, shiftUtils
+    └── utils/                         — Helpers: dutyTypes, faceBiometrics, formatters (INR, dates), geolocation (Haversine formula), operations, reportingManager, salaryCalculator, shiftUtils
 ```
 
 ---
@@ -149,6 +148,9 @@ d:\Hrms/
 | `PUT` | `/api/settings` | Update corporate settings | `SettingsController` |
 | `GET` | `/api/departments` | List company departments | `SettingsController` |
 | `GET` | `/api/holidays` | List company holiday calendar | `SettingsController` |
+| `GET` | `/api/centers` | List active centers with staff/manager details | `CenterController` |
+| `POST` / `PUT` / `DELETE` | `/api/centers`, `/api/centers/{id}` | Create, update, or remove a center (admin-only) | `CenterController` |
+| `POST` | `/api/centers/{id}/managers` | Assign an employee as center manager | `CenterController` |
 | `GET` | `/api/audit-logs` | Retrieve compliance audit trail | `SettingsController` |
 
 ---
@@ -273,3 +275,11 @@ Admin initiates cycle (PayrollProcessing.tsx)
 **What & why:** Replaced plaintext passwords and open endpoints with PBKDF2 hashing, HMAC-SHA256 Bearer tokens, and `AuthFilter` RBAC; moved ZeptoMail API token to `ZEPTOMAIL_TOKEN`; fixed password reset links/OTP binding and case-insensitive email handling; made `DataInitializer` avoid `employee_code` unique-key collisions (`resolveAvailableCode`); mounted `ToastContainer` globally in `App.tsx` and added inline error feedback on `Login.tsx`; added `/api/attendance/paged`, `/api/attendance/employee/{id}/history`, `EmployeeAttendanceHistoryModal`, and "Load More" pagination across Admin/Manager attendance views (removing Regularization column and All-dates filter button); updated `EmployeeManagement.tsx` and `EmployeeDetailsPanel.tsx` to use annual salary on onboarding, remove HRA/Special/Conveyance/ESI/Gratuity components, move UAN to Work & Compensation (activated only when PF is added), and require bank account number confirmation; repaired payroll, leaves, biometrics, analytics, and settings issues.
 
 **Follow-ups/risks:** Set `ZEPTOMAIL_TOKEN` in the environment (and rotate the previously committed key) before expecting live ZeptoMail delivery. Existing browser sessions using legacy `mw_sess_...` tokens will be prompted to sign in again.
+
+### 2026-11-12 — Centers Management Refactor, Mock Data Removal & UI Cleanup
+
+**Request:** Deploy the latest local code and push to GitHub.
+
+**Files changed:** `backend/.../controller/{Attendance,Auth,Employee,Leave,OnDuty,Payroll,Settings,Center}Controller.java`, `backend/.../service/{Audit,Auth,Center,EmployeeServiceImpl,ZeptoMail}Service.java`, `backend/.../security/{AuthFilter,PortalUrlResolver}.java`, `backend/.../entity/{CompanySettings,Employee,Location}.java`, `backend/.../repository/*`, `backend/.../demo/{DataInitializer,EmployeeApplication}.java`, `src/components/common/*`, `src/components/layout/{AppLayout,AuthLayout,EmployeeMobileLayout,ErrorBoundary,ProtectedRoute,Sidebar}.tsx`, `src/features/admin/{AttendanceManagement,CompanySettings,EmployeeManagement,LeaveManagement,OnDutyManagement,PayrollProcessing,ReportsAnalytics}.tsx`, `src/features/admin/{reports,settings}/*`, `src/features/auth/*`, `src/features/employee/*`, `src/features/manager/*`, `src/hooks/useCenters.ts`, `src/services/api.ts`, `src/services/mockData.ts` (deleted), `src/utils/{dutyTypes,formatters,geolocation,operations,reportingManager,shiftUtils}.ts`
+
+**What & why:** Extracted center management (`CenterController`, `CenterService`, `useCenters`), centralized audit logging (`AuditService`), added `PortalUrlResolver`, split admin reports and settings into modular subcomponents (`reports/`, `settings/`), extracted `PageHeader`, `AuthLayout`, `dutyTypes`, and `reportingManager`, and removed `src/services/mockData.ts`.

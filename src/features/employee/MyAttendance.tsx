@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '@/services/api';
 import { AttendanceRecord } from '@/types';
 import { Modal } from '@/components/common/Modal';
-import { formatDate, formatTime } from '@/utils/formatters';
+import { formatDate, formatTime, formatLabel } from '@/utils/formatters';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 import { BiometricAttendanceModal } from '@/components/attendance/BiometricAttendanceModal';
@@ -116,7 +116,7 @@ export const MyAttendance: React.FC = () => {
       <section className="employee-card space-y-3">
         <div className="flex items-center justify-between text-xs pt-0.5">
           <div>
-            <span className="text-[10px] text-slate-500 block uppercase font-semibold">Today</span>
+            <span className="text-xs text-slate-500 block font-semibold">Today</span>
             <span className="font-semibold text-slate-900 text-sm">{todayFormatted}</span>
           </div>
 
@@ -139,13 +139,13 @@ export const MyAttendance: React.FC = () => {
 
         <div className="employee-metric-grid cols-2">
           <div className="employee-metric-tile">
-            <span className="metric-label">Punch In</span>
+            <span className="metric-label">Punch in</span>
             <strong className="metric-value">
               {todayRec?.checkIn ? formatTime(todayRec.checkIn) : '—'}
             </strong>
           </div>
           <div className="employee-metric-tile">
-            <span className="metric-label">Punch Out</span>
+            <span className="metric-label">Punch out</span>
             <strong className="metric-value">
               {todayRec?.checkOut ? formatTime(todayRec.checkOut) : '—'}
             </strong>
@@ -231,23 +231,23 @@ export const MyAttendance: React.FC = () => {
                         : 'badge-neutral'
                     }`}
                   >
-                    {record.status}
+                    {formatLabel(record.status)}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between text-xs py-1.5 border-y border-slate-100">
                   <div className="flex items-center gap-1.5 text-slate-700">
-                    <Clock size={13} className="text-slate-400" />
-                    <span className="font-mono tabular-nums">
+                    <Clock size={13} className="text-slate-500" />
+                    <span className="tabular-nums">
                       {record.checkIn ? formatTime(record.checkIn) : '—'} – {record.checkOut ? formatTime(record.checkOut) : '—'}
                     </span>
                   </div>
-                  <span className="font-mono font-bold text-slate-900 tabular-nums">
+                  <span className="tabular-nums font-bold text-slate-900 tabular-nums">
                     {record.workHours ? `${record.workHours}h` : 'Live'}
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between pt-0.5 text-[11px]">
+                <div className="flex items-center justify-between pt-0.5 text-xs">
                   <div className="flex items-center gap-1.5 text-slate-500">
                     {record.facePhoto ? (
                       <button
@@ -284,7 +284,7 @@ export const MyAttendance: React.FC = () => {
                             setRegularizeReason(record.regularizationReason || '');
                             setIsModalOpen(true);
                           }}
-                          className="text-[var(--brand-600)] font-semibold hover:underline"
+                          className="text-brand-600 font-semibold hover:underline"
                         >
                           Request correction →
                         </button>
@@ -309,7 +309,7 @@ export const MyAttendance: React.FC = () => {
         >
           <form onSubmit={handleRegularizeSubmit} className="space-y-3 text-xs">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
                 Reason for exception *
               </label>
               <textarea
@@ -318,7 +318,7 @@ export const MyAttendance: React.FC = () => {
                 placeholder="Reason for delay or missed punch"
                 rows={2}
                 required
-                className="w-full rounded-lg border border-slate-300 p-2 text-xs text-slate-900 outline-none focus:border-[var(--brand-400)]"
+                className="w-full rounded-lg border border-slate-300 p-2 text-xs text-slate-900 outline-none focus:border-brand-400"
               />
             </div>
 
@@ -351,7 +351,7 @@ export const MyAttendance: React.FC = () => {
           id: String(user?.id || employeeId).replace('emp-', ''),
           fullName: user?.name || 'Employee',
           employeeCode: user?.employeeId || '',
-          location: user?.location || 'Hyderabad',
+          location: user?.location || '',
           shift: user?.shift || 'MORNING',
           enrolledFacePhoto: user?.enrolledFacePhoto,
           enrolledFaceBiometrics: user?.enrolledFaceBiometrics,

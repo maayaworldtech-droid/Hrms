@@ -103,24 +103,18 @@ export function numberToIndianWords(num: number): string {
 }
 
 /**
- * Downloads a mock CSV file
+ * Downloads a CSV file that opens cleanly in Excel. Pass raw numbers (not formatted currency
+ * strings) so the columns can be totalled. A UTF-8 byte order mark keeps the rupee sign and
+ * non-English names readable in Excel.
  */
 export function exportToCSV(filename: string, headers: string[], rows: (string | number)[][]): void {
-  const csvContent = [
-    headers.join(','),
-    ...rows.map((row) =>
-      row
-        .map((cell) => {
-          const cellStr = String(cell ?? '');
-          return cellStr.includes(',') || cellStr.includes('"')
-            ? `"${cellStr.replace(/"/g, '""')}"`
-            : cellStr;
-        })
-        .join(',')
-    ),
-  ].join('\n');
+  const escape = (cell: string | number | null | undefined) => {
+    const cellStr = String(cell ?? '');
+    return /[",\r\n]/.test(cellStr) ? `"${cellStr.replace(/"/g, '""')}"` : cellStr;
+  };
+  const csvContent = [headers.map(escape).join(','), ...rows.map((row) => row.map(escape).join(','))].join('\r\n');
 
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob([String.fromCharCode(0xfeff) + csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.setAttribute('href', url);
@@ -128,4 +122,25 @@ export function exportToCSV(filename: string, headers: string[], rows: (string |
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/**
+ * Turns a backend code into readable text: "CASUAL_LEAVE" -> "Casual leave", "ON_DUTY" -> "On Duty".
+ * Use it wherever a status or type code is shown, so no screen prints raw capitalised codes.
+ */
+export function formatLabel(value?: string | null): string {
+  if (!value) return '';
+  const special: Record<string, string> = {
+    ON_DUTY: 'On Duty',
+    OD: 'On Duty',
+    PAID: 'Paid',
+    PENDING: 'Pending',
+    LOSS_OF_PAY: 'Loss of pay',
+    COMP_OFF: 'Comp off',
+  };
+  const key = value.trim().toUpperCase();
+  if (special[key]) return special[key];
+  const words = key.toLowerCase().split(/[_\s]+/).filter(Boolean).join(' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }

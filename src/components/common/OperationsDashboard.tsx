@@ -3,7 +3,6 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
   Clock,
-  MapPin,
   Users,
   AlertCircle,
   CalendarDays,
@@ -13,14 +12,15 @@ import {
   Calendar,
 } from 'lucide-react';
 import { api } from '@/services/api';
-import { getReportingManager } from '@/services/mockData';
+import { getReportingManager } from '@/utils/reportingManager';
 import { AttendanceRecord, Employee, LeaveRequest, PayrollRun } from '@/types';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 import { Modal } from '@/components/common/Modal';
-import { formatDate, formatTime } from '@/utils/formatters';
-import { getShiftDefinition } from '@/utils/shiftUtils';
-import { approvedAway, businessDate, locationOptions, overlappingLeaveCount } from '@/utils/operations';
+import { formatDate } from '@/utils/formatters';
+import { getShiftDefinition, getShiftLabel } from '@/utils/shiftUtils';
+import { approvedAway, businessDate, overlappingLeaveCount } from '@/utils/operations';
+import { useCenters } from '@/hooks/useCenters';
 
 type Snapshot = { employees: Employee[]; attendance: AttendanceRecord[]; leaves: LeaveRequest[]; payroll: PayrollRun[] };
 const statusLabel = (value: string) => value.toLowerCase().replaceAll('_', ' ').replace(/^./, (first) => first.toUpperCase());
@@ -29,6 +29,7 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
   const user = useAppSelector((state) => state.auth.user);
   const dispatch = useAppDispatch();
   const [params, setParams] = useSearchParams();
+  const { centerNames } = useCenters();
   const date = params.get('date') || businessDate();
   const venue = params.get('location') || 'ALL';
   const shift = params.get('shift') || 'ALL';
@@ -97,8 +98,8 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
   const link = (page: string, extra: Record<string, string> = {}) =>
     `${root}/${page}?${new URLSearchParams({ location: venue, date, shift, ...extra })}`;
   const allVenues = manager
-    ? locationOptions.filter((location) => data.employees.some((employee) => employee.location === location))
-    : locationOptions;
+    ? centerNames.filter((location) => data.employees.some((employee) => employee.location === location))
+    : centerNames;
   const latestRun = [...data.payroll].sort((a, b) => b.processedAt.localeCompare(a.processedAt))[0];
 
   const decide = async (status: 'APPROVED' | 'REJECTED') => {
@@ -134,27 +135,27 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-1">
         <div>
           <h1 className="text-xl font-semibold text-slate-900 tracking-tight">
-            {manager ? 'Venue team' : 'People & operations'}
+            {manager ? 'My team today' : 'Today at Maaya World'}
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-sm text-slate-600 mt-1">
             {manager
-              ? 'Staffing, shift coverage and team approvals across your venue.'
-              : 'Workforce distribution, real-time check-ins, and operations across Maaya World.'}
+              ? 'Who is in, who is away, and what needs your approval.'
+              : 'Check-ins, staffing and approvals across all centers.'}
           </p>
         </div>
 
         {/* Filters Bar */}
         <div className="flex items-center gap-2.5 flex-wrap">
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-lg text-xs">
-            <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <span className="text-slate-500 font-medium">Venue:</span>
+            <Building2 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            <span className="text-slate-500 font-medium">Center:</span>
             <select
-              aria-label="Dashboard venue"
+              aria-label="Dashboard center"
               value={venue}
               onChange={(event) => update('location', event.target.value)}
               className="bg-transparent font-medium text-slate-800 outline-none cursor-pointer"
             >
-              <option value="ALL">{manager ? 'All my venues' : 'All locations'}</option>
+              <option value="ALL">{manager ? 'All my centers' : 'All centers'}</option>
               {allVenues.map((location) => (
                 <option key={location} value={location}>
                   {location}
@@ -164,7 +165,7 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
           </div>
 
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-lg text-xs">
-            <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
             <span className="text-slate-500 font-medium">Date:</span>
             <input
               aria-label="Dashboard date"
@@ -179,7 +180,7 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
 
           {manager && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-lg text-xs">
-              <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
               <span className="text-slate-500 font-medium">Shift:</span>
               <select
                 aria-label="Dashboard shift"
@@ -188,8 +189,8 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
                 className="bg-transparent font-medium text-slate-800 outline-none cursor-pointer"
               >
                 <option value="ALL">All shifts</option>
-                <option value="MORNING">Morning · 9 AM–1 PM</option>
-                <option value="EVENING">Evening · 1 PM–9 PM</option>
+                <option value="MORNING">{getShiftLabel('MORNING')}</option>
+                <option value="EVENING">{getShiftLabel('EVENING')}</option>
               </select>
             </div>
           )}
@@ -198,10 +199,10 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
 
       {error ? (
         <div role="alert" className="ops-panel text-center py-12">
-          <AlertCircle className="w-8 h-8 text-[var(--accent-500)] mx-auto mb-3" />
-          <h2 className="text-base font-semibold text-slate-900">Unable to load operations</h2>
+          <AlertCircle className="w-8 h-8 text-accent-500 mx-auto mb-3" />
+          <h2 className="text-base font-semibold text-slate-900">Unable to load the dashboard</h2>
           <p className="ops-muted my-2 max-w-md mx-auto">
-            We encountered an issue loading live workforce data. Please retry to see current staffing and approvals.
+            We couldn't load today's staff and attendance. Please try again.
           </p>
           <button className="ops-button mt-2" onClick={load}>
             Try again
@@ -209,8 +210,8 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
         </div>
       ) : loading ? (
         <div className="ops-panel py-16 text-center text-slate-500 text-xs font-medium" role="status">
-          <div className="inline-block w-5 h-5 border-2 border-slate-300 border-t-[var(--brand-500)] rounded-full animate-spin mb-2" />
-          <p>Loading staffing and operations telemetry…</p>
+          <div className="inline-block w-5 h-5 border-2 border-slate-300 border-t-brand-500 rounded-full animate-spin mb-2" />
+          <p>Loading today's staff and attendance…</p>
         </div>
       ) : (
         <>
@@ -225,17 +226,17 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
               className="p-5 flex flex-col justify-between hover:bg-slate-50/70 transition-colors group"
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold text-slate-500 tracking-wider uppercase">
+                <span className="text-xs font-semibold text-slate-500">
                   Staff checked in
                 </span>
-                <div className="w-7 h-7 rounded-lg bg-[var(--brand-50)] text-[var(--brand-600)] flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center">
                   <Users className="w-3.5 h-3.5" />
                 </div>
               </div>
               <div className="mt-3">
                 <div className="text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
                   {checkedIn}{' '}
-                  <span className="text-sm font-normal text-slate-400">/ {expected.length}</span>
+                  <span className="text-sm font-normal text-slate-500">/ {expected.length}</span>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
                   {away.size === 0 ? 'Full team expected' : `${away.size} on approved leave`}
@@ -249,13 +250,13 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
               className="p-5 flex flex-col justify-between hover:bg-slate-50/70 transition-colors group"
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold text-slate-500 tracking-wider uppercase">
+                <span className="text-xs font-semibold text-slate-500">
                   Attendance issues
                 </span>
                 <div
                   className={`w-7 h-7 rounded-lg flex items-center justify-center ${
                     exceptions.length > 0
-                      ? 'bg-[var(--accent-50)] text-[var(--accent-600)]'
+                      ? 'bg-accent-50 text-accent-600'
                       : 'bg-emerald-50 text-emerald-600'
                   }`}
                 >
@@ -279,7 +280,7 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
                 className="p-5 flex flex-col justify-between hover:bg-slate-50/70 transition-colors group"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold text-slate-500 tracking-wider uppercase">
+                  <span className="text-xs font-semibold text-slate-500">
                     Pending approvals
                   </span>
                   <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
@@ -301,10 +302,10 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
                 className="p-5 flex flex-col justify-between hover:bg-slate-50/70 transition-colors group"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold text-slate-500 tracking-wider uppercase">
+                  <span className="text-xs font-semibold text-slate-500">
                     On approved leave
                   </span>
-                  <div className="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+                  <div className="w-7 h-7 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center">
                     <CalendarDays className="w-3.5 h-3.5" />
                   </div>
                 </div>
@@ -324,7 +325,7 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
                 className="p-5 flex flex-col justify-between hover:bg-slate-50/70 transition-colors group"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold text-slate-500 tracking-wider uppercase">
+                  <span className="text-xs font-semibold text-slate-500">
                     Corrections
                   </span>
                   <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
@@ -344,10 +345,10 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
                 className="p-5 flex flex-col justify-between hover:bg-slate-50/70 transition-colors group"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold text-slate-500 tracking-wider uppercase">
+                  <span className="text-xs font-semibold text-slate-500">
                     Latest payroll
                   </span>
-                  <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <div className="w-7 h-7 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center">
                     <Banknote className="w-3.5 h-3.5" />
                   </div>
                 </div>
@@ -363,9 +364,9 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
             )}
           </div>
 
-          {/* Main Grid: Workforce by Venue & Shift Coverage */}
+          {/* Main grid: staff by center and shift coverage */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-            {/* Left Column (8 cols): Workforce Distribution */}
+            {/* Left column: staff by center */}
             <div className="lg:col-span-7">
               {manager ? (
                 <section className="ops-panel">
@@ -382,7 +383,7 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
                     <div className="ops-empty py-10">
                       <CheckCircle2 className="w-7 h-7 text-emerald-500 mx-auto mb-2" />
                       <p className="font-medium text-slate-700">No pending leave requests</p>
-                      <p className="text-xs text-slate-400 mt-0.5">Your team has no outstanding approvals.</p>
+                      <p className="text-xs text-slate-500 mt-0.5">Your team has no outstanding approvals.</p>
                     </div>
                   ) : (
                     <ul className="ops-list">
@@ -395,7 +396,7 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
                             <p className="text-xs text-slate-600">
                               {formatDate(request.startDate)} – {formatDate(request.endDate)} · {request.days} days
                             </p>
-                            <p className="ops-muted text-[11px]">
+                            <p className="ops-muted text-xs">
                               {overlappingLeaveCount(request, data.leaves, data.employees)} colleagues on same shift
                               have approved leave.
                             </p>
@@ -418,7 +419,7 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
                 <section className="ops-panel">
                   <div className="ops-panel-heading">
                     <div>
-                      <h2>Workforce by venue</h2>
+                      <h2>Staff by center</h2>
                       <p>Assigned staff and recorded check-ins for {formatDate(date)}.</p>
                     </div>
                     <Link className="ops-link" to="/admin/employees">
@@ -427,7 +428,7 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
                   </div>
 
                   <ul className="ops-list">
-                    {locationOptions
+                    {centerNames
                       .filter((location) => venue === 'ALL' || venue === location)
                       .map((location) => {
                         const local = staff.filter((employee) => employee.location === location);
@@ -443,12 +444,12 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
                               <div className="flex items-center gap-2">
                                 <span className="font-medium text-xs text-slate-900">{location}</span>
                                 {local.length > 0 && (
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
+                                  <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600">
                                     {local.length} staff
                                   </span>
                                 )}
                               </div>
-                              <p className="ops-muted text-[11px] mt-0.5">
+                              <p className="ops-muted text-xs mt-0.5">
                                 {local.length} assigned · {onLeaveCount} on leave
                               </p>
                             </div>
@@ -464,7 +465,7 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
                         );
                       })}
                   </ul>
-                  <p className="ops-muted mt-3 text-[11px]">
+                  <p className="ops-muted mt-3 text-xs">
                     Managers handle leave and attendance adjustments for their assigned teams.
                   </p>
                 </section>
@@ -481,7 +482,7 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
                       {formatDate(date)} · {staff.length} assigned
                     </p>
                   </div>
-                  <Clock className="w-4 h-4 text-slate-400" />
+                  <Clock className="w-4 h-4 text-slate-500" />
                 </div>
 
                 {/* Progress bar of coverage */}
@@ -494,7 +495,7 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
                   </div>
                   <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden flex">
                     <div
-                      className="bg-[var(--brand-500)] h-full transition-all duration-300"
+                      className="bg-brand-500 h-full transition-all duration-300"
                       style={{
                         width: `${expected.length > 0 ? (checkedIn / expected.length) * 100 : 0}%`,
                       }}
@@ -517,7 +518,7 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
                   </div>
                 </dl>
 
-                <p className="ops-muted mt-3 text-[11px]">
+                <p className="ops-muted mt-3 text-xs">
                   Not checked in includes upcoming shifts. It does not automatically signify an unexcused absence.
                 </p>
 
@@ -527,11 +528,11 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
                       <li className="ops-row" key={employee.id}>
                         <span>
                           <span className="font-medium text-xs text-slate-800">{employee.fullName}</span>
-                          <small className="block ops-muted text-[11px]">
+                          <small className="block ops-muted text-xs">
                             {getShiftDefinition(employee.shift).name}
                           </small>
                         </span>
-                        <span className="ops-muted text-[11px]">Not checked in</span>
+                        <span className="ops-muted text-xs">Not checked in</span>
                       </li>
                     ))}
                   </ul>
@@ -544,165 +545,6 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
                 </div>
               </section>
             </div>
-          </div>
-
-          {/* Exceptions Panel ("Attendance Needing Attention") */}
-          <section className="ops-panel">
-            <div className="ops-panel-heading">
-              <div>
-                <h2>Attendance needing attention</h2>
-                <p>Exceptions and correction requests for {formatDate(date)}.</p>
-              </div>
-              <Link className="ops-link" to={link('attendance', { status: 'ISSUES' })}>
-                Review issues <ArrowRight size={14} />
-              </Link>
-            </div>
-
-            {exceptions.length === 0 ? (
-              <div className="ops-empty py-8 text-center">
-                <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto mb-2" />
-                <p className="font-medium text-xs text-slate-700">No recorded attendance issues</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  All active staff members on this date are accounted for.
-                </p>
-              </div>
-            ) : (
-              <ul className="ops-list">
-                {exceptions.slice(0, 5).map((record) => (
-                  <li className="ops-row" key={record.id}>
-                    <div>
-                      <strong className="text-xs font-semibold text-slate-900">{record.employeeName}</strong>
-                      <p className="ops-muted text-[11px]">
-                        {record.regularizationStatus === 'PENDING'
-                          ? record.regularizationReason || 'Attendance correction requested'
-                          : record.notes || statusLabel(record.status)}
-                      </p>
-                    </div>
-                    <Link
-                      className="ops-button secondary text-xs py-1 px-3"
-                      to={link('attendance', {
-                        status:
-                          record.regularizationStatus === 'PENDING' ? 'REGULARIZATION_PENDING' : record.status,
-                      })}
-                    >
-                      Review
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {/* Attendance Register Table */}
-          <section className="ops-panel">
-            <div className="ops-panel-heading">
-              <div>
-                <h2>Attendance register</h2>
-                <p>Recorded check-ins and working hours for {formatDate(date)}.</p>
-              </div>
-              <Link className="ops-link" to={link('attendance')}>
-                Full register <ArrowRight size={14} />
-              </Link>
-            </div>
-
-            {!records.length ? (
-              <div className="ops-empty py-10 text-center">
-                <Clock className="w-6 h-6 text-slate-300 mx-auto mb-2" />
-                <p className="font-medium text-xs text-slate-700">No attendance recorded for this date</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Choose another business date above or check back after shifts commence.
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="ops-desktop-table">
-                  <table className="ops-table">
-                    <thead>
-                      <tr>
-                        <th>Staff member</th>
-                        <th>Venue / Shift</th>
-                        <th>Status</th>
-                        <th>Check in</th>
-                        <th>Check out</th>
-                        <th>Hours</th>
-                        <th>Correction</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {records.slice(0, 10).map((record) => (
-                        <tr key={record.id}>
-                          <td className="font-medium text-slate-900">{record.employeeName}</td>
-                          <td>
-                            {data.employees.find((employee) => employee.id === record.employeeId)?.location}
-                            <span className="block ops-muted text-[11px]">
-                              {getShiftDefinition(record.shift).name}
-                            </span>
-                          </td>
-                          <td>
-                            <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${
-                                record.status === 'PRESENT'
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                                  : record.status === 'LATE'
-                                  ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
-                                  : 'bg-red-50 text-red-700 border border-red-200/60'
-                              }`}
-                            >
-                              {statusLabel(record.status)}
-                            </span>
-                          </td>
-                          <td className="tabular-nums text-slate-700">
-                            {record.checkIn ? formatTime(record.checkIn) : '—'}
-                          </td>
-                          <td className="tabular-nums text-slate-700">
-                            {record.checkOut ? formatTime(record.checkOut) : '—'}
-                          </td>
-                          <td className="tabular-nums text-slate-700">{record.workHours || '—'}</td>
-                          <td className="text-slate-600 text-xs">
-                            {record.regularizationStatus === 'PENDING' ? (
-                              <span className="text-amber-600 font-medium">Awaiting review</span>
-                            ) : record.regularizationStatus === 'APPROVED' ? (
-                              <span className="text-emerald-600">Approved</span>
-                            ) : (
-                              'None'
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <ul className="ops-list ops-mobile-list">
-                  {records.slice(0, 10).map((record) => (
-                    <li key={record.id} className="ops-row">
-                      <div>
-                        <strong className="text-xs font-semibold text-slate-900">{record.employeeName}</strong>
-                        <p className="text-[11px] text-slate-500">{getShiftDefinition(record.shift).name}</p>
-                        <p className="ops-muted text-[11px]">
-                          {record.checkIn ? formatTime(record.checkIn) : 'No check-in'}
-                          {record.checkOut && ` – ${formatTime(record.checkOut)}`}
-                        </p>
-                      </div>
-                      <span className="ops-status text-xs">{statusLabel(record.status)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </section>
-
-          {/* Operational Hours Callout & Directory Link */}
-          <div className="flex items-center justify-between gap-4 flex-wrap pt-2">
-            <p className="ops-venue-hours text-xs text-slate-500 flex items-center gap-1.5">
-              <MapPin size={15} className="text-slate-400 shrink-0" />
-              <span>Visitor hours: 11 AM–9 PM. Employee shift schedules are assigned per venue.</span>
-            </p>
-            {!manager && (
-              <Link className="ops-button secondary text-xs" to="/admin/employees">
-                Open employee management
-              </Link>
-            )}
           </div>
         </>
       )}
@@ -726,7 +568,7 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
               {review.reason}
             </p>
             <p className="ops-muted text-xs">
-              {overlappingLeaveCount(review, data.leaves, data.employees)} colleagues on the same venue shift have
+              {overlappingLeaveCount(review, data.leaves, data.employees)} colleagues on the same center and shift have
               overlapping approved leave.
             </p>
             <div>
@@ -735,7 +577,7 @@ export const OperationsDashboard = ({ manager = false }: { manager?: boolean }) 
               </label>
               <textarea
                 id="ops-decision-note"
-                className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-[var(--brand-400)] focus:ring-2 focus:ring-[var(--brand-400)]/20"
+                className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/20"
                 rows={3}
                 value={comment}
                 onChange={(event) => setComment(event.target.value)}

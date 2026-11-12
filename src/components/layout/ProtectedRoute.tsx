@@ -35,7 +35,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
         <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mb-4">
           <ShieldAlert className="w-7 h-7" />
         </div>
-        <h2 className="text-xl font-bold text-slate-900">Access Restricted</h2>
+        <h2 className="text-xl font-bold text-slate-900">Access restricted</h2>
         <p className="text-sm text-slate-600 mt-2 max-w-md">
           Your current account role (<span className="font-semibold text-slate-900">{activeRole}</span>) does not have authorization to view this module.
         </p>
@@ -44,7 +44,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
             variant="outline"
             onClick={() => window.history.back()}
           >
-            Go Back
+            Go back
           </Button>
           <Button
             variant="primary"
@@ -54,15 +54,14 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
               else navigate('/employee/dashboard');
             }}
           >
-            Go to My Dashboard
+            Go to my dashboard
           </Button>
           <Button
-            variant="outline"
-            className="text-rose-600 border-rose-200 hover:bg-rose-50"
+            variant="danger-ghost"
             onClick={handleSwitchAccount}
             leftIcon={<LogOut className="w-3.5 h-3.5" />}
           >
-            Switch Account
+            Switch account
           </Button>
         </div>
       </div>

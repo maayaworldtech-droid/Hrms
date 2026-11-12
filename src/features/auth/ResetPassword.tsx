@@ -4,15 +4,15 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/common/Button';
-import { Lock, KeyRound, CheckCircle2, ArrowRight, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { Lock, KeyRound, CheckCircle2, ArrowRight, ArrowLeft, Eye, EyeOff, Mail } from 'lucide-react';
 import { api } from '@/services/api';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
-import maayaLogo from '@/assets/logo-new.png';
+import { AuthLayout } from '@/components/layout/AuthLayout';
 
 const resetSchema = z
   .object({
-    email: z.string().email('Please enter a valid email address').optional().or(z.literal('')),
+    email: z.string().trim().min(1, 'Email address is required').email('Please enter a valid email address'),
     token: z.string().min(4, 'Enter the 6-digit verification code'),
     password: z.string().min(6, 'Password must be at least 6 characters'),
     confirmPassword: z.string().min(6, 'Please confirm your new password'),
@@ -60,7 +60,7 @@ export const ResetPassword: React.FC = () => {
     setIsLoading(true);
     try {
       const res = await api.auth.resetPassword({
-        email: values.email || undefined,
+        email: values.email.trim(),
         token: values.token.trim(),
         password: values.password,
       });
@@ -91,35 +91,17 @@ export const ResetPassword: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Subtle brand ambient glow */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(59,104,245,0.06),transparent)] pointer-events-none" />
-
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center relative z-10">
-        <div className="flex items-center justify-center mb-4">
-          <img
-            src={maayaLogo}
-            alt="Maaya World Logo"
-            className="h-11 w-auto object-contain"
-          />
-        </div>
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-          Create New Password
-        </h1>
-        <p className="mt-1.5 text-xs sm:text-sm text-slate-500">
-          Enter your verification code and choose a secure password
-        </p>
-      </div>
-
-      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
-        <div className="bg-white py-8 px-6 sm:px-9 shadow-sm hover:shadow-md transition-shadow border border-slate-200/90 rounded-2xl">
+    <AuthLayout
+      title={'Create new password'}
+      subtitle={'Enter your verification code and choose a secure password'}
+    >
           {isSuccess ? (
             <div className="text-center py-2 space-y-4">
               <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-100">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-900">Password Reset Completed</h3>
+                <h3 className="text-base font-bold text-slate-900">Password reset completed</h3>
                 <p className="text-xs text-slate-500 mt-1">
                   Your credentials have been securely updated. You can now sign in.
                 </p>
@@ -127,7 +109,7 @@ export const ResetPassword: React.FC = () => {
               <div className="pt-2">
                 <Button
                   variant="primary"
-                  className="w-full !h-11 text-sm font-semibold !bg-slate-900 hover:!bg-slate-800 text-white"
+                  size="lg" className="w-full"
                   onClick={() => navigate('/login')}
                   rightIcon={<ArrowRight className="w-4 h-4" />}
                 >
@@ -139,20 +121,45 @@ export const ResetPassword: React.FC = () => {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Verification Code
+                  Email address
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    placeholder="name@company.com"
+                    className={`block w-full h-11 pl-10 pr-3 text-sm text-slate-900 bg-white border ${
+                      errors.email
+                        ? 'border-rose-400 focus:ring-rose-500'
+                        : 'border-slate-300 focus:border-brand-600 focus:ring-brand-500/10'
+                    } rounded-lg focus:outline-none focus:ring-4 transition-all`}
+                    {...register('email')}
+                  />
+                </div>
+                {errors.email && (
+                  <p className="text-xs text-rose-600 mt-1">{errors.email.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Verification code
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
                     <KeyRound className="w-4 h-4" />
                   </div>
                   <input
                     type="text"
                     maxLength={10}
                     placeholder="e.g. 849201"
-                    className={`block w-full h-11 pl-10 pr-3 text-sm text-slate-900 bg-white font-mono tracking-wider border ${
+                    className={`block w-full h-11 pl-10 pr-3 text-sm text-slate-900 bg-white font-mono border ${
                       errors.token
                         ? 'border-rose-400 focus:ring-rose-500'
-                        : 'border-slate-300 focus:border-blue-600 focus:ring-blue-500/10'
+                        : 'border-slate-300 focus:border-brand-600 focus:ring-brand-500/10'
                     } rounded-lg focus:outline-none focus:ring-4 transition-all`}
                     {...register('token')}
                   />
@@ -164,10 +171,10 @@ export const ResetPassword: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  New Password
+                  New password
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
                     <Lock className="w-4 h-4" />
                   </div>
                   <input
@@ -176,14 +183,14 @@ export const ResetPassword: React.FC = () => {
                     className={`block w-full h-11 pl-10 pr-10 text-sm text-slate-900 bg-white border ${
                       errors.password
                         ? 'border-rose-400 focus:ring-rose-500'
-                        : 'border-slate-300 focus:border-blue-600 focus:ring-blue-500/10'
+                        : 'border-slate-300 focus:border-brand-600 focus:ring-brand-500/10'
                     } rounded-lg focus:outline-none focus:ring-4 transition-all`}
                     {...register('password')}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-600 focus:outline-none cursor-pointer"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -196,10 +203,10 @@ export const ResetPassword: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Confirm New Password
+                  Confirm new password
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
                     <Lock className="w-4 h-4" />
                   </div>
                   <input
@@ -208,7 +215,7 @@ export const ResetPassword: React.FC = () => {
                     className={`block w-full h-11 pl-10 pr-3 text-sm text-slate-900 bg-white border ${
                       errors.confirmPassword
                         ? 'border-rose-400 focus:ring-rose-500'
-                        : 'border-slate-300 focus:border-blue-600 focus:ring-blue-500/10'
+                        : 'border-slate-300 focus:border-brand-600 focus:ring-brand-500/10'
                     } rounded-lg focus:outline-none focus:ring-4 transition-all`}
                     {...register('confirmPassword')}
                   />
@@ -221,11 +228,11 @@ export const ResetPassword: React.FC = () => {
               <Button
                 type="submit"
                 variant="primary"
-                className="w-full !h-11 mt-2 text-sm font-semibold !bg-slate-900 hover:!bg-slate-800 text-white shadow-xs"
+                size="lg" className="w-full mt-2"
                 isLoading={isLoading}
                 rightIcon={<CheckCircle2 className="w-4 h-4" />}
               >
-                Set New Password
+                Set new password
               </Button>
 
               <div className="pt-2 text-center">
@@ -239,8 +246,6 @@ export const ResetPassword: React.FC = () => {
               </div>
             </form>
           )}
-        </div>
-      </div>
-    </div>
+    </AuthLayout>
   );
 };

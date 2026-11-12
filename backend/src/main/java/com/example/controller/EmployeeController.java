@@ -2,14 +2,13 @@ package com.example.controller;
 
 import com.example.entity.Employee;
 import com.example.security.AuthFilter;
+import com.example.security.PortalUrlResolver;
 import com.example.service.EmployeeService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
-import java.net.URI;
 import java.util.List;
 import java.util.Map;
 
@@ -17,11 +16,12 @@ import java.util.Map;
 @RequestMapping("/api/employees")
 public class EmployeeController {
 
-    @Autowired
     private final EmployeeService employeeService;
+    private final PortalUrlResolver portalUrlResolver;
 
-    public EmployeeController(EmployeeService employeeService) {
+    public EmployeeController(EmployeeService employeeService, PortalUrlResolver portalUrlResolver) {
         this.employeeService = employeeService;
+        this.portalUrlResolver = portalUrlResolver;
     }
 
     @GetMapping
@@ -45,6 +45,8 @@ public class EmployeeController {
 
     @PostMapping({"", "/onboard", "/create"})
     public ResponseEntity<Employee> onboardEmployee(@RequestBody Employee employee, HttpServletRequest request) {
+        // A client-supplied id would turn this insert into an overwrite of an existing employee row
+        employee.setId(null);
         String portalUrl = extractPortalUrl(request);
         Employee created = employeeService.onboardEmployee(employee, portalUrl);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
@@ -131,24 +133,7 @@ public class EmployeeController {
     }
 
     private String extractPortalUrl(HttpServletRequest request) {
-        if (request == null) return null;
-        String origin = request.getHeader("Origin");
-        if (origin != null && !origin.trim().isEmpty() && !origin.equalsIgnoreCase("null")) {
-            return origin.trim() + "/login";
-        }
-        String referer = request.getHeader("Referer");
-        if (referer != null && !referer.trim().isEmpty()) {
-            try {
-                URI uri = URI.create(referer);
-                String scheme = uri.getScheme() != null ? uri.getScheme() : "http";
-                String host = uri.getHost();
-                int port = uri.getPort();
-                if (host != null) {
-                    String base = scheme + "://" + host + (port > 0 && port != 80 && port != 443 ? ":" + port : "");
-                    return base + "/login";
-                }
-            } catch (Exception ignored) {}
-        }
-        return null;
+        String origin = portalUrlResolver.resolveTrustedOrigin(request);
+        return origin != null ? origin + "/login" : null;
     }
 }

@@ -8,10 +8,12 @@ import { Button } from '@/components/common/Button';
 import { Badge } from '@/components/common/Badge';
 import { Modal } from '@/components/common/Modal';
 import { EmployeeAttendanceHistoryModal } from '@/components/attendance/EmployeeAttendanceHistoryModal';
-import { formatDate, formatTime } from '@/utils/formatters';
+import { formatDate, formatTime, formatLabel } from '@/utils/formatters';
 import { ShieldCheck } from 'lucide-react';
 import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
+import { PageHeader } from '@/components/common/PageHeader';
+import { getShiftLabel } from '@/utils/shiftUtils';
 
 const PAGE_SIZE = 20;
 
@@ -98,7 +100,7 @@ export const AttendanceManagement: React.FC = () => {
   const columns: Column<AttendanceRecord>[] = [
     {
       key: 'employeeName',
-      header: 'Employee Name',
+      header: 'Employee name',
       sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2.5">
@@ -125,7 +127,7 @@ export const AttendanceManagement: React.FC = () => {
             </div>
           )}
           <div>
-            <div className="font-semibold text-slate-900 hover:text-indigo-700 flex items-center gap-1.5">
+            <div className="font-semibold text-slate-900 hover:text-brand-700 flex items-center gap-1.5">
               <span>{row.employeeName}</span>
               {row.isBiometricVerified && (
                 <span title="Face Biometric Verified">
@@ -133,18 +135,18 @@ export const AttendanceManagement: React.FC = () => {
                 </span>
               )}
             </div>
-            <div className="text-[11px] text-slate-500">{row.location || 'Hyderabad'} Center</div>
+            <div className="text-xs text-slate-500">{row.location || 'No center'}</div>
           </div>
         </div>
       ),
     },
     {
       key: 'shift',
-      header: 'Shift Timing',
+      header: 'Shift timing',
       sortable: true,
       render: (row) => (
         <span className="text-xs text-slate-700 font-medium">
-          {row.shift === 'EVENING' ? 'Evening (1 PM – 9 PM)' : 'Morning (9 AM – 1 PM)'}
+          {getShiftLabel(row.shift)}
         </span>
       ),
     },
@@ -156,25 +158,25 @@ export const AttendanceManagement: React.FC = () => {
     },
     {
       key: 'checkIn',
-      header: 'Punch In',
+      header: 'Punch in',
       render: (row) => (
-        <span className="font-mono text-slate-800 font-medium">
+        <span className="tabular-nums text-slate-800 font-medium">
           {row.checkIn ? formatTime(row.checkIn) : '--:--'}
         </span>
       ),
     },
     {
       key: 'checkOut',
-      header: 'Punch Out',
+      header: 'Punch out',
       render: (row) => (
-        <span className="font-mono text-slate-800 font-medium">
+        <span className="tabular-nums text-slate-800 font-medium">
           {row.checkOut ? formatTime(row.checkOut) : '--:--'}
         </span>
       ),
     },
     {
       key: 'workHours',
-      header: 'Effective Hours',
+      header: 'Effective hours',
       sortable: true,
       render: (row) => (
         <span className="font-medium text-slate-900">
@@ -199,7 +201,7 @@ export const AttendanceManagement: React.FC = () => {
           }
           size="sm"
         >
-          {row.status === 'ON_DUTY' ? 'On Duty' : row.status.replace('_', ' ')}
+          {formatLabel(row.status)}
         </Badge>
       ),
     },
@@ -207,15 +209,10 @@ export const AttendanceManagement: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Attendance Register</h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Click any employee row to view their previous 1-month attendance records.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Attendance"
+        description="Daily check-ins across all centers. Select a person to see their last month."
+      />
 
       <OperationsFilters attendance />
       {/* Metric Cards */}
@@ -228,7 +225,7 @@ export const AttendanceManagement: React.FC = () => {
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
-          <span className="text-[11px] font-semibold text-emerald-600 uppercase">Present</span>
+          <span className="text-xs font-semibold text-emerald-600">Present</span>
           <p className="text-xl font-bold text-slate-900 mt-1">{summary.present}</p>
         </button>
 
@@ -236,11 +233,11 @@ export const AttendanceManagement: React.FC = () => {
           onClick={() => setStatusFilter(statusFilter === 'ON_DUTY' ? 'ALL' : 'ON_DUTY')}
           className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
             statusFilter === 'ON_DUTY'
-              ? 'border-sky-500 bg-sky-50/40 shadow-xs'
+              ? 'border-brand-500 bg-brand-50/40 shadow-xs'
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
-          <span className="text-[11px] font-semibold text-sky-600 uppercase">On Duty</span>
+          <span className="text-xs font-semibold text-brand-600">On Duty</span>
           <p className="text-xl font-bold text-slate-900 mt-1">{summary.onDuty}</p>
         </button>
 
@@ -252,7 +249,7 @@ export const AttendanceManagement: React.FC = () => {
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
-          <span className="text-[11px] font-semibold text-amber-600 uppercase">Late Check-in</span>
+          <span className="text-xs font-semibold text-amber-600">Late check-in</span>
           <p className="text-xl font-bold text-slate-900 mt-1">{summary.late}</p>
         </button>
 
@@ -260,11 +257,11 @@ export const AttendanceManagement: React.FC = () => {
           onClick={() => setStatusFilter(statusFilter === 'ON_LEAVE' ? 'ALL' : 'ON_LEAVE')}
           className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
             statusFilter === 'ON_LEAVE'
-              ? 'border-indigo-500 bg-indigo-50/40 shadow-xs'
+              ? 'border-brand-500 bg-brand-50/40 shadow-xs'
               : 'border-slate-200 bg-white hover:bg-slate-50'
           }`}
         >
-          <span className="text-[11px] font-semibold text-indigo-600 uppercase">On Leave</span>
+          <span className="text-xs font-semibold text-brand-600">On leave</span>
           <p className="text-xl font-bold text-slate-900 mt-1">{summary.onLeave}</p>
         </button>
       </div>
@@ -295,7 +292,7 @@ export const AttendanceManagement: React.FC = () => {
               onClick={() => void loadPage(page + 1, true)}
               isLoading={isLoadingMore}
             >
-              Load More
+              Load more
             </Button>
           )}
         </div>
@@ -325,9 +322,9 @@ export const AttendanceManagement: React.FC = () => {
                   className="w-full h-full object-cover"
                 />
                 {previewPhotoRecord.isBiometricVerified && (
-                  <div className="absolute top-2.5 left-2.5 bg-emerald-950/80 backdrop-blur-xs border border-emerald-500/40 px-2 py-1 rounded-md text-[10px] text-emerald-300 font-semibold flex items-center gap-1">
+                  <div className="absolute top-2.5 left-2.5 bg-emerald-950/80 backdrop-blur-xs border border-emerald-500/40 px-2 py-1 rounded-md text-xs text-emerald-300 font-semibold flex items-center gap-1">
                     <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                    <span>Real Face Verified</span>
+                    <span>Real face verified</span>
                   </div>
                 )}
               </div>
@@ -340,26 +337,26 @@ export const AttendanceManagement: React.FC = () => {
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
               <div className="flex justify-between">
                 <span className="text-slate-500">Punch Time:</span>
-                <span className="font-mono font-semibold text-slate-900">
+                <span className="tabular-nums font-semibold text-slate-900">
                   {previewPhotoRecord.checkIn ? formatTime(previewPhotoRecord.checkIn) : '--:--'}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Center Location:</span>
+                <span className="text-slate-500">Center:</span>
                 <span className="text-slate-900 font-medium">
-                  {previewPhotoRecord.location || 'Hyderabad Center'}
+                  {previewPhotoRecord.location || 'No center'}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Biometric Match:</span>
-                <span className="font-mono font-semibold text-emerald-700">
+                <span className="tabular-nums font-semibold text-emerald-700">
                   {previewPhotoRecord.biometricScore != null
                     ? `${previewPhotoRecord.biometricScore.toFixed(1)}%`
                     : 'Not recorded'}
                 </span>
               </div>
               {previewPhotoRecord.notes && (
-                <div className="pt-1 border-t border-slate-200 text-slate-600 text-[11px] truncate">
+                <div className="pt-1 border-t border-slate-200 text-slate-600 text-xs truncate">
                   {previewPhotoRecord.notes}
                 </div>
               )}

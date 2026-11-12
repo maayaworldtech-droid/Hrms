@@ -22,7 +22,43 @@ export interface User {
   enrolledFaceBiometrics?: string;
 }
 
-export type EmployeeLocation = 'Hyderabad' | 'Vizag' | 'Bhubaneswar';
+/** Name of a center, e.g. "Maaya World Hyderabad". Centers are managed in Settings. */
+export type EmployeeLocation = string;
+
+export type CenterType = 'CENTER' | 'GAMING_ZONE';
+
+export interface CenterManager {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  designation: string;
+}
+
+export interface Center {
+  id: string;
+  name: string;
+  centerType: CenterType;
+  city: string;
+  state: string;
+  address: string;
+  latitude: number | null;
+  longitude: number | null;
+  radiusMeters: number;
+  staffCount: number;
+  managers: CenterManager[];
+}
+
+export interface CenterInput {
+  name: string;
+  centerType: CenterType;
+  city: string;
+  state?: string;
+  address?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  radiusMeters?: number;
+}
 export type ShiftType = 'MORNING' | 'EVENING';
 
 export interface Employee {
@@ -295,6 +331,13 @@ export interface CompanySettings {
   currencySymbol: string;
   enableGeoFencingAttendance: boolean;
   autoApproveRegularizationWithinDays: number;
+  /** Shift timings, "HH:mm" 24-hour */
+  morningShiftStart: string;
+  morningShiftEnd: string;
+  eveningShiftStart: string;
+  eveningShiftEnd: string;
+  /** Minutes after shift start before a check-in counts as late */
+  lateGraceMinutes: number;
 }
 
 export interface AuditLog {

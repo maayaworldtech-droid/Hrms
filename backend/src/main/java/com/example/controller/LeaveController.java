@@ -14,15 +14,19 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/leaves")
 public class LeaveController {
 
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Kolkata");
+    private static final Set<String> ALLOWED_REVIEW_STATUSES = Set.of("APPROVED", "REJECTED", "CANCELLED");
 
     @Autowired
     private LeaveRequestRepository leaveRequestRepository;
@@ -67,23 +71,45 @@ public class LeaveController {
             }
         }
 
-        if (request.getStartDate() != null && request.getEndDate() != null
-                && request.getEndDate().compareTo(request.getStartDate()) < 0) {
+        if (request.getEmployeeId() == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "employeeId is required."));
+        }
+
+        if (request.getStartDate() == null || request.getStartDate().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Start date is required."));
+        }
+        LocalDate start;
+        LocalDate end;
+        try {
+            start = LocalDate.parse(request.getStartDate().trim());
+            end = (request.getEndDate() != null && !request.getEndDate().isBlank())
+                    ? LocalDate.parse(request.getEndDate().trim())
+                    : start;
+        } catch (DateTimeParseException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Valid start and end dates (YYYY-MM-DD) are required."));
+        }
+        if (end.isBefore(start)) {
             return ResponseEntity.badRequest().body(Map.of("message", "End date cannot be earlier than start date."));
         }
 
-        if (request.getAppliedOn() == null) {
-            request.setAppliedOn(LocalDate.now(BUSINESS_ZONE).toString());
-        }
+        // Never trust client-controlled identity, workflow or duration fields: an incoming id would
+        // overwrite an existing (possibly another employee's) request, and a client-sent day count
+        // would let a long leave deduct only one day of balance.
+        request.setId(null);
+        request.setStartDate(start.toString());
+        request.setEndDate(end.toString());
+        request.setDays((double) (ChronoUnit.DAYS.between(start, end) + 1));
+        request.setAppliedOn(LocalDate.now(BUSINESS_ZONE).toString());
         request.setStatus("PENDING");
+        request.setReviewedBy(null);
+        request.setReviewedOn(null);
+        request.setReviewerComments(null);
 
-        if (request.getEmployeeId() != null) {
-            employeeRepository.findById(request.getEmployeeId()).ifPresent(emp -> {
-                request.setEmployeeName(emp.getFullName());
-                request.setDepartmentName(emp.getDepartment());
-                request.setLocation(emp.getLocationName());
-            });
-        }
+        employeeRepository.findById(request.getEmployeeId()).ifPresent(emp -> {
+            request.setEmployeeName(emp.getFullName());
+            request.setDepartmentName(emp.getDepartment());
+            request.setLocation(emp.getLocationName());
+        });
 
         LeaveRequest saved = leaveRequestRepository.save(request);
         return ResponseEntity.ok(saved);
@@ -92,13 +118,17 @@ public class LeaveController {
     @PutMapping("/{id}/status")
     public ResponseEntity<?> updateStatus(
             @PathVariable Long id,
-            @RequestBody Map<String, String> payload
+            @RequestBody Map<String, String> payload,
+            HttpServletRequest httpRequest
     ) {
         String status = payload.get("status"); // APPROVED, REJECTED, CANCELLED
         if (status == null || status.trim().isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Status is required"));
         }
         String cleanStatus = status.trim().toUpperCase();
+        if (!ALLOWED_REVIEW_STATUSES.contains(cleanStatus)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Unsupported leave status: " + cleanStatus));
+        }
         String reviewerComments = payload.get("comments");
         String reviewer = payload.get("reviewer");
 
@@ -110,10 +140,20 @@ public class LeaveController {
         LeaveRequest req = opt.get();
         String previousStatus = req.getStatus() != null ? req.getStatus().toUpperCase() : "PENDING";
 
-        // Prevent double deduction when re-approving an already-approved leave
-        if ("APPROVED".equals(cleanStatus) && "APPROVED".equals(previousStatus)) {
+        Long authId = (Long) httpRequest.getAttribute(AuthFilter.ATTR_EMPLOYEE_ID);
+        String role = (String) httpRequest.getAttribute(AuthFilter.ATTR_ROLE);
+        if (!"ADMIN".equals(role) && authId != null && authId.equals(req.getEmployeeId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("message", "You cannot review your own leave request."));
+        }
+
+        if (cleanStatus.equals(previousStatus)) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("message", "Leave request is already approved."));
+                    .body(Map.of("message", "Leave request is already " + cleanStatus.toLowerCase() + "."));
+        }
+        if ("CANCELLED".equals(previousStatus)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("message", "Cancelled leave requests cannot be changed."));
         }
 
         int days = req.getDays() != null ? Math.max(1, (int) Math.round(req.getDays())) : 1;
@@ -135,8 +175,9 @@ public class LeaveController {
             }
             adjustUsedBalance(balance, type, days);
             leaveBalanceRepository.save(balance);
-        } else if ("CANCELLED".equals(cleanStatus) && "APPROVED".equals(previousStatus)
+        } else if ("APPROVED".equals(previousStatus) && !"APPROVED".equals(cleanStatus)
                 && req.getEmployeeId() != null && isQuotaTrackedType(type)) {
+            // Any move out of APPROVED (rejected or cancelled after approval) returns the deducted days
             leaveBalanceRepository.findByEmployeeId(req.getEmployeeId()).ifPresent(balance -> {
                 adjustUsedBalance(balance, type, -days);
                 leaveBalanceRepository.save(balance);
@@ -145,10 +186,21 @@ public class LeaveController {
 
         req.setStatus(cleanStatus);
         req.setReviewedOn(LocalDate.now(BUSINESS_ZONE).toString());
-        if (reviewer != null) req.setReviewedBy(reviewer);
+        req.setReviewedBy(resolveReviewerName(httpRequest, reviewer));
         if (reviewerComments != null) req.setReviewerComments(reviewerComments);
 
         return ResponseEntity.ok(leaveRequestRepository.save(req));
+    }
+
+    /** Reviewer identity comes from the authenticated session, not from the request body. */
+    private String resolveReviewerName(HttpServletRequest httpRequest, String fallback) {
+        Long authId = (Long) httpRequest.getAttribute(AuthFilter.ATTR_EMPLOYEE_ID);
+        if (authId != null) {
+            Optional<String> name = employeeRepository.findById(authId).map(e -> e.getFullName());
+            if (name.isPresent()) return name.get();
+        }
+        String email = (String) httpRequest.getAttribute(AuthFilter.ATTR_EMAIL);
+        return email != null ? email : fallback;
     }
 
     private boolean isQuotaTrackedType(String type) {

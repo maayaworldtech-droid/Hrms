@@ -2,8 +2,11 @@ import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import './operations.css';
+import { useShiftTimes } from '@/utils/shiftUtils';
 
-export const AppLayout = () => (
+export const AppLayout = () => {
+  useShiftTimes();
+  return (
   <div className="operations-app flex h-dvh overflow-hidden bg-[var(--bg-canvas)] text-[var(--text-primary)]">
     <Sidebar />
     <div className="flex flex-1 flex-col overflow-hidden min-w-0">
@@ -16,3 +19,4 @@ export const AppLayout = () => (
     </div>
   </div>
 );
+};

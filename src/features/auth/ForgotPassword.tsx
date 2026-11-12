@@ -8,7 +8,7 @@ import { addToast } from '@/store/slices/uiSlice';
 import { Button } from '@/components/common/Button';
 import { Mail, ArrowLeft, ArrowRight, KeyRound, Lock, CheckCircle2, Eye, EyeOff, RotateCw } from 'lucide-react';
 import { api } from '@/services/api';
-import maayaLogo from '@/assets/logo-new.png';
+import { AuthLayout } from '@/components/layout/AuthLayout';
 
 const requestSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -169,46 +169,26 @@ export const ForgotPassword: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Subtle brand ambient glow */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(59,104,245,0.06),transparent)] pointer-events-none" />
-
-      {/* Brand Header */}
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center relative z-10">
-        <div className="flex items-center justify-center mb-4">
-          <img
-            src={maayaLogo}
-            alt="Maaya World Logo"
-            className="h-11 w-auto object-contain"
-          />
-        </div>
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-          {step === 'request'
-            ? 'Reset Your Password'
+    <AuthLayout
+      title={step === 'request'
+            ? 'Reset your password'
             : step === 'verify'
-            ? 'Set New Password'
-            : 'Password Reset Completed'}
-        </h1>
-        <p className="mt-1.5 text-xs sm:text-sm text-slate-500">
-          {step === 'request'
+            ? 'Set a new password'
+            : 'Password updated'}
+      subtitle={step === 'request'
             ? 'Enter your email address to receive password recovery instructions'
             : step === 'verify'
             ? 'Enter the 6-digit verification code sent to your email'
             : 'Your credentials have been securely updated'}
-        </p>
-      </div>
-
-      {/* Auth Card Container */}
-      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
-        <div className="bg-white py-8 px-6 sm:px-9 shadow-sm hover:shadow-md transition-shadow border border-slate-200/90 rounded-2xl">
+    >
           {step === 'request' && (
             <form onSubmit={handleSubmitRequest(onRequestCode)} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Email Address
+                  Email address
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
                     <Mail className="w-4 h-4" />
                   </div>
                   <input
@@ -218,7 +198,7 @@ export const ForgotPassword: React.FC = () => {
                     className={`block w-full h-11 pl-10 pr-3 text-sm text-slate-900 bg-white border ${
                       requestErrors.email
                         ? 'border-rose-400 focus:ring-rose-500'
-                        : 'border-slate-300 focus:border-blue-600 focus:ring-blue-500/10'
+                        : 'border-slate-300 focus:border-brand-600 focus:ring-brand-500/10'
                     } rounded-lg focus:outline-none focus:ring-4 transition-all`}
                     {...registerRequest('email')}
                   />
@@ -226,7 +206,7 @@ export const ForgotPassword: React.FC = () => {
                 {requestErrors.email && (
                   <p className="text-xs text-rose-600 mt-1">{requestErrors.email.message}</p>
                 )}
-                <p className="text-[11px] text-slate-400 mt-1.5">
+                <p className="text-xs text-slate-500 mt-1.5">
                   We will send a 6-digit verification code valid for 15 minutes.
                 </p>
               </div>
@@ -234,11 +214,11 @@ export const ForgotPassword: React.FC = () => {
               <Button
                 type="submit"
                 variant="primary"
-                className="w-full !h-11 mt-2 text-sm font-semibold !bg-slate-900 hover:!bg-slate-800 text-white shadow-xs"
+                size="lg" className="w-full mt-2"
                 isLoading={isLoading}
                 rightIcon={<ArrowRight className="w-4 h-4" />}
               >
-                Send Recovery Code
+                Send recovery code
               </Button>
 
               <div className="pt-2 text-center">
@@ -263,7 +243,7 @@ export const ForgotPassword: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setStep('request')}
-                  className="text-blue-600 hover:text-blue-700 font-semibold text-xs ml-2"
+                  className="text-brand-600 hover:text-brand-700 font-semibold text-xs ml-2"
                 >
                   Change
                 </button>
@@ -274,17 +254,17 @@ export const ForgotPassword: React.FC = () => {
                   6-Digit Verification Code
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
                     <KeyRound className="w-4 h-4" />
                   </div>
                   <input
                     type="text"
                     maxLength={10}
                     placeholder="e.g. 849201"
-                    className={`block w-full h-11 pl-10 pr-3 text-sm text-slate-900 bg-white tracking-wider font-mono border ${
+                    className={`block w-full h-11 pl-10 pr-3 text-sm text-slate-900 bg-white font-mono border ${
                       verifyErrors.token
                         ? 'border-rose-400 focus:ring-rose-500'
-                        : 'border-slate-300 focus:border-blue-600 focus:ring-blue-500/10'
+                        : 'border-slate-300 focus:border-brand-600 focus:ring-brand-500/10'
                     } rounded-lg focus:outline-none focus:ring-4 transition-all`}
                     {...registerVerify('token')}
                   />
@@ -296,10 +276,10 @@ export const ForgotPassword: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  New Password
+                  New password
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
                     <Lock className="w-4 h-4" />
                   </div>
                   <input
@@ -308,14 +288,14 @@ export const ForgotPassword: React.FC = () => {
                     className={`block w-full h-11 pl-10 pr-10 text-sm text-slate-900 bg-white border ${
                       verifyErrors.password
                         ? 'border-rose-400 focus:ring-rose-500'
-                        : 'border-slate-300 focus:border-blue-600 focus:ring-blue-500/10'
+                        : 'border-slate-300 focus:border-brand-600 focus:ring-brand-500/10'
                     } rounded-lg focus:outline-none focus:ring-4 transition-all`}
                     {...registerVerify('password')}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-600 focus:outline-none cursor-pointer"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -328,10 +308,10 @@ export const ForgotPassword: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Confirm New Password
+                  Confirm new password
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
                     <Lock className="w-4 h-4" />
                   </div>
                   <input
@@ -340,7 +320,7 @@ export const ForgotPassword: React.FC = () => {
                     className={`block w-full h-11 pl-10 pr-3 text-sm text-slate-900 bg-white border ${
                       verifyErrors.confirmPassword
                         ? 'border-rose-400 focus:ring-rose-500'
-                        : 'border-slate-300 focus:border-blue-600 focus:ring-blue-500/10'
+                        : 'border-slate-300 focus:border-brand-600 focus:ring-brand-500/10'
                     } rounded-lg focus:outline-none focus:ring-4 transition-all`}
                     {...registerVerify('confirmPassword')}
                   />
@@ -353,11 +333,11 @@ export const ForgotPassword: React.FC = () => {
               <Button
                 type="submit"
                 variant="primary"
-                className="w-full !h-11 mt-2 text-sm font-semibold !bg-slate-900 hover:!bg-slate-800 text-white shadow-xs"
+                size="lg" className="w-full mt-2"
                 isLoading={isLoading}
                 rightIcon={<CheckCircle2 className="w-4 h-4" />}
               >
-                Update Password & Continue
+                Update password & continue
               </Button>
 
               <div className="flex items-center justify-between pt-2 text-xs">
@@ -365,10 +345,10 @@ export const ForgotPassword: React.FC = () => {
                   type="button"
                   onClick={onResendCode}
                   disabled={isResending}
-                  className="inline-flex items-center gap-1.5 font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 font-medium text-brand-600 hover:text-brand-700 disabled:opacity-50"
                 >
                   <RotateCw className={`w-3.5 h-3.5 ${isResending ? 'animate-spin' : ''}`} />
-                  <span>Resend Code</span>
+                  <span>Resend code</span>
                 </button>
                 <Link
                   to="/login"
@@ -387,14 +367,14 @@ export const ForgotPassword: React.FC = () => {
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-900">Password Reset Completed</h3>
+                <h3 className="text-base font-bold text-slate-900">Password reset completed</h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  Your credentials have been securely updated. You can now access your workplace dashboard.
+                  Your password has been changed. You can now sign in.
                 </p>
               </div>
               <Button
                 variant="primary"
-                className="w-full !h-11 mt-4 text-sm font-semibold !bg-slate-900 hover:!bg-slate-800 text-white"
+                size="lg" className="w-full mt-4"
                 onClick={() => navigate(`/login?email=${encodeURIComponent(activeEmail)}`)}
                 rightIcon={<ArrowRight className="w-4 h-4" />}
               >
@@ -402,8 +382,6 @@ export const ForgotPassword: React.FC = () => {
               </Button>
             </div>
           )}
-        </div>
-      </div>
-    </div>
+    </AuthLayout>
   );
 };

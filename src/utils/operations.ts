@@ -20,7 +20,6 @@ export const previousDayIso = (isoDate: string): string => {
   return dt.toISOString().slice(0, 10);
 };
 
-export const locationOptions = ['Hyderabad', 'Vizag', 'Bhubaneswar'];
 export const approvedAway = (leaves: LeaveRequest[], date: string) => new Set(leaves.filter(leave => leave.status === 'APPROVED' && leave.startDate <= date && leave.endDate >= date).map(leave => leave.employeeId));
 export const overlappingLeaveCount = (request: LeaveRequest, leaves: LeaveRequest[], employees: Employee[]) => {
   const person = employees.find(employee => employee.id === request.employeeId);

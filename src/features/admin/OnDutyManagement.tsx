@@ -21,15 +21,10 @@ import {
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
+import { PageHeader } from '@/components/common/PageHeader';
+import { Button } from '@/components/common/Button';
+import { DUTY_TYPES, dutyTypeLabel } from '@/utils/dutyTypes';
 
-const DUTY_TYPES: { value: OnDutyType; label: string }[] = [
-  { value: 'BANK_DEPOSIT', label: 'Bank Deposit / Cash Handling' },
-  { value: 'PROCUREMENT', label: 'Procurement / Purchases' },
-  { value: 'CLIENT_VISIT', label: 'Client / Site Visit' },
-  { value: 'DELIVERY', label: 'Delivery / Courier Handling' },
-  { value: 'OFFICIAL_ERRAND', label: 'Official Outdoor Errand' },
-  { value: 'OTHER', label: 'Other Outdoor Duty' },
-];
 
 export const OnDutyManagement: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -73,8 +68,9 @@ export const OnDutyManagement: React.FC = () => {
       ]);
       setRequests(Array.isArray(dutyList) ? dutyList : []);
       setEmployees(Array.isArray(empList) ? empList : []);
-      if (empList.length > 0 && !assignEmpId) {
-        setAssignEmpId(String(empList[0].id));
+      if (empList.length > 0) {
+        // Functional update: the closure's assignEmpId is stale after the first render
+        setAssignEmpId((prev) => prev || String(empList[0].id));
       }
     } catch {
       dispatch(addToast({ type: 'error', title: 'Could not load On Duty records' }));
@@ -100,8 +96,8 @@ export const OnDutyManagement: React.FC = () => {
       await api.onDuty.apply({
         employeeId: assignEmpId,
         employeeName: emp?.fullName || 'Assigned Employee',
-        departmentName: emp?.designation || 'Operations',
-        location: emp?.location || 'Hyderabad',
+        departmentName: '',
+        location: emp?.location || '',
         dutyDate: assignDate,
         startTime: assignStartTime,
         endTime: assignEndTime,
@@ -192,20 +188,7 @@ export const OnDutyManagement: React.FC = () => {
   };
 
   const formatDutyType = (type: OnDutyType) => {
-    switch (type) {
-      case 'BANK_DEPOSIT':
-        return 'Bank Deposit';
-      case 'PROCUREMENT':
-        return 'Purchases';
-      case 'CLIENT_VISIT':
-        return 'Client Visit';
-      case 'DELIVERY':
-        return 'Delivery / Courier';
-      case 'OFFICIAL_ERRAND':
-        return 'Official Errand';
-      default:
-        return 'On Duty';
-    }
+    return dutyTypeLabel(type);
   };
 
   const filteredRequests = useMemo(() => {
@@ -243,18 +226,18 @@ export const OnDutyManagement: React.FC = () => {
       render: (row) => (
         <div>
           <span className="font-semibold text-slate-900 block text-xs">{row.employeeName}</span>
-          <span className="text-[11px] text-slate-500">{row.departmentName || 'Operations'}</span>
+          <span className="text-xs text-slate-500">{row.location || ''}</span>
         </div>
       ),
     },
     {
       key: 'dutyDate',
-      header: 'Date & Time',
+      header: 'Date & time',
       sortable: true,
       render: (row) => (
         <div className="space-y-0.5 text-xs">
           <div className="font-medium text-slate-900">{formatDate(row.dutyDate)}</div>
-          <div className="text-[11px] text-slate-500 font-mono">
+          <div className="text-xs text-slate-500 tabular-nums">
             {row.startTime} – {row.endTime}
           </div>
         </div>
@@ -262,11 +245,11 @@ export const OnDutyManagement: React.FC = () => {
     },
     {
       key: 'dutyType',
-      header: 'Duty Purpose',
+      header: 'Duty purpose',
       render: (row) => (
         <div className="space-y-1 max-w-xs text-xs">
           <Badge variant="purple" size="sm">{formatDutyType(row.dutyType)}</Badge>
-          <p className="text-slate-700 text-[11px] line-clamp-2 leading-relaxed">
+          <p className="text-slate-700 text-xs line-clamp-2 leading-relaxed">
             {row.reason}
           </p>
         </div>
@@ -274,13 +257,13 @@ export const OnDutyManagement: React.FC = () => {
     },
     {
       key: 'status',
-      header: 'Status & Approval',
+      header: 'Status & approval',
       sortable: true,
       render: (row) => (
         <div className="space-y-1.5">
           {row.status === 'PENDING' && (
             <div className="flex items-center gap-1.5">
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
                 Pending
               </span>
               <button
@@ -308,12 +291,12 @@ export const OnDutyManagement: React.FC = () => {
             </div>
           )}
           {row.status === 'APPROVED' && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               Approved
             </span>
           )}
           {row.status === 'REJECTED' && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
               Declined
             </span>
           )}
@@ -322,10 +305,10 @@ export const OnDutyManagement: React.FC = () => {
     },
     {
       key: 'expenseAmount',
-      header: 'Expenses & Claims',
+      header: 'Expenses & claims',
       render: (row) => {
         if (!row.hasExpense || !row.expenseAmount || row.expenseAmount <= 0) {
-          return <span className="text-[11px] text-slate-400">None</span>;
+          return <span className="text-xs text-slate-500">None</span>;
         }
 
         return (
@@ -337,7 +320,7 @@ export const OnDutyManagement: React.FC = () => {
               {row.billPhoto && (
                 <button
                   onClick={() => setPreviewBillUrl(row.billPhoto || null)}
-                  className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 rounded cursor-pointer transition-colors"
+                  className="flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 rounded cursor-pointer transition-colors"
                 >
                   <Eye className="w-3 h-3" />
                   <span>Bill</span>
@@ -347,8 +330,8 @@ export const OnDutyManagement: React.FC = () => {
 
             {row.reimbursementStatus === 'PENDING' && (
               <div className="flex items-center gap-1.5">
-                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                  Claim Pending
+                <span className="px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                  Claim pending
                 </span>
                 <button
                   onClick={() => {
@@ -376,14 +359,14 @@ export const OnDutyManagement: React.FC = () => {
             )}
 
             {row.reimbursementStatus === 'REIMBURSED' && (
-              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                 Reimbursed
               </span>
             )}
 
             {row.reimbursementStatus === 'REJECTED' && (
-              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                Claim Rejected
+              <span className="px-2 py-0.5 rounded text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                Claim rejected
               </span>
             )}
           </div>
@@ -394,39 +377,34 @@ export const OnDutyManagement: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 leading-tight">On Duty (OD) Management</h1>
-          <p className="text-xs text-slate-500">Track company outdoor assignments, bank runs, site errands, and employee bill reimbursements</p>
-        </div>
-        <button
-          onClick={() => setIsAssignModalOpen(true)}
-          className="flex items-center gap-1.5 px-3.5 py-2 bg-[var(--brand-600)] text-white text-xs font-semibold rounded-lg hover:bg-[var(--brand-700)] transition-colors cursor-pointer self-start sm:self-auto shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Assign On Duty</span>
-        </button>
-      </div>
+      <PageHeader
+        title="On Duty & claims"
+        description="Work trips outside the center, such as bank deposits and purchases, and the expenses claimed for them."
+        actions={
+          <Button variant="primary" onClick={() => setIsAssignModalOpen(true)} leftIcon={<Plus className="w-4 h-4" />}>
+            Assign On Duty
+          </Button>
+        }
+      />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="p-4 bg-white border border-slate-200 rounded-xl">
-          <div className="text-xs font-medium text-slate-500">Pending Duty Approvals</div>
+          <div className="text-xs font-medium text-slate-500">Pending Duty approvals</div>
           <div className="text-2xl font-bold text-slate-900 mt-1">{pendingCount}</div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Awaiting manager authorization</div>
+          <div className="text-xs text-slate-500 mt-0.5">Awaiting manager authorization</div>
         </div>
 
         <div className="p-4 bg-white border border-slate-200 rounded-xl">
-          <div className="text-xs font-medium text-slate-500">Pending Reimbursements</div>
+          <div className="text-xs font-medium text-slate-500">Pending reimbursements</div>
           <div className="text-2xl font-bold text-slate-900 mt-1">₹{pendingReimbursements.toLocaleString('en-IN')}</div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Submitted receipts awaiting verification</div>
+          <div className="text-xs text-slate-500 mt-0.5">Submitted receipts awaiting verification</div>
         </div>
 
         <div className="p-4 bg-white border border-slate-200 rounded-xl">
-          <div className="text-xs font-medium text-slate-500">Total Reimbursed</div>
+          <div className="text-xs font-medium text-slate-500">Total reimbursed</div>
           <div className="text-2xl font-bold text-slate-900 mt-1">₹{totalReimbursed.toLocaleString('en-IN')}</div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Disbursed for official company tasks</div>
+          <div className="text-xs text-slate-500 mt-0.5">Disbursed for official company tasks</div>
         </div>
       </div>
 
@@ -446,7 +424,7 @@ export const OnDutyManagement: React.FC = () => {
               onClick={() => setStatusFilter(tab.key)}
               className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer shrink-0 ${
                 statusFilter === tab.key
-                  ? 'bg-slate-900 text-white'
+                  ? 'bg-brand-600 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
@@ -456,7 +434,7 @@ export const OnDutyManagement: React.FC = () => {
         </div>
 
         <div className="relative w-full sm:w-64">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
             type="text"
             placeholder="Search employee, task or reason…"
@@ -486,7 +464,7 @@ export const OnDutyManagement: React.FC = () => {
           <form onSubmit={handleAssignSubmit} className="space-y-4 text-xs">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Select Employee <span className="text-rose-500">*</span>
+                Select employee <span className="text-rose-500">*</span>
               </label>
               <select
                 value={assignEmpId}
@@ -503,7 +481,7 @@ export const OnDutyManagement: React.FC = () => {
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Duty Date <span className="text-rose-500">*</span>
+                Duty date <span className="text-rose-500">*</span>
               </label>
               <input
                 type="date"
@@ -516,7 +494,7 @@ export const OnDutyManagement: React.FC = () => {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  Start Time <span className="text-rose-500">*</span>
+                  Start time <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="time"
@@ -528,7 +506,7 @@ export const OnDutyManagement: React.FC = () => {
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  End Time <span className="text-rose-500">*</span>
+                  End time <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="time"
@@ -541,7 +519,7 @@ export const OnDutyManagement: React.FC = () => {
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Duty Category <span className="text-rose-500">*</span>
+                Duty category <span className="text-rose-500">*</span>
               </label>
               <select
                 value={assignType}
@@ -558,11 +536,11 @@ export const OnDutyManagement: React.FC = () => {
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Task Instructions & Destination <span className="text-rose-500">*</span>
+                Task instructions & destination <span className="text-rose-500">*</span>
               </label>
               <textarea
                 rows={3}
-                placeholder="e.g., Deposit cash at HDFC Bank Madhapur branch. Collect deposit slip."
+                placeholder="e.g. Deposit yesterday's ticket cash at the bank and bring back the deposit slip."
                 value={assignReason}
                 onChange={(e) => setAssignReason(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs text-slate-800 focus:outline-none focus:border-slate-400 resize-none"
@@ -580,7 +558,7 @@ export const OnDutyManagement: React.FC = () => {
               <button
                 type="submit"
                 disabled={saving}
-                className="px-4 py-2 bg-[var(--brand-600)] text-white text-xs font-semibold rounded-lg hover:bg-[var(--brand-700)] transition-colors cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50"
               >
                 {saving ? 'Assigning…' : 'Assign Duty'}
               </button>
@@ -604,7 +582,7 @@ export const OnDutyManagement: React.FC = () => {
           <div className="space-y-4 text-xs">
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
               <div className="font-semibold text-slate-900">{formatDutyType(selectedDuty.dutyType)}</div>
-              <div className="text-slate-600 font-mono text-[11px]">
+              <div className="text-slate-600 tabular-nums text-xs">
                 {selectedDuty.startTime} – {selectedDuty.endTime}
               </div>
               <p className="text-slate-700 pt-1">{selectedDuty.reason}</p>
@@ -681,18 +659,18 @@ export const OnDutyManagement: React.FC = () => {
                 {reimburseTarget.billPhoto && (
                   <button
                     onClick={() => setPreviewBillUrl(reimburseTarget.billPhoto || null)}
-                    className="text-[11px] font-semibold text-[var(--brand-600)] hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-semibold text-brand-600 hover:underline flex items-center gap-1 cursor-pointer"
                   >
-                    <Eye className="w-3.5 h-3.5" /> View Attached Bill
+                    <Eye className="w-3.5 h-3.5" /> View attached bill
                   </button>
                 )}
               </div>
-              <p className="text-slate-600 text-[11px]">{reimburseTarget.expenseDescription}</p>
+              <p className="text-slate-600 text-xs">{reimburseTarget.expenseDescription}</p>
             </div>
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Admin Comments
+                Admin comments
               </label>
               <textarea
                 rows={3}
@@ -761,7 +739,7 @@ export const OnDutyManagement: React.FC = () => {
                 onClick={() => setPreviewBillUrl(null)}
                 className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded cursor-pointer"
               >
-                Close Preview
+                Close preview
               </button>
             </div>
           </div>

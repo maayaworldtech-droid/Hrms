@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/services/api';
 import { Payslip, Employee } from '@/types';
 import { Modal } from '@/components/common/Modal';
-import { formatINR } from '@/utils/formatters';
+import { formatINR, formatLabel } from '@/utils/formatters';
 import { useAppSelector } from '@/store';
 import { Printer, Eye, FileText } from 'lucide-react';
 import maayaLogo from '@/assets/logo-new.png';
@@ -14,11 +14,16 @@ export const MySalary: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const user = useAppSelector((state) => state.auth.user);
-  const employeeId = user?.id || 'emp-003';
+  const employeeId = user?.id || '';
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loadError, setLoadError] = useState(false);
 
   const loadData = useCallback(async () => {
+    if (!employeeId) {
+      setLoadError(true);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     setLoadError(false);
     try {
@@ -81,7 +86,7 @@ export const MySalary: React.FC = () => {
   return (
     <div className="space-y-3 pb-4">
       {loadError && (
-        <div role="alert" className="p-3 rounded-xl bg-[var(--accent-50)] border border-[var(--accent-200)] text-xs text-[var(--accent-700)] flex items-center justify-between">
+        <div role="alert" className="p-3 rounded-xl bg-accent-50 border border-accent-200 text-xs text-accent-700 flex items-center justify-between">
           <span>Failed to load salary statements.</span>
           <button className="underline font-bold ml-1 cursor-pointer" onClick={loadData}>Retry</button>
         </div>
@@ -90,7 +95,7 @@ export const MySalary: React.FC = () => {
       {/* Net Pay Executive Card */}
       <section className="employee-card space-y-3">
         <div className="flex items-center justify-between text-xs pt-0.5">
-          <span className="text-slate-500 font-semibold uppercase text-[10px]">Net Take-Home Pay</span>
+          <span className="text-slate-600 font-medium text-xs">Net take-home pay</span>
           <span
             className={`employee-badge ${
               payslips[0]?.paymentStatus === 'PAID' ? 'badge-success' : 'badge-warning'
@@ -100,11 +105,11 @@ export const MySalary: React.FC = () => {
           </span>
         </div>
 
-        <div className="text-2xl font-bold text-slate-900 font-mono tabular-nums leading-tight">
+        <div className="text-2xl font-bold text-slate-900 tabular-nums leading-tight">
           {currentStructure ? formatINR(currentStructure.netMonthly) : '—'}
         </div>
 
-        {/* 3 Inline Telemetry Metrics */}
+        {/* Gross, deductions and annual pay */}
         <div className="employee-metric-grid">
           <div className="employee-metric-tile">
             <span className="metric-label">Gross</span>
@@ -115,7 +120,7 @@ export const MySalary: React.FC = () => {
 
           <div className="employee-metric-tile">
             <span className="metric-label">Deductions</span>
-            <strong className="metric-value text-[var(--accent-600)]">
+            <strong className="metric-value text-accent-600">
               {currentStructure ? formatINR(currentStructure.totalDeductions) : '—'}
             </strong>
           </div>
@@ -133,7 +138,7 @@ export const MySalary: React.FC = () => {
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs px-1">
           <span className="font-bold text-slate-800">Statements</span>
-          <span className="text-[11px] text-slate-500">{payslips.length} available</span>
+          <span className="text-xs text-slate-500">{payslips.length} available</span>
         </div>
 
         {isLoading ? (
@@ -157,7 +162,7 @@ export const MySalary: React.FC = () => {
                 <span className="text-xs font-bold text-slate-900 block">
                   {slip.month} {slip.year}
                 </span>
-                <span className="text-xs font-mono font-bold text-emerald-700 tabular-nums">
+                <span className="text-xs tabular-nums font-semibold text-slate-900">
                   {formatINR(slip.components.netMonthly)}
                 </span>
               </div>
@@ -168,7 +173,7 @@ export const MySalary: React.FC = () => {
                     slip.paymentStatus === 'PAID' ? 'badge-success' : 'badge-warning'
                   }`}
                 >
-                  {slip.paymentStatus}
+                  {formatLabel(slip.paymentStatus)}
                 </span>
 
                 <button
@@ -206,12 +211,12 @@ export const MySalary: React.FC = () => {
 
             <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 grid grid-cols-2 gap-2 text-xs">
               <div>
-                <span className="text-slate-400 block text-[10px]">Staff</span>
+                <span className="text-slate-500 block text-xs">Staff</span>
                 <strong className="text-slate-900">{selectedPayslip.employeeName}</strong>
               </div>
               <div>
-                <span className="text-slate-400 block text-[10px]">Employee ID</span>
-                <strong className="font-mono text-slate-900">{selectedPayslip.employeeCode}</strong>
+                <span className="text-slate-500 block text-xs">Employee ID</span>
+                <strong className="tabular-nums text-slate-900">{selectedPayslip.employeeCode}</strong>
               </div>
             </div>
 
@@ -224,43 +229,43 @@ export const MySalary: React.FC = () => {
               <div className="p-2 space-y-1 divide-y divide-slate-100">
                 <div className="flex justify-between pt-1">
                   <span className="text-slate-600">Basic</span>
-                  <span className="font-mono">{formatINR(selectedPayslip.components.basic)}</span>
+                  <span className="tabular-nums">{formatINR(selectedPayslip.components.basic)}</span>
                 </div>
                 <div className="flex justify-between pt-1">
                   <span className="text-slate-600">HRA</span>
-                  <span className="font-mono">{formatINR(selectedPayslip.components.hra)}</span>
+                  <span className="tabular-nums">{formatINR(selectedPayslip.components.hra)}</span>
                 </div>
                 <div className="flex justify-between pt-1">
-                  <span className="text-slate-600">Special Allowance</span>
-                  <span className="font-mono">{formatINR(selectedPayslip.components.specialAllowance)}</span>
+                  <span className="text-slate-600">Special allowance</span>
+                  <span className="tabular-nums">{formatINR(selectedPayslip.components.specialAllowance)}</span>
                 </div>
                 {selectedPayslip.components.conveyanceAllowance > 0 && (
                   <div className="flex justify-between pt-1">
-                    <span className="text-slate-600">Conveyance Allowance</span>
-                    <span className="font-mono">{formatINR(selectedPayslip.components.conveyanceAllowance)}</span>
+                    <span className="text-slate-600">Conveyance allowance</span>
+                    <span className="tabular-nums">{formatINR(selectedPayslip.components.conveyanceAllowance)}</span>
                   </div>
                 )}
                 {selectedPayslip.components.medicalAllowance > 0 && (
                   <div className="flex justify-between pt-1">
-                    <span className="text-slate-600">Medical Allowance</span>
-                    <span className="font-mono">{formatINR(selectedPayslip.components.medicalAllowance)}</span>
+                    <span className="text-slate-600">Medical allowance</span>
+                    <span className="tabular-nums">{formatINR(selectedPayslip.components.medicalAllowance)}</span>
                   </div>
                 )}
                 {(selectedPayslip.components.bonus ?? 0) > 0 && (
                   <div className="flex justify-between pt-1">
                     <span className="text-slate-600">Bonus</span>
-                    <span className="font-mono">{formatINR(selectedPayslip.components.bonus ?? 0)}</span>
+                    <span className="tabular-nums">{formatINR(selectedPayslip.components.bonus ?? 0)}</span>
                   </div>
                 )}
                 {(selectedPayslip.components.incentives ?? 0) > 0 && (
                   <div className="flex justify-between pt-1">
                     <span className="text-slate-600">Incentives</span>
-                    <span className="font-mono">{formatINR(selectedPayslip.components.incentives ?? 0)}</span>
+                    <span className="tabular-nums">{formatINR(selectedPayslip.components.incentives ?? 0)}</span>
                   </div>
                 )}
                 <div className="flex justify-between pt-1 font-bold text-slate-900">
-                  <span>Gross Total</span>
-                  <span className="font-mono">{formatINR(selectedPayslip.components.grossMonthly)}</span>
+                  <span>Gross total</span>
+                  <span className="tabular-nums">{formatINR(selectedPayslip.components.grossMonthly)}</span>
                 </div>
               </div>
             </div>
@@ -274,38 +279,38 @@ export const MySalary: React.FC = () => {
               <div className="p-2 space-y-1 divide-y divide-slate-100">
                 <div className="flex justify-between pt-1">
                   <span className="text-slate-600">EPF (Employee)</span>
-                  <span className="font-mono text-[var(--accent-600)]">{formatINR(selectedPayslip.components.epfEmployee)}</span>
+                  <span className="tabular-nums text-accent-600">{formatINR(selectedPayslip.components.epfEmployee)}</span>
                 </div>
                 <div className="flex justify-between pt-1">
                   <span className="text-slate-600">Professional Tax (PT)</span>
-                  <span className="font-mono text-[var(--accent-600)]">{formatINR(selectedPayslip.components.professionalTax)}</span>
+                  <span className="tabular-nums text-accent-600">{formatINR(selectedPayslip.components.professionalTax)}</span>
                 </div>
                 {selectedPayslip.components.tds > 0 && (
                   <div className="flex justify-between pt-1">
                     <span className="text-slate-600">TDS / Income Tax</span>
-                    <span className="font-mono text-[var(--accent-600)]">{formatINR(selectedPayslip.components.tds)}</span>
+                    <span className="tabular-nums text-accent-600">{formatINR(selectedPayslip.components.tds)}</span>
                   </div>
                 )}
                 {selectedPayslip.components.healthInsurance > 0 && (
                   <div className="flex justify-between pt-1">
-                    <span className="text-slate-600">Health Insurance</span>
-                    <span className="font-mono text-[var(--accent-600)]">{formatINR(selectedPayslip.components.healthInsurance)}</span>
+                    <span className="text-slate-600">Health insurance</span>
+                    <span className="tabular-nums text-accent-600">{formatINR(selectedPayslip.components.healthInsurance)}</span>
                   </div>
                 )}
                 <div className="flex justify-between pt-1 font-bold text-slate-900">
-                  <span>Total Deductions</span>
-                  <span className="font-mono text-[var(--accent-600)]">{formatINR(selectedPayslip.components.totalDeductions)}</span>
+                  <span>Total deductions</span>
+                  <span className="tabular-nums text-accent-600">{formatINR(selectedPayslip.components.totalDeductions)}</span>
                 </div>
               </div>
             </div>
 
             {/* Net Amount Highlight */}
-            <div className="p-3 rounded-lg bg-slate-900 text-white flex items-center justify-between">
+            <div className="p-3 rounded-lg bg-brand-900 text-white flex items-center justify-between">
               <div>
-                <span className="text-slate-400 text-[10px] uppercase font-bold">
-                  Net Disbursed Salary
+                <span className="text-slate-500 text-xs font-bold">
+                  Net disbursed salary
                 </span>
-                <p className="text-lg font-bold font-mono text-emerald-400">
+                <p className="text-lg font-bold tabular-nums text-white">
                   {formatINR(selectedPayslip.components.netMonthly)}
                 </p>
               </div>

@@ -52,7 +52,19 @@ public class AuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        String path = request.getRequestURI();
+        // Reject ambiguous URIs (matrix params, encoded dots/slashes, double slashes). Spring strips or
+        // decodes these when routing, so the raw URI could otherwise slip past the exact-match rules below.
+        String rawUri = request.getRequestURI() != null ? request.getRequestURI() : "";
+        String lowerRaw = rawUri.toLowerCase();
+        if (rawUri.contains(";") || rawUri.contains("//") || rawUri.contains("\\")
+                || lowerRaw.contains("%2e") || lowerRaw.contains("%2f") || lowerRaw.contains("%5c")
+                || lowerRaw.contains("%3b")) {
+            sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Malformed request path.");
+            return;
+        }
+
+        // Use the container-decoded, normalized path for every authorization decision
+        String path = normalizePath(request);
         String method = request.getMethod();
 
         if (!path.startsWith("/api") || isPublicEndpoint(path, method)) {
@@ -95,6 +107,19 @@ public class AuthFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
+    private String normalizePath(HttpServletRequest request) {
+        String servletPath = request.getServletPath() != null ? request.getServletPath() : "";
+        String pathInfo = request.getPathInfo() != null ? request.getPathInfo() : "";
+        String path = servletPath + pathInfo;
+        if (path.isEmpty()) {
+            path = "/";
+        }
+        while (path.length() > 1 && path.endsWith("/")) {
+            path = path.substring(0, path.length() - 1);
+        }
+        return path;
+    }
+
     private boolean isPublicEndpoint(String path, String method) {
         if (!"POST".equalsIgnoreCase(method)) {
             return false;
@@ -118,6 +143,11 @@ public class AuthFilter extends OncePerRequestFilter {
         if (path.equals("/api/settings") && "PUT".equalsIgnoreCase(method)) return isAdmin;
         if (path.equals("/api/payroll/process") || path.startsWith("/api/payroll/disburse/")) return isAdmin;
         if (path.startsWith("/api/payroll/payslips/") && path.endsWith("/adjust") && "PUT".equalsIgnoreCase(method)) return isAdmin;
+
+        // Centers: any signed-in user may read (check-in geofence); every change is admin-only
+        if (path.equals("/api/centers") || path.startsWith("/api/centers/")) {
+            return "GET".equalsIgnoreCase(method) || isAdmin;
+        }
 
         // Manager or Admin routes
         if (path.equals("/api/employees") && "GET".equalsIgnoreCase(method)) return isPrivileged;

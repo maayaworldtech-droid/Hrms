@@ -129,7 +129,7 @@ public class Employee {
         if (location != null && location.getName() != null) {
             return location.getName();
         }
-        return "Hyderabad";
+        return null;
     }
 
     @JsonProperty("location")

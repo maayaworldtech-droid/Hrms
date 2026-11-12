@@ -1,15 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { api } from '@/services/api';
 import { useAppDispatch } from '@/store';
 import { updateUser } from '@/store/slices/authSlice';
 import { addToast } from '@/store/slices/uiSlice';
 import { AttendanceRecord, ShiftType } from '@/types';
 import { businessDate } from '@/utils/operations';
-import {
-  checkVenueGeofence,
-  VENUE_GEOFENCES,
-  GeofenceCheckResult,
-} from '@/utils/geolocation';
+import { checkVenueGeofence, centerToVenue, GeofenceCheckResult } from '@/utils/geolocation';
+import { useCenters, findCenter, refreshCenters } from '@/hooks/useCenters';
 import {
   analyzeVideoFrame,
   drawBiometricHud,
@@ -98,14 +95,36 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
     isEnrollingModeRef.current = isEnrollingMode;
   }, [enrolledPhoto, enrolledDescriptor, isEnrollingMode]);
 
-  const employeeLocation = employee.location || 'Hyderabad';
-  const venue = VENUE_GEOFENCES[employeeLocation] || VENUE_GEOFENCES['Hyderabad'];
+  // The geofence comes from the employee's own center. There is deliberately no fallback to another
+  // center: checking Vizag staff against Hyderabad's coordinates would block every check-in.
+  const { centers, isLoading: centersLoading, error: centersError } = useCenters();
+  // The stored session can hold an outdated center after a transfer or a rename, so read the
+  // employee's current center from the server each time the dialog opens.
+  const [liveLocation, setLiveLocation] = useState<string | undefined>(employee.location);
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    api.employees
+      .getById(employee.id)
+      .then((fresh) => {
+        if (cancelled || !fresh?.location) return;
+        setLiveLocation(fresh.location);
+        if (fresh.location !== employee.location) {
+          dispatch(updateUser({ location: fresh.location }));
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, employee.id, employee.location, dispatch]);
+  const center = useMemo(() => findCenter(centers, liveLocation), [centers, liveLocation]);
+  const venue = useMemo(() => centerToVenue(center), [center]);
+  const centerLabel = center?.name || liveLocation || 'No center assigned';
 
   const [geofencingEnabled, setGeofencingEnabled] = useState<boolean>(true);
   const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [geofenceResult, setGeofenceResult] = useState<GeofenceCheckResult>(() =>
-    checkVenueGeofence(venue.latitude, venue.longitude, employeeLocation)
-  );
+  const [geofenceResult, setGeofenceResult] = useState<GeofenceCheckResult | null>(null);
   const [gpsStatusText, setGpsStatusText] = useState<string>('Checking device GPS...');
   const [gpsChecked, setGpsChecked] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -160,6 +179,26 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
   }, [employee.id, employee.enrolledFacePhoto, employee.enrolledFaceBiometrics]);
 
   const handleCheckDeviceGps = useCallback(() => {
+    if (centersLoading) {
+      setGpsStatusText('Loading center details...');
+      return;
+    }
+    if (centersError) {
+      setGpsChecked(false);
+      setGpsStatusText("Couldn't load your center details. Tap Refresh GPS to try again.");
+      return;
+    }
+    if (!venue) {
+      setCurrentCoords(null);
+      setGeofenceResult(null);
+      setGpsChecked(false);
+      setGpsStatusText(
+        center
+          ? 'Check-in location for your center is not set up yet. Please contact your admin.'
+          : 'You are not assigned to a center. Please contact your admin.'
+      );
+      return;
+    }
     setGpsStatusText('Checking device GPS...');
     if (!navigator.geolocation) {
       setCurrentCoords(null);
@@ -174,7 +213,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
           lng: pos.coords.longitude,
         };
         setCurrentCoords(coords);
-        const check = checkVenueGeofence(coords.lat, coords.lng, employeeLocation);
+        const check = checkVenueGeofence(coords.lat, coords.lng, venue);
         setGeofenceResult(check);
         setGpsChecked(true);
         setGpsStatusText(
@@ -194,7 +233,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
       },
       { enableHighAccuracy: true, timeout: 8000 }
     );
-  }, [employeeLocation]);
+  }, [venue, center, centersLoading, centersError]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -646,7 +685,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
 
   const isFaceVerified = scanStage === 'SUCCESS' && !!verificationResult?.isMatch && isEnrolled;
   const isLocationAuthorized =
-    mode === 'LOGOUT' || !geofencingEnabled ? true : gpsChecked && geofenceResult.isWithinRadius;
+    mode === 'LOGOUT' || !geofencingEnabled ? true : gpsChecked && !!geofenceResult?.isWithinRadius;
   const canSubmit = isFaceVerified && isLocationAuthorized && !isSubmitting;
 
   const handleConfirm = async () => {
@@ -660,18 +699,18 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
     const auditPayload = {
       employeeId: employee.id,
       date: businessDate(),
-      location: venue.shortName,
+      location: centerLabel,
       shift: employee.shift || 'MORNING',
       latitude: currentCoords?.lat,
       longitude: currentCoords?.lng,
-      distanceMeters: currentCoords ? geofenceResult.distanceMeters : undefined,
+      distanceMeters: currentCoords && geofenceResult ? geofenceResult.distanceMeters : undefined,
       biometricScore: effectiveScore,
       isLocationVerified: isLocationAuthorized,
       isBiometricVerified: isFaceVerified,
       time: timeFormatted,
       facePhoto: capturedPhoto || undefined,
       faceBiometrics: capturedBiometrics ? JSON.stringify(capturedBiometrics) : undefined,
-      notes: `Face Biometric (${effectiveScore.toFixed(1)}% match) — ${venue.shortName}`,
+      notes: `Face Biometric (${effectiveScore.toFixed(1)}% match) — ${centerLabel}`,
     };
 
     try {
@@ -730,7 +769,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
             <button
               type="button"
               onClick={handleStartEnrollment}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-[var(--brand-600)] transition-colors cursor-pointer"
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-brand-600 transition-colors cursor-pointer"
             >
               {isEnrolled ? 'Update Face' : 'Register Face'}
             </button>
@@ -778,17 +817,17 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
 
             {!cameraActive && (
               <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-6 text-center bg-slate-900">
-                <Camera className="w-8 h-8 text-slate-400 mb-2" />
-                <span className="text-xs font-semibold text-slate-200">Camera Offline</span>
-                <p className="text-xs text-slate-400 mt-1 max-w-xs">
+                <Camera className="w-8 h-8 text-slate-500 mb-2" />
+                <span className="text-xs font-semibold text-slate-200">Camera offline</span>
+                <p className="text-xs text-slate-500 mt-1 max-w-xs">
                   {cameraError || 'Allow camera permission to continue.'}
                 </p>
                 <button
                   type="button"
                   onClick={() => void startCamera()}
-                  className="mt-3 px-4 py-2 rounded-lg bg-[var(--brand-500)] hover:bg-[var(--brand-600)] text-white text-xs font-semibold transition-colors cursor-pointer"
+                  className="mt-3 px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold transition-colors cursor-pointer"
                 >
-                  Retry Camera
+                  Retry camera
                 </button>
               </div>
             )}
@@ -815,7 +854,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
                   <button
                     type="button"
                     onClick={handleQuickVerify}
-                    className="text-xs font-semibold text-sky-300 hover:text-white shrink-0 cursor-pointer"
+                    className="text-xs font-semibold text-brand-300 hover:text-white shrink-0 cursor-pointer"
                   >
                     Capture
                   </button>
@@ -878,14 +917,14 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
               <div className="flex items-center gap-2 min-w-0">
                 <MapPin
                   className={`w-4 h-4 shrink-0 ${
-                    !geofencingEnabled || (gpsChecked && geofenceResult.isWithinRadius)
+                    !geofencingEnabled || (gpsChecked && !!geofenceResult?.isWithinRadius)
                       ? 'text-emerald-600'
                       : 'text-rose-600'
                   }`}
                 />
                 <div className="min-w-0">
                   <span className="font-semibold text-slate-800 block truncate">
-                    {venue.shortName}
+                    {centerLabel}
                   </span>
                   <span className="text-xs text-slate-500">
                     {!geofencingEnabled
@@ -898,7 +937,11 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
               {geofencingEnabled && (
                 <button
                   type="button"
-                  onClick={handleCheckDeviceGps}
+                  onClick={() => {
+                    // A failed centers request is retried here; the geofence check re-runs once it loads
+                    if (centersError) void refreshCenters();
+                    else handleCheckDeviceGps();
+                  }}
                   className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-medium flex items-center gap-1 shrink-0 cursor-pointer"
                 >
                   <RefreshCw className="w-3 h-3" />
@@ -926,7 +969,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
             disabled={!canSubmit}
             className={`flex-1 h-10 px-4 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
               canSubmit
-                ? 'bg-[var(--brand-500)] hover:bg-[var(--brand-600)] text-white'
+                ? 'bg-brand-600 hover:bg-brand-700 text-white'
                 : 'bg-slate-200 text-slate-500 cursor-not-allowed'
             }`}
           >

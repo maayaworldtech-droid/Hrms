@@ -54,7 +54,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 onClick={() => (window.location.href = '/')}
                 leftIcon={<Home className="w-4 h-4" />}
               >
-                Go Home
+                Go home
               </Button>
               <Button
                 variant="primary"
@@ -62,7 +62,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 onClick={this.handleReset}
                 leftIcon={<RotateCcw className="w-4 h-4" />}
               >
-                Reload Page
+                Reload page
               </Button>
             </div>
           </div>

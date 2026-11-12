@@ -94,7 +94,7 @@ export const EmployeeProfile: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="p-8 text-center text-xs text-slate-400 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-default)]">
+      <div className="p-8 text-center text-xs text-slate-500 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-default)]">
         Loading profile…
       </div>
     );
@@ -122,7 +122,7 @@ export const EmployeeProfile: React.FC = () => {
       {/* Identity Card */}
       <div className="employee-card flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center font-semibold text-sm shrink-0">
+          <div className="w-12 h-12 rounded-full bg-brand-600 text-white flex items-center justify-center font-semibold text-sm shrink-0">
             {employee.firstName?.[0] || 'E'}
             {employee.lastName?.[0] || 'M'}
           </div>
@@ -135,10 +135,10 @@ export const EmployeeProfile: React.FC = () => {
               {employee.designation || 'Staff'} — {employee.location || 'Headquarters'}
             </p>
             <div className="flex items-center gap-1.5 mt-1">
-              <span className="font-mono text-[11px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+              <span className="tabular-nums text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                 {employee.employeeCode}
               </span>
-              <span className="text-[10px] text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+              <span className="text-xs text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
                 {shiftInfo.name}
               </span>
             </div>
@@ -160,7 +160,7 @@ export const EmployeeProfile: React.FC = () => {
       {isEditing ? (
         <form
           onSubmit={handleSubmit(onUpdateSubmit)}
-          className="p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--brand-200)] space-y-3 text-xs"
+          className="p-4 rounded-xl bg-[var(--bg-surface)] border border-brand-200 space-y-3 text-xs"
         >
           <div className="flex items-center justify-between pb-1 border-b border-[var(--border-default)]">
             <span className="font-semibold text-slate-900">Edit contact details</span>
@@ -170,14 +170,14 @@ export const EmployeeProfile: React.FC = () => {
                 reset();
                 setIsEditing(false);
               }}
-              className="text-slate-400 hover:text-slate-600 p-1"
+              className="text-slate-500 hover:text-slate-600 p-1"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
           <div>
-            <label className="block text-[11px] text-slate-500 mb-1">Email (System)</label>
+            <label className="block text-xs text-slate-500 mb-1">Email (System)</label>
             <input
               type="text"
               value={employee.email}
@@ -187,25 +187,25 @@ export const EmployeeProfile: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-[11px] text-slate-700 mb-1">Phone</label>
+            <label className="block text-xs text-slate-700 mb-1">Phone</label>
             <input
               type="text"
               {...register('phone')}
               placeholder="+91 99887 76655"
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white border border-[var(--border-default)] text-slate-900 outline-none focus:border-[var(--brand-400)]"
+              className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white border border-[var(--border-default)] text-slate-900 outline-none focus:border-brand-400"
             />
             {errors.phone && (
-              <p className="text-[var(--accent-600)] text-[10px] mt-0.5">{errors.phone.message}</p>
+              <p className="text-accent-600 text-xs mt-0.5">{errors.phone.message}</p>
             )}
           </div>
 
           <div>
-            <label className="block text-[11px] text-slate-700 mb-1">Residential Address</label>
+            <label className="block text-xs text-slate-700 mb-1">Residential address</label>
             <input
               type="text"
               {...register('address')}
               placeholder="Address"
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white border border-[var(--border-default)] text-slate-900 outline-none focus:border-[var(--brand-400)]"
+              className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white border border-[var(--border-default)] text-slate-900 outline-none focus:border-brand-400"
             />
           </div>
 
@@ -225,7 +225,7 @@ export const EmployeeProfile: React.FC = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-3.5 py-1.5 rounded-lg bg-[var(--brand-500)] hover:bg-[var(--brand-600)] text-white text-xs font-medium flex items-center gap-1 cursor-pointer transition-colors"
+              className="px-3.5 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium flex items-center gap-1 cursor-pointer transition-colors"
             >
               <Check className="w-3.5 h-3.5" />
               <span>{isSubmitting ? 'Saving…' : 'Save changes'}</span>
@@ -236,13 +236,13 @@ export const EmployeeProfile: React.FC = () => {
         /* Read-Only Clean Information Layout */
         <div className="employee-card space-y-3">
           <div className="flex items-center justify-between pb-1 border-b border-[var(--border-default)]">
-            <span className="text-xs font-semibold text-slate-900">Contact & Address</span>
+            <span className="text-xs font-semibold text-slate-900">Contact & address</span>
           </div>
 
           <div className="divide-y divide-slate-100 text-xs">
             <div className="py-2 flex items-start justify-between gap-3">
               <span className="text-slate-500 shrink-0 flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-slate-400" />
+                <Mail className="w-3.5 h-3.5 text-slate-500" />
                 Email
               </span>
               <span className="font-medium text-slate-900 text-right break-all">
@@ -252,7 +252,7 @@ export const EmployeeProfile: React.FC = () => {
 
             <div className="py-2 flex items-center justify-between gap-3">
               <span className="text-slate-500 shrink-0 flex items-center gap-1.5">
-                <Phone className="w-3.5 h-3.5 text-slate-400" />
+                <Phone className="w-3.5 h-3.5 text-slate-500" />
                 Phone
               </span>
               <span className="font-medium text-slate-900 text-right">
@@ -262,7 +262,7 @@ export const EmployeeProfile: React.FC = () => {
 
             <div className="py-2 flex items-start justify-between gap-3">
               <span className="text-slate-500 shrink-0 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                <MapPin className="w-3.5 h-3.5 text-slate-500" />
                 Address
               </span>
               <span className="font-medium text-slate-900 text-right max-w-[240px] leading-relaxed">
@@ -275,24 +275,24 @@ export const EmployeeProfile: React.FC = () => {
         </div>
       )}
 
-      {/* Statutory & Bank Information */}
+      {/* Bank and PF details */}
       <div className="employee-card space-y-2 text-xs">
         <div className="flex items-center gap-1.5 pb-1 border-b border-[var(--border-default)]">
-          <CreditCard className="w-3.5 h-3.5 text-slate-400" />
-          <span className="font-semibold text-slate-900">Bank & Statutory</span>
+          <CreditCard className="w-3.5 h-3.5 text-slate-500" />
+          <span className="font-semibold text-slate-900">Bank and PF details</span>
         </div>
 
         <div className="divide-y divide-slate-100 text-xs">
           <div className="py-2 flex items-center justify-between">
-            <span className="text-slate-500">Bank Account</span>
-            <span className="font-medium text-slate-900 font-mono">
+            <span className="text-slate-500">Bank account</span>
+            <span className="font-medium text-slate-900 tabular-nums">
               {employee.bankDetails.bankName} (ending {employee.bankDetails.accountNumber.slice(-4)})
             </span>
           </div>
 
           <div className="py-2 flex items-center justify-between">
             <span className="text-slate-500">PAN</span>
-            <span className="font-medium text-slate-900 font-mono">
+            <span className="font-medium text-slate-900 tabular-nums">
               {employee.bankDetails.panNumber}
             </span>
           </div>
@@ -304,10 +304,10 @@ export const EmployeeProfile: React.FC = () => {
         <button
           type="button"
           onClick={handleSignOut}
-          className="w-full py-2.5 px-3 rounded-xl border border-red-200 bg-white hover:bg-red-50 text-red-600 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+          className="w-full py-2.5 px-3 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
         >
-          <LogOut className="w-3.5 h-3.5 text-red-500" />
-          <span>Sign Out</span>
+          <LogOut className="w-3.5 h-3.5 text-rose-500" />
+          <span>Sign out</span>
         </button>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { X, Pencil } from 'lucide-react';
 import { Employee } from '@/types';
-import { getReportingManager } from '@/services/mockData';
+import { getReportingManager } from '@/utils/reportingManager';
 import { formatDate, formatINR } from '@/utils/formatters';
 import { getShiftDefinition } from '@/utils/shiftUtils';
 
@@ -95,8 +95,8 @@ export const EmployeeDetailsPanel = ({
                 className="w-14 h-14 rounded-lg object-cover border border-slate-200 bg-white shrink-0"
               />
               <div>
-                <span className="text-xs font-semibold text-slate-900 block">Registered Face ID</span>
-                <span className="text-[11px] text-emerald-700 font-medium block mt-0.5">
+                <span className="text-xs font-semibold text-slate-900 block">Registered face ID</span>
+                <span className="text-xs text-emerald-700 font-medium block mt-0.5">
                   Biometrics Enrolled for Attendance Verification
                 </span>
               </div>
@@ -124,7 +124,7 @@ export const EmployeeDetailsPanel = ({
 
       {section === 'Employment' &&
         details([
-          ['Location', employee.location],
+          ['Center', employee.location],
           ['Employee shift', getShiftDefinition(employee.shift).name],
           ['Date of joining', formatDate(employee.joiningDate)],
           ['Employment type', employee.employmentType?.replaceAll('_', ' ')],
@@ -152,8 +152,8 @@ export const EmployeeDetailsPanel = ({
               if (Array.isArray(comps) && comps.length > 0) {
                 return (
                   <div className="mt-5 pt-4 border-t border-slate-200">
-                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">
-                      Custom Salary Components Breakdown
+                    <h4 className="text-xs font-bold text-slate-900 mb-2">
+                      Custom salary components breakdown
                     </h4>
                     <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-100 bg-white">
                       {comps.map((c, idx) => {
@@ -161,7 +161,7 @@ export const EmployeeDetailsPanel = ({
                         return (
                           <div key={c.id || idx} className="p-2.5 flex items-center justify-between text-xs">
                             <div className="flex items-center gap-2">
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${
                                 isEarn
                                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                   : 'bg-rose-50 text-rose-700 border border-rose-200'

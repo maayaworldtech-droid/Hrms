@@ -24,6 +24,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -51,12 +52,16 @@ public class PayrollController {
 
     @GetMapping("/runs")
     public ResponseEntity<List<PayrollRun>> getRuns() {
-        return ResponseEntity.ok(payrollRunRepository.findAllByOrderByYearDescMonthDesc());
+        List<PayrollRun> runs = new ArrayList<>(payrollRunRepository.findAll());
+        runs.sort(RUN_NEWEST_FIRST);
+        return ResponseEntity.ok(runs);
     }
 
     @GetMapping("/payslips/{employeeId}")
     public ResponseEntity<List<Payslip>> getPayslipsByEmployee(@PathVariable Long employeeId) {
-        return ResponseEntity.ok(payslipRepository.findByEmployeeIdOrderByYearDescMonthDesc(employeeId));
+        List<Payslip> slips = new ArrayList<>(payslipRepository.findByEmployeeIdOrderByYearDescMonthDesc(employeeId));
+        slips.sort(SLIP_NEWEST_FIRST);
+        return ResponseEntity.ok(slips);
     }
 
     @GetMapping("/payslips/run/{runId}")
@@ -67,8 +72,20 @@ public class PayrollController {
     @PostMapping("/process")
     @Transactional
     public ResponseEntity<PayrollRun> processPayroll(@RequestBody Map<String, Object> payload, HttpServletRequest request) {
-        String month = payload.get("month") != null ? payload.get("month").toString().trim() : "October";
-        int year = payload.get("year") != null ? Integer.parseInt(payload.get("year").toString()) : LocalDate.now(BUSINESS_ZONE).getYear();
+        LocalDate today = LocalDate.now(BUSINESS_ZONE);
+        String month = payload.get("month") != null && !payload.get("month").toString().isBlank()
+                ? payload.get("month").toString().trim()
+                : MONTH_NAMES.get(today.getMonthValue() - 1).substring(0, 1).toUpperCase()
+                        + MONTH_NAMES.get(today.getMonthValue() - 1).substring(1);
+        if (monthIndex(month) == 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unrecognised payroll month: " + month);
+        }
+        int year;
+        try {
+            year = payload.get("year") != null ? Integer.parseInt(payload.get("year").toString().trim()) : today.getYear();
+        } catch (NumberFormatException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payroll year must be numeric.");
+        }
 
         List<PayrollRun> existingRuns = payrollRunRepository.findByMonthIgnoreCaseAndYear(month, year);
         for (PayrollRun existing : existingRuns) {
@@ -104,20 +121,22 @@ public class PayrollController {
         List<Payslip> generatedSlips = new ArrayList<>();
 
         for (Employee emp : employees) {
-            double gross = emp.getMonthlySalary() != null ? emp.getMonthlySalary() : 35000.0;
+            // No made-up default: staff without a salary on file get 0 and are flagged in Payroll and Reports
+            double gross = emp.getMonthlySalary() != null ? emp.getMonthlySalary() : 0.0;
+            boolean salarySet = gross > 0;
             double basic = Math.round(gross * 0.50);
             double hra = Math.round(gross * 0.30);
             double special = Math.round(gross * 0.10);
-            double conveyance = 1600.0;
-            double medical = 1250.0;
+            double conveyance = salarySet ? 1600.0 : 0.0;
+            double medical = salarySet ? 1250.0 : 0.0;
             double bonus = 0.0;
             double incentives = 0.0;
 
             double epfEmployee = Math.round(basic * 0.12);
             double epfEmployer = Math.round(basic * 0.12);
-            double profTax = 200.0;
+            double profTax = salarySet ? 200.0 : 0.0;
             double tds = Math.round(gross * 0.05);
-            double healthIns = 500.0;
+            double healthIns = salarySet ? 500.0 : 0.0;
             double deductions = 0.0;
             boolean hasCustomDeductions = false;
 
@@ -200,6 +219,13 @@ public class PayrollController {
 
                         if (hasEarnings && dynamicGross > 0) {
                             gross = dynamicGross;
+                            if (!hasCustomDeductions) {
+                                // Statutory defaults were computed from monthlySalary above; re-base them on the
+                                // custom structure so EPF/TDS match the earnings actually being paid.
+                                epfEmployee = Math.round(basic * 0.12);
+                                epfEmployer = Math.round(basic * 0.12);
+                                tds = Math.round(gross * 0.05);
+                            }
                         }
                         if (hasCustomDeductions) {
                             deductions = dynamicDeductions;
@@ -288,46 +314,45 @@ public class PayrollController {
             }
         }
 
-        if (payload.containsKey("bonus")) {
-            slip.setBonus(Math.max(0.0, Double.parseDouble(payload.get("bonus").toString())));
-        }
-        if (payload.containsKey("incentives")) {
-            slip.setIncentives(Math.max(0.0, Double.parseDouble(payload.get("incentives").toString())));
-        }
-        if (payload.containsKey("specialAllowance")) {
-            slip.setSpecialAllowance(Math.max(0.0, Double.parseDouble(payload.get("specialAllowance").toString())));
-        }
-        if (payload.containsKey("lossOfPayDays")) {
-            slip.setLossOfPayDays(Math.max(0, Math.min(31, Integer.parseInt(payload.get("lossOfPayDays").toString()))));
+        // Snapshot the slip before applying changes. The stored gross is authoritative: the default component
+        // split (50/30/10% + fixed allowances) does not sum exactly to gross, so re-deriving gross from components
+        // here would silently change pay on any adjustment, even a notes-only edit.
+        double prevSpecial = nz(slip.getSpecialAllowance());
+        double prevBonus = nz(slip.getBonus());
+        double prevIncentives = nz(slip.getIncentives());
+        double prevBaseGross = Math.max(0.0, nz(slip.getGrossMonthly()) - prevBonus - prevIncentives);
+        double prevLop = computeLopDeduction(prevBaseGross, slip.getPayableDays(), slip.getLossOfPayDays());
+        double statutory = nz(slip.getEpfEmployee()) + nz(slip.getProfessionalTax())
+                + nz(slip.getTds()) + nz(slip.getHealthInsurance());
+        // Custom deduction components (loans, advances, ...) that are not one of the four statutory buckets
+        double otherDeductions = Math.max(0.0, nz(slip.getTotalDeductions()) - statutory - prevLop);
+
+        try {
+            if (payload.containsKey("bonus")) {
+                slip.setBonus(Math.max(0.0, Double.parseDouble(String.valueOf(payload.get("bonus")))));
+            }
+            if (payload.containsKey("incentives")) {
+                slip.setIncentives(Math.max(0.0, Double.parseDouble(String.valueOf(payload.get("incentives")))));
+            }
+            if (payload.containsKey("specialAllowance")) {
+                slip.setSpecialAllowance(Math.max(0.0, Double.parseDouble(String.valueOf(payload.get("specialAllowance")))));
+            }
+            if (payload.containsKey("lossOfPayDays")) {
+                slip.setLossOfPayDays(Math.max(0, Math.min(31, Integer.parseInt(String.valueOf(payload.get("lossOfPayDays"))))));
+            }
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Adjustment values must be numeric."));
         }
         if (payload.containsKey("notes")) {
             slip.setAdjustmentNotes(payload.get("notes") != null ? payload.get("notes").toString() : "");
         }
 
-        double basic = slip.getBasic() != null ? slip.getBasic() : 0.0;
-        double hra = slip.getHra() != null ? slip.getHra() : 0.0;
-        double special = slip.getSpecialAllowance() != null ? slip.getSpecialAllowance() : 0.0;
-        double conveyance = slip.getConveyanceAllowance() != null ? slip.getConveyanceAllowance() : 0.0;
-        double medical = slip.getMedicalAllowance() != null ? slip.getMedicalAllowance() : 0.0;
-        double bonus = slip.getBonus() != null ? slip.getBonus() : 0.0;
-        double incentives = slip.getIncentives() != null ? slip.getIncentives() : 0.0;
-
-        double baseGross = basic + hra + special + conveyance + medical;
-        double updatedGross = baseGross + bonus + incentives;
+        double baseGross = Math.max(0.0, prevBaseGross + (nz(slip.getSpecialAllowance()) - prevSpecial));
+        double updatedGross = baseGross + nz(slip.getBonus()) + nz(slip.getIncentives());
         slip.setGrossMonthly(updatedGross);
 
-        double epf = slip.getEpfEmployee() != null ? slip.getEpfEmployee() : 0.0;
-        double pt = slip.getProfessionalTax() != null ? slip.getProfessionalTax() : 0.0;
-        double tds = slip.getTds() != null ? slip.getTds() : 0.0;
-        double health = slip.getHealthInsurance() != null ? slip.getHealthInsurance() : 0.0;
-        double lopDeduction = 0.0;
-        if (slip.getLossOfPayDays() > 0) {
-            int payableDays = Math.max(1, slip.getPayableDays());
-            double perDay = baseGross / payableDays;
-            lopDeduction = Math.round(perDay * slip.getLossOfPayDays());
-        }
-
-        double totalDeductions = epf + pt + tds + health + lopDeduction;
+        double lopDeduction = computeLopDeduction(baseGross, slip.getPayableDays(), slip.getLossOfPayDays());
+        double totalDeductions = statutory + otherDeductions + lopDeduction;
         slip.setTotalDeductions(totalDeductions);
         slip.setNetMonthly(Math.max(0.0, updatedGross - totalDeductions));
 
@@ -364,7 +389,12 @@ public class PayrollController {
     ) {
         String disbursedBy = payload != null && payload.get("disbursedBy") != null ? payload.get("disbursedBy") : "Administrator";
         String todayStr = LocalDate.now(BUSINESS_ZONE).toString();
-        return payrollRunRepository.findById(runId).map(run -> {
+        Optional<PayrollRun> existing = payrollRunRepository.findById(runId);
+        if (existing.isPresent() && "DISBURSED".equalsIgnoreCase(existing.get().getStatus())) {
+            // Re-disbursing would overwrite the original payment date and disburser on every payslip
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This payroll run has already been disbursed.");
+        }
+        return existing.map(run -> {
             run.setStatus("DISBURSED");
             run.setDisbursedAt(todayStr);
             run.setDisbursedBy(disbursedBy);
@@ -382,6 +412,55 @@ public class PayrollController {
             return ResponseEntity.ok(saved);
         }).orElseGet(() -> ResponseEntity.notFound().build());
     }
+
+    private static double nz(Double value) {
+        return value != null ? value : 0.0;
+    }
+
+    private static double computeLopDeduction(double baseGross, int payableDays, int lossOfPayDays) {
+        if (lossOfPayDays <= 0) return 0.0;
+        return Math.round((baseGross / Math.max(1, payableDays)) * lossOfPayDays);
+    }
+
+    private static final List<String> MONTH_NAMES = List.of(
+            "january", "february", "march", "april", "may", "june",
+            "july", "august", "september", "october", "november", "december"
+    );
+
+    /** Calendar month index (1-12) for "October", "Oct" or "2026-10"; 0 when unrecognised. */
+    static int monthIndex(String month) {
+        if (month == null) return 0;
+        String m = month.trim().toLowerCase();
+        int dash = m.lastIndexOf('-');
+        if (dash >= 0 && dash < m.length() - 1) {
+            try {
+                int n = Integer.parseInt(m.substring(dash + 1));
+                return (n >= 1 && n <= 12) ? n : 0;
+            } catch (NumberFormatException ignored) {
+                // not numeric, fall through to name matching
+            }
+        }
+        for (int i = 0; i < MONTH_NAMES.size(); i++) {
+            String name = MONTH_NAMES.get(i);
+            if (m.equals(name) || (m.length() >= 3 && name.startsWith(m))) {
+                return i + 1;
+            }
+        }
+        return 0;
+    }
+
+    /** Newest pay cycle first. Month is stored as a name, so a DB sort would be alphabetical. */
+    private static final Comparator<PayrollRun> RUN_NEWEST_FIRST = Comparator
+            .comparingInt(PayrollRun::getYear)
+            .thenComparingInt(r -> monthIndex(r.getMonth()))
+            .thenComparing(r -> r.getId() != null ? r.getId() : 0L)
+            .reversed();
+
+    private static final Comparator<Payslip> SLIP_NEWEST_FIRST = Comparator
+            .comparingInt(Payslip::getYear)
+            .thenComparingInt(s -> monthIndex(s.getMonth()))
+            .thenComparing(s -> s.getId() != null ? s.getId() : 0L)
+            .reversed();
 
     private void recordAudit(HttpServletRequest request, String action, String details) {
         try {
