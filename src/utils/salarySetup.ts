@@ -4,13 +4,11 @@ import type { DynamicSalaryItem, Employee } from '@/types';
  * How a person is paid, as set up at onboarding and in the edit form. There are two ways, and only
  * one is used at a time:
  *
- * - Yearly salary: one amount a year; the month's pay is that divided by 12.
- * - Salary breakdown: basic pay, HRA and allowances; the month's pay is their total.
+ * - Yearly salary: one amount a year; the month's pay is that divided by 12. Nothing is deducted.
+ * - Salary breakdown: basic pay, HRA and allowances, plus any deductions (PF, ESI, professional
+ *   tax, TDS, anything else). Payroll takes only the deductions listed.
  *
- * Deductions (PF, ESI, professional tax, TDS, anything else) are one list used with either way.
- * Payroll takes only what is listed for that person: nothing listed means nothing deducted.
- *
- * Saved as salaryStructureJson: the deductions, plus the earnings when a breakdown is used.
+ * Saved as salaryStructureJson: empty for a yearly salary, the earnings and deductions otherwise.
  */
 export type SalaryMode = 'YEARLY' | 'BREAKDOWN';
 
@@ -18,7 +16,7 @@ export interface SalarySetupValue {
   mode: SalaryMode;
   /** Yearly salary as typed (used in YEARLY mode). */
   yearly: string;
-  /** Earnings (BREAKDOWN mode only) and deductions (both modes). */
+  /** Earnings and deductions (BREAKDOWN mode only; empty for a yearly salary). */
   items: DynamicSalaryItem[];
 }
 
@@ -71,9 +69,15 @@ export const salarySetupFromEmployee = (emp: Pick<Employee, 'salaryStructureJson
   }
   const hasEarnings = items.some((i) => i.type === 'EARNING' && i.amount > 0);
   const yearly = emp.ctcAnnual || (emp.monthlySalary ? emp.monthlySalary * 12 : 0);
-  return hasEarnings
-    ? { mode: 'BREAKDOWN', yearly: yearly ? String(Math.round(yearly)) : '', items }
-    : { mode: 'YEARLY', yearly: yearly ? String(Math.round(yearly)) : '', items: items.filter((i) => i.type === 'DEDUCTION') };
+  const yearlyText = yearly ? String(Math.round(yearly)) : '';
+  if (hasEarnings) return { mode: 'BREAKDOWN', yearly: yearlyText, items };
+  const deductions = items.filter((i) => i.type === 'DEDUCTION');
+  // Saved earlier as a yearly salary with deductions: show it as a breakdown so they are kept
+  if (deductions.length > 0) {
+    const basic: DynamicSalaryItem = { id: newId(), code: 'BASIC', name: 'Basic pay', type: 'EARNING', amount: Math.round(yearly / 12) };
+    return { mode: 'BREAKDOWN', yearly: yearlyText, items: [basic, ...deductions] };
+  }
+  return { mode: 'YEARLY', yearly: yearlyText, items: [] };
 };
 
 export interface SalarySummary {
@@ -89,9 +93,9 @@ export interface SalarySummary {
 
 /** The figures for a full month with no unpaid days, the same way payroll works them out. */
 export const summarizeSalary = (value: SalarySetupValue): SalarySummary => {
-  const earnings = value.items.filter((i) => i.type === 'EARNING');
-  const deductions = value.items.filter((i) => i.type === 'DEDUCTION');
   const breakdown = value.mode === 'BREAKDOWN';
+  const earnings = breakdown ? value.items.filter((i) => i.type === 'EARNING') : [];
+  const deductions = breakdown ? value.items.filter((i) => i.type === 'DEDUCTION') : [];
   const monthly = breakdown ? earnings.reduce((sum, i) => sum + money(i.amount), 0) : Math.round((Number(value.yearly) || 0) / 12);
   const yearly = breakdown ? monthly * 12 : money(Number(value.yearly) || 0);
   const basic = breakdown ? earnings.filter((i) => i.code === 'BASIC' || /BASIC/i.test(i.name)).reduce((s, i) => s + money(i.amount), 0) : monthly;
@@ -102,7 +106,7 @@ export const summarizeSalary = (value: SalarySetupValue): SalarySummary => {
     else if (isEsi(d)) total += Math.ceil(monthly * 0.0075);
     else total += money(d.amount);
   }
-  const saved = breakdown ? [...earnings, ...deductions] : deductions;
+  const saved = breakdown ? [...earnings, ...deductions] : [];
   return {
     monthly,
     yearly,

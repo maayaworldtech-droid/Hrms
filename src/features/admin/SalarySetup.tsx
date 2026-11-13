@@ -41,8 +41,8 @@ export const SalarySetup: React.FC<{
       const startEarnings = earnings.length > 0 ? earnings : [{ id: newId(), code: 'BASIC', name: 'Basic pay', type: 'EARNING' as const, amount: monthly }];
       onChange({ ...value, mode, items: [...startEarnings, ...deductions] });
     } else {
-      // Back to one yearly amount, carrying over what the breakdown added up to
-      onChange({ mode, yearly: summary.monthly > 0 ? String(summary.monthly * 12) : value.yearly, items: deductions });
+      // Back to one yearly amount, carrying over what the breakdown added up to (no deductions)
+      onChange({ mode, yearly: summary.monthly > 0 ? String(summary.monthly * 12) : value.yearly, items: [] });
     }
   };
 
@@ -150,8 +150,8 @@ export const SalarySetup: React.FC<{
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {(
             [
-              ['YEARLY', 'Yearly salary', 'One amount a year. Monthly pay is that divided by 12.'],
-              ['BREAKDOWN', 'Salary breakdown', 'Basic pay, HRA and allowances, added up each month.'],
+              ['YEARLY', 'Yearly salary', 'One amount a year, paid monthly. Nothing is deducted.'],
+              ['BREAKDOWN', 'Salary breakdown', 'Basic pay and allowances, with PF, tax or other deductions.'],
             ] as const
           ).map(([mode, title, hint]) => {
             const selected = value.mode === mode;
@@ -212,31 +212,35 @@ export const SalarySetup: React.FC<{
         </section>
       )}
 
-      <section aria-labelledby={`${idPrefix}-deductions-h`} className="border-t border-slate-200 pt-4">
-        <h4 id={`${idPrefix}-deductions-h`} className="text-sm font-semibold text-slate-900">
-          Deductions a month
-        </h4>
-        <p className="mt-0.5 text-sm text-slate-600">Only what you add here is taken from pay. Leave it empty if nothing applies.</p>
-        {deductions.length > 0 && <ul className="mt-1 divide-y divide-slate-100">{deductions.map(row)}</ul>}
-        <div className="mt-2">{adders(available(DEDUCTIONS, deductions), 'Add a deduction')}</div>
-      </section>
+      {breakdown && (
+        <>
+          <section aria-labelledby={`${idPrefix}-deductions-h`} className="border-t border-slate-200 pt-4">
+            <h4 id={`${idPrefix}-deductions-h`} className="text-sm font-semibold text-slate-900">
+              Deductions a month
+            </h4>
+            <p className="mt-0.5 text-sm text-slate-600">Only what you add here is taken from pay. Leave it empty if nothing applies.</p>
+            {deductions.length > 0 && <ul className="mt-1 divide-y divide-slate-100">{deductions.map(row)}</ul>}
+            <div className="mt-2">{adders(available(DEDUCTIONS, deductions), 'Add a deduction')}</div>
+          </section>
 
-      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-4">
-        {(
-          [
-            ['Pay a month', summary.monthly],
-            ['Deductions', summary.deductions],
-            ['Take-home a month', summary.takeHome],
-            ['Pay a year', summary.yearly],
-          ] as const
-        ).map(([label, amount]) => (
-          <div key={label} className="bg-white px-3 py-2.5">
-            <dt className="text-sm text-slate-600">{label}</dt>
-            <dd className="mt-0.5 text-base font-semibold tabular-nums text-slate-900">{formatINR(amount)}</dd>
-          </div>
-        ))}
-      </dl>
-      <p className="-mt-3 text-sm text-slate-600">For a full month. Payroll takes off unpaid days each month.</p>
+          <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-4">
+            {(
+              [
+                ['Pay a month', summary.monthly],
+                ['Deductions', summary.deductions],
+                ['Take-home a month', summary.takeHome],
+                ['Pay a year', summary.yearly],
+              ] as const
+            ).map(([label, amount]) => (
+              <div key={label} className="bg-white px-3 py-2.5">
+                <dt className="text-sm text-slate-600">{label}</dt>
+                <dd className="mt-0.5 text-base font-semibold tabular-nums text-slate-900">{formatINR(amount)}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="-mt-3 text-sm text-slate-600">For a full month. Payroll takes off unpaid days each month.</p>
+        </>
+      )}
 
       {error && (
         <p role="alert" className="text-sm font-medium text-rose-700">

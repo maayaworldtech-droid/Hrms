@@ -318,3 +318,12 @@ Admin initiates cycle (PayrollProcessing.tsx)
 **Files changed:** `.gitignore`, `.env.example` (new), `.env` (untracked from git, local only), `backend/.../controller/NotificationController.java` (new), `backend/.../entity/Notification.java` (new), `backend/.../repository/NotificationRepository.java` (new), `backend/.../service/{NotificationService,NotificationMailer,StaffNotices}.java` (new), `backend/.../resources/db/migration/V2__notifications.sql` (new), `backend/.../service/NoticeEmailTest.java` (new), `src/features/admin/SalarySetup.tsx` (new), `src/utils/salarySetup.ts` (new)
 
 **What & why:** Added `.env.example` template and untracked `.env` from git to prevent credential leakage. Configured production `.env` on EC2 with 600 permissions linked to systemd via `EnvironmentFile`. Added Flyway migration `V2__notifications.sql` for staff bell and email notifications on leave decisions and salary payments, complete with unit tests and admin salary setup utilities.
+
+### 2026-11-13 (Post-Afternoon) — Strict Yearly Salary Deduction Isolation
+
+**Request:** Deploy again to AWS and GitHub.
+
+**Files changed:** `src/features/admin/SalarySetup.tsx`, `src/utils/salarySetup.ts`
+
+**What & why:** Isolated deductions configuration exclusively to Breakdown mode so that Yearly salary configurations maintain a clean single annual figure without deduction subtractions or deduction inputs, ensuring clear separation of salary models.
+
