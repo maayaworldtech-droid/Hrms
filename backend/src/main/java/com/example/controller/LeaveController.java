@@ -33,6 +33,9 @@ public class LeaveController {
     private LeaveRequestRepository leaveRequestRepository;
 
     @Autowired
+    private com.example.service.StaffNotices staffNotices;
+
+    @Autowired
     private EmployeeRepository employeeRepository;
 
     @GetMapping
@@ -130,7 +133,12 @@ public class LeaveController {
         req.setReviewedBy(resolveReviewerName(httpRequest, payload.get("reviewer")));
         if (payload.get("comments") != null) req.setReviewerComments(payload.get("comments"));
 
-        return ResponseEntity.ok(leaveRequestRepository.save(req));
+        LeaveRequest saved = leaveRequestRepository.save(req);
+        // Tell the person, unless they changed it themselves
+        if (authId == null || !authId.equals(saved.getEmployeeId())) {
+            staffNotices.leaveDecided(saved, previousStatus);
+        }
+        return ResponseEntity.ok(saved);
     }
 
     /** Reviewer identity comes from the authenticated session, not from the request body. */

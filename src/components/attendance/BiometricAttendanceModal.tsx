@@ -160,23 +160,24 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
           if (desc) setEnrolledDescriptor(desc);
         });
       }
-    } else {
-      api.employees.getById(employee.id).then((emp) => {
-        if (emp?.enrolledFacePhoto) {
-          setEnrolledPhoto(emp.enrolledFacePhoto);
-          setIsEnrolled(true);
-          const empBioJson = (emp as any).enrolledFaceBiometrics;
-          const savedDesc = tryParseDescriptor(empBioJson);
-          if (savedDesc) {
-            setEnrolledDescriptor(savedDesc);
-          } else {
-            void extractDescriptorFromImage(emp.enrolledFacePhoto).then((desc) => {
-              if (desc) setEnrolledDescriptor(desc);
-            });
-          }
-        }
-      });
     }
+    // Always ask the server for the saved face as well: the admin may have replaced it since this
+    // screen loaded, and check-in must match against the latest one.
+    api.employees.getById(employee.id).then((emp) => {
+      if (emp?.enrolledFacePhoto && emp.enrolledFacePhoto !== photo) {
+        setEnrolledPhoto(emp.enrolledFacePhoto);
+        setIsEnrolled(true);
+        const empBioJson = (emp as any).enrolledFaceBiometrics;
+        const savedDesc = tryParseDescriptor(empBioJson);
+        if (savedDesc) {
+          setEnrolledDescriptor(savedDesc);
+        } else {
+          void extractDescriptorFromImage(emp.enrolledFacePhoto).then((desc) => {
+            if (desc) setEnrolledDescriptor(desc);
+          });
+        }
+      }
+    }).catch(() => undefined);
   }, [employee.id, employee.enrolledFacePhoto, employee.enrolledFaceBiometrics]);
 
   const handleCheckDeviceGps = useCallback(() => {
@@ -412,7 +413,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
                 appearanceSimilarity: 0,
                 threshold: 72,
                 status: 'MISMATCH',
-                reason: 'No face saved yet. Tap Register face first.',
+                reason: 'Your face is not saved for check-in yet. Ask your admin to add it.',
               };
               setVerificationResult(unregComp);
               setMatchScore(0);
@@ -551,7 +552,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
         appearanceSimilarity: 0,
         threshold: 72,
         status: 'MISMATCH',
-        reason: 'No face saved yet. Tap Register face first.',
+        reason: 'Your face is not saved for check-in yet. Ask your admin to add it.',
       });
       setMatchScore(0);
       setScanStage('FAILED_VERIFICATION');
@@ -654,19 +655,6 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
     startAnalysisLoop();
   };
 
-  const handleStartEnrollment = () => {
-    resetBiometricTracker();
-    prevImageDataRef.current = null;
-    isEnrollingModeRef.current = true;
-    setIsEnrollingMode(true);
-    setCapturedPhoto(null);
-    setCapturedBiometrics(null);
-    setVerificationResult(null);
-    setScanStage('ENROLLING');
-    setMatchScore(0);
-    setIsFaceCentered(false);
-    startAnalysisLoop();
-  };
 
   useEffect(() => {
     if (isOpen) {
@@ -780,13 +768,6 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleStartEnrollment}
-              className="h-8 px-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-sm font-medium text-slate-800 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60"
-            >
-              {isEnrolled ? 'Update face' : 'Register face'}
-            </button>
-            <button
-              type="button"
               onClick={onClose}
               className="w-8 h-8 flex items-center justify-center text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60"
               aria-label="Close"
@@ -800,7 +781,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
         <div className="p-4 space-y-3.5 overflow-y-auto">
           {!isEnrolled && !isEnrollingMode && (
             <div className="px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between gap-2 text-sm text-amber-900">
-              <span>No face registered yet. Tap Register face to capture one.</span>
+              <span>Your face is not saved for check-in yet. Ask your admin to add it.</span>
             </div>
           )}
 

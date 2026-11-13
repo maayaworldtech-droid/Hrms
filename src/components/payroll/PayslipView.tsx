@@ -33,6 +33,8 @@ export const PayslipView: React.FC<{ slip: Payslip; company?: CompanySettings | 
     ['Conveyance allowance', c.conveyanceAllowance],
     ['Medical allowance', c.medicalAllowance],
   ].filter(([, v]) => Number(v) > 0) as [string, number][];
+  // Paid as one yearly salary: "Monthly salary" below says it all, so no separate basic pay line
+  const showEarningLines = earningLines.length > 1;
 
   const deductionLines = [
     ['Provident fund (PF)', f.pf],
@@ -98,7 +100,7 @@ export const PayslipView: React.FC<{ slip: Payslip; company?: CompanySettings | 
             Earnings
           </h3>
           <dl className="divide-y divide-slate-100">
-            {earningLines.map(([label, v]) => (
+            {showEarningLines && earningLines.map(([label, v]) => (
               <Line key={label} label={label} amount={v} />
             ))}
             <Line label="Monthly salary" amount={f.fullMonthlySalary} strong />

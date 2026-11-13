@@ -6,6 +6,7 @@ import { formatDate, formatINR } from '@/utils/formatters';
 import { api } from '@/services/api';
 import { getShiftDefinition } from '@/utils/shiftUtils';
 import { accessLabel } from '@/utils/access';
+import { PF_WAGE_CEILING, isEsi, isPf, salarySetupFromEmployee, summarizeSalary } from '@/utils/salarySetup';
 import { Button } from './Button';
 import { Badge } from './Badge';
 
@@ -67,15 +68,14 @@ export const EmployeeDetailsPanel = ({
     ? `${employee.emergencyContactName} (${employee.emergencyContactRelationship || 'Emergency'}${employee.emergencyContactPhone ? `, ${employee.emergencyContactPhone}` : ''})`
     : undefined;
 
-  let customComponents: any[] = [];
-  if (employee.salaryStructureJson) {
-    try {
-      const parsed = JSON.parse(employee.salaryStructureJson);
-      if (Array.isArray(parsed)) customComponents = parsed;
-    } catch {
-      customComponents = [];
-    }
-  }
+  // Pay as set up at onboarding: yearly salary or a breakdown, plus the deductions that apply
+  const pay = salarySetupFromEmployee(employee);
+  const paySummary = summarizeSalary(pay);
+  const payLines = pay.items.map((item) => {
+    if (isPf(item)) return { ...item, shown: `${formatINR(Math.round(Math.min(paySummary.basic, PF_WAGE_CEILING) * 0.12))} (12%)` };
+    if (isEsi(item)) return { ...item, shown: `${formatINR(Math.ceil(paySummary.monthly * 0.0075))} (0.75%)` };
+    return { ...item, shown: formatINR(item.amount || 0) };
+  });
 
   return (
     <dialog
@@ -150,8 +150,11 @@ export const EmployeeDetailsPanel = ({
           {section === 'Payroll' && (
             <>
               {details([
-                ['Monthly salary', employee.monthlySalary != null ? formatINR(employee.monthlySalary) : undefined],
-                ['Yearly salary', employee.ctcAnnual != null ? formatINR(employee.ctcAnnual) : undefined],
+                ['Paid by', pay.mode === 'BREAKDOWN' ? 'Salary breakdown' : 'Yearly salary'],
+                ['Monthly pay', paySummary.monthly ? formatINR(paySummary.monthly) : undefined],
+                ['Yearly pay', paySummary.yearly ? formatINR(paySummary.yearly) : undefined],
+                ['Deductions a month', formatINR(paySummary.deductions)],
+                ['Take-home a month', paySummary.monthly ? formatINR(paySummary.takeHome) : undefined],
                 ['Bank', employee.bankDetails?.bankName],
                 ['Account number', employee.bankDetails?.accountNumber],
                 ['IFSC', employee.bankDetails?.ifscCode],
@@ -159,11 +162,11 @@ export const EmployeeDetailsPanel = ({
                 ['EPFO UAN', employee.bankDetails?.uanNumber || 'Not applicable'],
               ])}
 
-              {customComponents.length > 0 && (
+              {payLines.length > 0 && (
                 <div className="mt-5 border-t border-slate-200 pt-4">
-                  <h3 className="text-sm font-semibold text-slate-900">Salary components</h3>
+                  <h3 className="text-sm font-semibold text-slate-900">{pay.mode === 'BREAKDOWN' ? 'Earnings and deductions' : 'Deductions'}</h3>
                   <ul className="mt-2 divide-y divide-slate-100">
-                    {customComponents.map((c, idx) => (
+                    {payLines.map((c, idx) => (
                       <li key={c.id || idx} className="flex items-center justify-between gap-3 py-2 text-sm">
                         <span className="flex items-center gap-2 text-slate-800">
                           <Badge variant={c.type === 'EARNING' ? 'success' : 'neutral'} size="sm">
@@ -171,7 +174,7 @@ export const EmployeeDetailsPanel = ({
                           </Badge>
                           {c.name}
                         </span>
-                        <span className="font-medium tabular-nums text-slate-900">{formatINR(c.amount || 0)}</span>
+                        <span className="font-medium tabular-nums text-slate-900">{c.shown}</span>
                       </li>
                     ))}
                   </ul>

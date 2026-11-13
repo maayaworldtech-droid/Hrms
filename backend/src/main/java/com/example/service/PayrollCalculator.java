@@ -167,6 +167,73 @@ public final class PayrollCalculator {
     }
 
     /**
+     * Copies a person's salary setup (as saved at onboarding or when edited) onto a payslip.
+     *
+     * <p>There are two ways to set pay up, and they never mix:
+     * <ul>
+     *   <li><b>Yearly salary</b>: no earning lines are saved. The month's salary is the yearly
+     *       salary divided by 12 (₹3,00,000 a year is ₹25,000 a month) and is paid as one line.</li>
+     *   <li><b>Salary breakdown</b>: the earning lines (basic, HRA, allowances...) are the salary.</li>
+     * </ul>
+     * Deductions are the same list in both cases. Only what was added for this person is taken:
+     * PF and ESI are switched on by adding them and are worked out each month by rule; professional
+     * tax, TDS and anything else are the monthly amounts entered. Nothing added means nothing deducted.
+     */
+    public static void applySalarySetup(Payslip slip, double monthlySalary, List<Map<String, Object>> items) {
+        double monthly = Math.max(0.0, monthlySalary);
+        double basic = 0, hra = 0, special = 0, conveyance = 0, medical = 0, tds = 0, pt = 0, other = 0;
+        boolean pf = false;
+        boolean esi = false;
+        for (Map<String, Object> item : items == null ? List.<Map<String, Object>>of() : items) {
+            String type = String.valueOf(item.getOrDefault("type", "EARNING")).toUpperCase();
+            String code = String.valueOf(item.getOrDefault("code", "")).toUpperCase();
+            String name = String.valueOf(item.getOrDefault("name", "")).toUpperCase();
+            double amount;
+            try {
+                amount = Math.max(0.0, Double.parseDouble(String.valueOf(item.get("amount"))));
+            } catch (Exception e) {
+                amount = 0.0;
+            }
+            if ("DEDUCTION".equals(type)) {
+                if (code.equals("PF") || name.contains("PROVIDENT") || name.contains("EPF")) pf = true;
+                else if (code.equals("ESI") || name.contains("STATE INSURANCE")) esi = true;
+                else if (code.equals("PT") || name.contains("PROFESSIONAL")) pt += amount;
+                else if (code.equals("TDS") || name.contains("INCOME TAX") || name.contains("TDS")) tds += amount;
+                else other += amount;
+            } else {
+                if (code.equals("BASIC") || name.contains("BASIC")) basic += amount;
+                else if (code.equals("HRA") || name.contains("RENT")) hra += amount;
+                else if (code.equals("CONVEYANCE") || name.contains("CONVEYANCE") || name.contains("TRAVEL")) conveyance += amount;
+                else if (code.equals("MEDICAL") || name.contains("MEDICAL")) medical += amount;
+                else special += amount;
+            }
+        }
+
+        if (basic + hra + special + conveyance + medical <= 0) {
+            // Yearly salary: the whole monthly amount is the salary (and the base for PF, if added)
+            basic = Math.round(monthly);
+            hra = 0;
+            special = 0;
+            conveyance = 0;
+            medical = 0;
+        }
+
+        slip.setBasic(basic);
+        slip.setHra(hra);
+        slip.setSpecialAllowance(special);
+        slip.setConveyanceAllowance(conveyance);
+        slip.setMedicalAllowance(medical);
+        slip.setBonus(0.0);
+        slip.setIncentives(0.0);
+        slip.setTds(tds);
+        slip.setOtherDeductions(other);
+        slip.setHealthInsurance(0.0);
+        slip.setPfApplicable(pf);
+        slip.setEsiApplicable(esi);
+        slip.setPtMonthly(pt);
+    }
+
+    /**
      * Works out every amount on a payslip from its stored inputs: the full monthly earning lines,
      * employed days, unpaid days, bonus, income tax and other deductions, and whether PF and ESI apply.
      */

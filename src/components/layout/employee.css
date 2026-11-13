@@ -56,8 +56,7 @@
   object-fit: contain;
 }
 
-.employee-icon-button,
-.employee-avatar {
+.employee-icon-button {
   width: 40px;
   height: 40px;
   display: inline-flex;
@@ -71,19 +70,10 @@
 }
 
 .employee-icon-button:focus-visible,
-.employee-avatar:focus-visible,
 .employee-nav a:focus-visible,
 .employee-filter-pill:focus-visible {
   outline: 2px solid var(--brand-400);
   outline-offset: 2px;
-}
-
-.employee-avatar {
-  background: var(--brand-600);
-  color: #ffffff;
-  font-weight: 600;
-  font-size: 0.8125rem;
-  letter-spacing: 0.02em;
 }
 
 .employee-icon-button {

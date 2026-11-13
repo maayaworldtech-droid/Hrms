@@ -310,3 +310,11 @@ Admin initiates cycle (PayrollProcessing.tsx)
 **Files changed:** `backend/pom.xml`, `backend/.../db/migration/V1__baseline.sql` (new), `backend/.../controller/ApiErrorHandler.java` (new), `backend/.../service/FaceDataRetention.java` (new), `backend/.../entity/{Department,LeaveBalance}.java` (deleted), `backend/.../repository/{Department,LeaveBalance}Repository.java` (deleted), `backend/.../controller/*`, `backend/.../service/*`, `backend/src/main/resources/application.properties`, `.gitignore`, `src/features/admin/EmployeeManagement.tsx`, `src/components/attendance/BiometricAttendanceModal.tsx`, `src/components/common/EmployeeDetailsPanel.tsx`, `src/services/api.ts`, `src/types/index.ts`, `src/utils/formatters.ts`
 
 **What & why:** Added Flyway database migrations with baseline V1 schema, added global API error handling (`ApiErrorHandler`), introduced face biometric data retention scheduled cleanup (`FaceDataRetention`), cleaned up deprecated entity repositories (`Department`, `LeaveBalance`), added Flyway baseline configuration in `application.properties`, and updated frontend employee & biometrics components.
+
+### 2026-11-13 (Afternoon) — Secure Environment Configuration & Staff Notifications Engine
+
+**Request:** Create .env file securely on local and EC2, and deploy latest code to AWS and GitHub.
+
+**Files changed:** `.gitignore`, `.env.example` (new), `.env` (untracked from git, local only), `backend/.../controller/NotificationController.java` (new), `backend/.../entity/Notification.java` (new), `backend/.../repository/NotificationRepository.java` (new), `backend/.../service/{NotificationService,NotificationMailer,StaffNotices}.java` (new), `backend/.../resources/db/migration/V2__notifications.sql` (new), `backend/.../service/NoticeEmailTest.java` (new), `src/features/admin/SalarySetup.tsx` (new), `src/utils/salarySetup.ts` (new)
+
+**What & why:** Added `.env.example` template and untracked `.env` from git to prevent credential leakage. Configured production `.env` on EC2 with 600 permissions linked to systemd via `EnvironmentFile`. Added Flyway migration `V2__notifications.sql` for staff bell and email notifications on leave decisions and salary payments, complete with unit tests and admin salary setup utilities.

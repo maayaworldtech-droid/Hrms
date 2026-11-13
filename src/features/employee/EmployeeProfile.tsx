@@ -13,7 +13,7 @@ import { Input } from '@/components/common/Input';
 import { Textarea } from '@/components/common/Textarea';
 import { EmptyState } from '@/components/common/EmptyState';
 import { KeyValueList, MobileCard, MobileSkeleton, MobileTitle } from '@/components/employee/MobilePrimitives';
-import { Pencil, LogOut, WifiOff } from 'lucide-react';
+import { Pencil, LogOut, WifiOff, LayoutDashboard } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { logout, updateUser } from '@/store/slices/authSlice';
 import { addToast } from '@/store/slices/uiSlice';
@@ -40,6 +40,9 @@ export const EmployeeProfile: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const user = useAppSelector((state) => state.auth.user);
+  const activeRole = useAppSelector((state) => state.auth.activeRole);
+  // Managers use this portal for their own check-in and leave; give them the way back to their team screens
+  const workspacePath = activeRole === 'MANAGER' ? '/manager/dashboard' : null;
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -170,6 +173,12 @@ export const EmployeeProfile: React.FC = () => {
           ]}
         />
       </MobileCard>
+
+      {workspacePath && (
+        <Button variant="outline" size="lg" className="w-full bg-white" onClick={() => navigate(workspacePath)} leftIcon={<LayoutDashboard className="h-4 w-4" />}>
+          Back to my team
+        </Button>
+      )}
 
       <Button
         variant="danger-ghost"

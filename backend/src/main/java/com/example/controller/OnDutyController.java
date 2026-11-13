@@ -25,6 +25,9 @@ public class OnDutyController {
     private static final Set<String> ALLOWED_STATUSES = Set.of("PENDING", "APPROVED", "REJECTED", "COMPLETED", "CANCELLED");
 
     @Autowired
+    private com.example.service.StaffNotices staffNotices;
+
+    @Autowired
     private OnDutyRequestRepository onDutyRequestRepository;
 
     @Autowired
@@ -93,6 +96,11 @@ public class OnDutyController {
         }
 
         OnDutyRequest saved = onDutyRequestRepository.save(request);
+        // A manager or admin putting someone else on duty: tell that person
+        if (isPrivileged && "APPROVED".equals(saved.getStatus())
+                && saved.getEmployeeId() != null && !saved.getEmployeeId().equals(authId)) {
+            staffNotices.onDutyAssigned(saved);
+        }
         return ResponseEntity.ok(saved);
     }
 
@@ -121,12 +129,17 @@ public class OnDutyController {
                     .body(Map.of("message", "You cannot review your own On Duty request."));
         }
 
+        String previousStatus = req.getStatus();
         if (cleanStatus != null) req.setStatus(cleanStatus);
         req.setReviewedOn(LocalDate.now(BUSINESS_ZONE));
         req.setReviewedBy(resolveReviewerName(httpRequest, reviewer));
         if (reviewerComments != null) req.setReviewerComments(reviewerComments);
 
-        return ResponseEntity.ok(onDutyRequestRepository.save(req));
+        OnDutyRequest saved = onDutyRequestRepository.save(req);
+        if (cleanStatus != null && !cleanStatus.equalsIgnoreCase(previousStatus)) {
+            staffNotices.onDutyDecided(saved, previousStatus);
+        }
+        return ResponseEntity.ok(saved);
     }
 
     @PostMapping("/{id}/claim-expense")
@@ -211,12 +224,17 @@ public class OnDutyController {
                     .body(Map.of("message", "You cannot approve reimbursement of your own expense."));
         }
 
+        String previousReimbursement = req.getReimbursementStatus();
         if (cleanStatus != null) req.setReimbursementStatus(cleanStatus);
         req.setReimbursedOn(LocalDate.now(BUSINESS_ZONE));
         req.setReimbursedBy(resolveReviewerName(httpRequest, reviewer));
         if (reviewerComments != null) req.setReimbursementComments(reviewerComments);
 
-        return ResponseEntity.ok(onDutyRequestRepository.save(req));
+        OnDutyRequest saved = onDutyRequestRepository.save(req);
+        if (cleanStatus != null && !cleanStatus.equalsIgnoreCase(previousReimbursement)) {
+            staffNotices.expenseDecided(saved, previousReimbursement);
+        }
+        return ResponseEntity.ok(saved);
     }
 
     private boolean isSelfReviewByNonAdmin(HttpServletRequest httpRequest, Long requestOwnerId) {

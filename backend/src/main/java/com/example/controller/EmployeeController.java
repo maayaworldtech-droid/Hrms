@@ -22,11 +22,14 @@ public class EmployeeController {
     private final PortalUrlResolver portalUrlResolver;
 
     private final ObjectMapper objectMapper;
+    private final com.example.service.StaffNotices staffNotices;
 
-    public EmployeeController(EmployeeService employeeService, PortalUrlResolver portalUrlResolver, ObjectMapper objectMapper) {
+    public EmployeeController(EmployeeService employeeService, PortalUrlResolver portalUrlResolver, ObjectMapper objectMapper,
+                              com.example.service.StaffNotices staffNotices) {
         this.employeeService = employeeService;
         this.portalUrlResolver = portalUrlResolver;
         this.objectMapper = objectMapper;
+        this.staffNotices = staffNotices;
     }
 
     /**
@@ -66,6 +69,9 @@ public class EmployeeController {
         employee.setId(null);
         String portalUrl = extractPortalUrl(request);
         Employee created = employeeService.onboardEmployee(employee, portalUrl);
+        if (created.getId() != null && !"ADMIN".equals(created.getRole())) {
+            staffNotices.welcome(created);
+        }
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
@@ -89,8 +95,15 @@ public class EmployeeController {
                     .map(ResponseEntity::ok)
                     .orElseGet(() -> ResponseEntity.notFound().build());
         }
+        String centerBefore = employeeService.getEmployeeById(id).map(Employee::getLocationName).orElse(null);
         return employeeService.updateEmployee(id, employee)
-                .map(ResponseEntity::ok)
+                .map(updated -> {
+                    String centerAfter = updated.getLocationName();
+                    if (centerAfter != null && !centerAfter.equalsIgnoreCase(centerBefore == null ? "" : centerBefore)) {
+                        staffNotices.centerChanged(updated, centerAfter);
+                    }
+                    return ResponseEntity.ok(updated);
+                })
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
@@ -102,9 +115,11 @@ public class EmployeeController {
     ) {
         String authRole = (String) request.getAttribute(AuthFilter.ATTR_ROLE);
         Long authId = (Long) request.getAttribute(AuthFilter.ATTR_EMPLOYEE_ID);
-        if (!"ADMIN".equals(authRole) && (authId == null || !authId.equals(id))) {
+        // Only the admin saves or replaces the face used for check-in. Staff cannot change their own,
+        // otherwise anyone could register a different face and check in for someone else.
+        if (!"ADMIN".equals(authRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("success", false, "message", "You can only enroll your own face profile."));
+                    .body(Map.of("success", false, "message", "Ask your admin to update the face used for check-in."));
         }
 
         String facePhoto = payload.get("enrolledFacePhoto");
@@ -117,6 +132,7 @@ public class EmployeeController {
                 emp.setEnrolledFaceBiometrics(faceBiometrics);
             }
             Employee updated = employeeService.saveEmployee(emp);
+            if (!"ADMIN".equals(updated.getRole())) staffNotices.faceUpdated(updated);
             return ResponseEntity.ok(Map.<String, Object>of(
                     "success", true,
                     "message", "Face biometrics enrolled successfully",

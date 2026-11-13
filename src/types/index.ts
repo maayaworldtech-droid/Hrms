@@ -210,6 +210,17 @@ export interface OnDutyRequest {
   createdAt?: string;
 }
 
+/** A note under the bell: leave decided, salary paid, and so on. Stored on the server. */
+export interface StaffNotification {
+  id: string;
+  type: 'WELCOME' | 'LEAVE' | 'ON_DUTY' | 'EXPENSE' | 'SALARY' | 'ATTENDANCE' | 'ACCOUNT' | string;
+  title: string;
+  message: string;
+  link?: string;
+  read: boolean;
+  createdAt: string;
+}
+
 export interface DynamicSalaryItem {
   id: string;
   name: string;

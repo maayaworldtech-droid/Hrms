@@ -1,10 +1,9 @@
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { useAppDispatch, useAppSelector } from '@/store';
-import { logout } from '@/store/slices/authSlice';
-import { markAllNotificationsAsRead } from '@/store/slices/uiSlice';
 import maayaLogo from '@/assets/logo-new.png';
-import { Home, CalendarDays, Wallet, User, Bell, X, ChevronRight, LogOut, Briefcase, LayoutDashboard } from 'lucide-react';
+import { Home, CalendarDays, Wallet, User, Bell, X, ChevronRight, Briefcase } from 'lucide-react';
+import { api } from '@/services/api';
+import type { StaffNotification } from '@/types';
 import './employee.css';
 import { useShiftTimes } from '@/utils/shiftUtils';
 
@@ -16,52 +15,108 @@ const destinations = [
   { label: 'Profile', path: 'profile', icon: User },
 ];
 
-const initials = (name?: string) =>
-  name
-    ?.split(' ')
-    .map((part) => part[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase() || '';
+/** How often the unread count is refreshed while the portal is open. */
+const POLL_MS = 60_000;
+
+/** "Just now", "5 min ago", "3 hours ago", "Yesterday", then the date. */
+const whenText = (value: string) => {
+  const then = new Date(value);
+  if (Number.isNaN(then.getTime())) return '';
+  const minutes = Math.round((Date.now() - then.getTime()) / 60000);
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  if (hours < 48) return 'Yesterday';
+  return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' }).format(then);
+};
 
 export const EmployeeMobileLayout: React.FC = () => {
   useShiftTimes();
-  const { user, activeRole } = useAppSelector((state) => state.auth);
-  const { notifications } = useAppSelector((state) => state.ui);
-  const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const location = useLocation();
   const sheet = useRef<HTMLDialogElement>(null);
-  const [open, setOpen] = useState<'notifications' | 'account' | null>(null);
-  const unread = notifications.filter((item) => !item.read).length;
-  const workspacePath = activeRole === 'ADMIN' ? '/admin/dashboard' : activeRole === 'MANAGER' ? '/manager/dashboard' : null;
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<StaffNotification[]>([]);
+  const [unread, setUnread] = useState(0);
+  const [listState, setListState] = useState<'idle' | 'loading' | 'error'>('idle');
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [location.pathname]);
 
+  const refreshCount = useCallback(async () => {
+    try {
+      setUnread(await api.notifications.unreadCount());
+    } catch {
+      // keep the last known count; the next poll tries again
+    }
+  }, []);
+
+  const loadList = useCallback(async () => {
+    setListState('loading');
+    try {
+      const res = await api.notifications.list(30);
+      setItems(res.items);
+      setUnread(res.unread);
+      setListState('idle');
+    } catch {
+      setListState('error');
+    }
+  }, []);
+
+  // Unread count: on open, every minute while the tab is visible, and when the person comes back to it
   useEffect(() => {
-    if (!open) return;
-    sheet.current?.showModal();
+    void refreshCount();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshCount();
+    }, POLL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refreshCount();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [refreshCount]);
+
+  useEffect(() => {
+    if (open) sheet.current?.showModal();
   }, [open]);
 
-  const close = () => setOpen(null);
+  const openSheet = () => {
+    setOpen(true);
+    void loadList();
+  };
 
-  const menuRow = (icon: React.ReactNode, label: string, onClick: () => void, tone: 'default' | 'danger' = 'default') => (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60 ${
-        tone === 'danger' ? 'text-rose-700 hover:bg-rose-50' : 'text-slate-800 hover:bg-slate-100'
-      }`}
-    >
-      <span className={tone === 'danger' ? 'text-rose-600' : 'text-slate-600'} aria-hidden="true">
-        {icon}
-      </span>
-      <span className="flex-1">{label}</span>
-      <ChevronRight size={16} className="text-slate-500" aria-hidden="true" />
-    </button>
-  );
+  const close = () => {
+    sheet.current?.close();
+    setOpen(false);
+  };
+
+  const openItem = (item: StaffNotification) => {
+    if (!item.read) {
+      setItems((list) => list.map((n) => (n.id === item.id ? { ...n, read: true } : n)));
+      setUnread((count) => Math.max(0, count - 1));
+      api.notifications
+        .markRead(item.id)
+        .then(setUnread)
+        .catch(() => undefined);
+    }
+    if (item.link?.startsWith('/')) {
+      close();
+      navigate(item.link);
+    }
+  };
+
+  const markAllRead = () => {
+    setItems((list) => list.map((n) => ({ ...n, read: true })));
+    setUnread(0);
+    api.notifications.markAllRead().catch(() => void refreshCount());
+  };
+
+  const badge = unread > 9 ? '9+' : String(unread);
 
   return (
     <div className="employee-app">
@@ -74,25 +129,23 @@ export const EmployeeMobileLayout: React.FC = () => {
             <img src={maayaLogo} alt="Maaya World" />
           </NavLink>
 
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              className="employee-icon-button"
-              aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}
-              aria-haspopup="dialog"
-              onClick={() => {
-                setOpen('notifications');
-                dispatch(markAllNotificationsAsRead());
-              }}
-            >
-              <Bell size={20} strokeWidth={1.75} />
-              {unread > 0 && <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />}
-            </button>
-
-            <button type="button" className="employee-avatar" aria-label="Account menu" aria-haspopup="dialog" onClick={() => setOpen('account')}>
-              {initials(user?.name) || <User size={18} />}
-            </button>
-          </div>
+          <button
+            type="button"
+            className="employee-icon-button"
+            aria-label={unread ? `Notifications, ${unread} unread` : 'Notifications'}
+            aria-haspopup="dialog"
+            onClick={openSheet}
+          >
+            <Bell size={20} strokeWidth={1.75} />
+            {unread > 0 && (
+              <span
+                aria-hidden="true"
+                className="absolute right-1 top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-600 px-1 text-[11px] font-semibold leading-none text-white ring-2 ring-white tabular-nums"
+              >
+                {badge}
+              </span>
+            )}
+          </button>
         </header>
 
         <main id="employee-main" className="employee-content" tabIndex={-1}>
@@ -115,7 +168,7 @@ export const EmployeeMobileLayout: React.FC = () => {
         <dialog
           ref={sheet}
           className="employee-sheet"
-          aria-label={open === 'account' ? 'Account menu' : 'Notifications'}
+          aria-labelledby="notifications-title"
           onCancel={(event) => {
             event.preventDefault();
             close();
@@ -124,67 +177,56 @@ export const EmployeeMobileLayout: React.FC = () => {
             if (event.target === event.currentTarget) close();
           }}
         >
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-slate-900">{open === 'account' ? 'My account' : 'Notifications'}</h2>
-            <button type="button" autoFocus className="employee-icon-button" aria-label="Close" onClick={close}>
-              <X size={20} />
-            </button>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h2 id="notifications-title" className="text-base font-semibold text-slate-900">
+              Notifications
+            </h2>
+            <div className="flex items-center gap-1">
+              {unread > 0 && (
+                <button type="button" onClick={markAllRead} className="h-9 rounded-lg px-2.5 text-sm font-medium text-brand-700 hover:bg-brand-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60">
+                  Mark all as read
+                </button>
+              )}
+              <button type="button" autoFocus className="employee-icon-button" aria-label="Close" onClick={close}>
+                <X size={20} />
+              </button>
+            </div>
           </div>
 
-          {open === 'account' ? (
-            <div className="space-y-2">
-              <div className="rounded-lg bg-slate-50 px-3 py-3">
-                <p className="text-sm font-semibold text-slate-900">{user?.name}</p>
-                <p className="mt-0.5 text-sm text-slate-600 break-all">{user?.email}</p>
-                <p className="mt-1 text-xs text-slate-600 tabular-nums">
-                  {user?.employeeId}
-                  {user?.location ? ` · ${user.location}` : ''}
-                </p>
-              </div>
-
-              {menuRow(<User size={18} />, 'My profile', () => {
-                close();
-                navigate('/employee/profile');
-              })}
-              {workspacePath &&
-                menuRow(<LayoutDashboard size={18} />, activeRole === 'ADMIN' ? 'Back to admin screens' : 'Back to my team', () => {
-                  close();
-                  navigate(workspacePath);
-                })}
-              <div className="border-t border-slate-200 pt-2">
-                {menuRow(
-                  <LogOut size={18} />,
-                  'Sign out',
-                  () => {
-                    close();
-                    dispatch(logout());
-                    navigate('/login');
-                  },
-                  'danger'
-                )}
-              </div>
+          {listState === 'loading' && items.length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-600" role="status">
+              Loading…
+            </p>
+          ) : listState === 'error' && items.length === 0 ? (
+            <div className="py-8 text-center">
+              <p className="text-sm text-slate-700">Could not load notifications.</p>
+              <button type="button" onClick={() => void loadList()} className="mt-2 text-sm font-medium text-brand-700 hover:underline">
+                Try again
+              </button>
             </div>
-          ) : notifications.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-600">No notifications yet.</p>
+          ) : items.length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-600">No notifications yet. Leave, On Duty and salary updates will show here.</p>
           ) : (
-            <ul className="divide-y divide-slate-100">
-              {notifications.map((item) => (
-                <li key={item.id} className="py-3">
-                  <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                  <p className="mt-0.5 text-sm text-slate-700">{item.message}</p>
-                  <p className="mt-1 text-xs text-slate-600">{item.timestamp}</p>
-                  {item.actionUrl?.startsWith('/employee/') && (
-                    <button
-                      type="button"
-                      className="mt-1.5 inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline"
-                      onClick={() => {
-                        close();
-                        navigate(item.actionUrl!);
-                      }}
-                    >
-                      View details <ChevronRight size={14} aria-hidden="true" />
-                    </button>
-                  )}
+            <ul className="-mx-2 divide-y divide-slate-100">
+              {items.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    onClick={() => openItem(item)}
+                    className={`flex w-full items-start gap-3 rounded-lg px-2 py-3 text-left transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60 ${item.read ? '' : 'bg-brand-50/60'}`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.read ? 'bg-transparent' : 'bg-brand-600'}`}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="sr-only">{item.read ? 'Read: ' : 'Unread: '}</span>
+                      <span className={`block text-sm text-slate-900 ${item.read ? 'font-medium' : 'font-semibold'}`}>{item.title}</span>
+                      {item.message && <span className="mt-0.5 block text-sm text-slate-700">{item.message}</span>}
+                      <span className="mt-1 block text-xs text-slate-600">{whenText(item.createdAt)}</span>
+                    </span>
+                    {item.link?.startsWith('/') && <ChevronRight size={16} className="mt-1 shrink-0 text-slate-500" aria-hidden="true" />}
+                  </button>
                 </li>
               ))}
             </ul>

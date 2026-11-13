@@ -11,6 +11,7 @@ import {
   AuditLog,
   Center,
   CenterInput,
+  StaffNotification,
 } from '@/types';
 
 const API_BASE = '/api';
@@ -151,8 +152,7 @@ const parseNumericId = (raw?: string | number | null): number | undefined => {
   return Number.isFinite(numeric) && numeric > 0 ? numeric : undefined;
 };
 
-const mapEmployee = (emp: any, fallbackId?: string): Employee => {
-  const storageKeyId = fallbackId || emp.id;
+const mapEmployee = (emp: any): Employee => {
   return {
     id: String(emp.id),
     employeeCode: emp.employeeCode || `MW-${emp.id}`,
@@ -327,7 +327,7 @@ export const api = {
       const cleanId = String(id).replace('emp-', '');
       try {
         const emp = await fetchJSON<any>(`${API_BASE}/employees/${cleanId}`);
-        return mapEmployee(emp, cleanId);
+        return mapEmployee(emp);
       } catch {
         return null;
       }
@@ -363,7 +363,7 @@ export const api = {
         body: JSON.stringify(payload),
       });
 
-      return mapEmployee(res, cleanId);
+      return mapEmployee(res);
     },
 
     delete: async (id: string | number): Promise<boolean> => {
@@ -753,6 +753,28 @@ export const api = {
         { method: 'DELETE' }
       );
       return normalizeCenter(res);
+    },
+  },
+
+  // Notifications (the bell): only ever the signed-in person's own
+  notifications: {
+    list: async (limit = 30): Promise<{ items: StaffNotification[]; unread: number }> => {
+      const res = await fetchJSON<{ items: any[]; unread: number }>(`${API_BASE}/notifications?limit=${limit}`);
+      return {
+        items: (res.items || []).map((n) => ({ ...n, id: String(n.id), read: Boolean(n.read) })),
+        unread: Number(res.unread) || 0,
+      };
+    },
+    unreadCount: async (): Promise<number> => {
+      const res = await fetchJSON<{ unread: number }>(`${API_BASE}/notifications/unread-count`);
+      return Number(res.unread) || 0;
+    },
+    markRead: async (id: string): Promise<number> => {
+      const res = await fetchJSON<{ unread: number }>(`${API_BASE}/notifications/${id}/read`, { method: 'PUT' });
+      return Number(res.unread) || 0;
+    },
+    markAllRead: async (): Promise<void> => {
+      await fetchJSON(`${API_BASE}/notifications/read-all`, { method: 'PUT' });
     },
   },
 

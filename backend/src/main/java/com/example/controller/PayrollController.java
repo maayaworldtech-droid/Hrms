@@ -50,6 +50,9 @@ public class PayrollController {
     private static final DateTimeFormatter TS_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Autowired
+    private com.example.service.StaffNotices staffNotices;
+
+    @Autowired
     private PayrollRunRepository payrollRunRepository;
 
     @Autowired
@@ -348,6 +351,10 @@ public class PayrollController {
                 slip.setPaymentDate(todayDate);
             }
             payslipRepository.saveAll(slips);
+            // Emails go out only once this whole step has been saved (see NotificationService)
+            for (Payslip slip : slips) {
+                staffNotices.salaryPaid(slip);
+            }
 
             PayrollRun saved = payrollRunRepository.save(run);
             saved.setPayslips(slips);
@@ -406,71 +413,21 @@ public class PayrollController {
      * is split 50% basic, 25% house rent allowance and the rest as special allowance, so the lines
      * always add up to the salary. PF applies when the person has a PF number or a PF line.
      */
+    /** Reads the salary setup saved for this person and puts it on the payslip (see PayrollCalculator). */
     private void applySalaryStructure(Payslip slip, Employee emp) {
-        double monthly = emp.getMonthlySalary() != null ? Math.max(0.0, emp.getMonthlySalary()) : 0.0;
-
-        List<Map<String, Object>> components = List.of();
+        double monthly = emp.getMonthlySalary() != null ? Math.max(0.0, emp.getMonthlySalary())
+                : emp.getCtcAnnual() != null ? Math.max(0.0, emp.getCtcAnnual()) / 12.0 : 0.0;
+        List<Map<String, Object>> items = List.of();
         if (emp.getSalaryStructureJson() != null && !emp.getSalaryStructureJson().isBlank()) {
             try {
                 List<Map<String, Object>> parsed = objectMapper.readValue(
                         emp.getSalaryStructureJson(), new TypeReference<List<Map<String, Object>>>() {});
-                if (parsed != null) components = parsed;
+                if (parsed != null) items = parsed;
             } catch (Exception e) {
-                System.err.println("Could not read salary breakdown for " + emp.getEmail() + ": " + e.getMessage());
+                System.err.println("Could not read the salary setup for employee " + emp.getId() + ": " + e.getMessage());
             }
         }
-
-        double basic = 0, hra = 0, special = 0, conveyance = 0, medical = 0, tds = 0, pt = 0, other = 0;
-        boolean pf = false;
-        boolean esi = false;
-        boolean anyEarning = false;
-        for (Map<String, Object> comp : components) {
-            String type = String.valueOf(comp.getOrDefault("type", "EARNING")).toUpperCase();
-            String code = String.valueOf(comp.getOrDefault("code", "")).toUpperCase();
-            String name = String.valueOf(comp.getOrDefault("name", "")).toUpperCase();
-            double amt;
-            try {
-                amt = Math.max(0.0, Double.parseDouble(String.valueOf(comp.get("amount"))));
-            } catch (Exception e) {
-                amt = 0.0;
-            }
-            if ("DEDUCTION".equals(type)) {
-                if (code.equals("PF") || name.contains("PROVIDENT") || name.contains("EPF")) pf = true; // worked out by rule
-                else if (code.equals("ESI") || name.contains("STATE INSURANCE") || name.contains("ESI")) esi = true; // worked out by rule
-                else if (code.equals("PT") || name.contains("PROFESSIONAL")) pt += amt;
-                else if (code.equals("TDS") || name.contains("INCOME TAX") || name.contains("TDS")) tds += amt;
-                else other += amt;
-            } else {
-                anyEarning = true;
-                if (code.equals("BASIC") || name.contains("BASIC")) basic += amt;
-                else if (code.equals("HRA") || name.contains("RENT")) hra += amt;
-                else if (code.equals("CONVEYANCE") || name.contains("CONVEYANCE")) conveyance += amt;
-                else if (code.equals("MEDICAL") || name.contains("MEDICAL")) medical += amt;
-                else special += amt;
-            }
-        }
-
-        if (!anyEarning || basic + hra + special + conveyance + medical <= 0) {
-            basic = Math.round(monthly * 0.50);
-            hra = Math.round(monthly * 0.25);
-            special = Math.max(0.0, monthly - basic - hra);
-            conveyance = 0;
-            medical = 0;
-        }
-
-        slip.setBasic(basic);
-        slip.setHra(hra);
-        slip.setSpecialAllowance(special);
-        slip.setConveyanceAllowance(conveyance);
-        slip.setMedicalAllowance(medical);
-        slip.setBonus(0.0);
-        slip.setIncentives(0.0);
-        slip.setTds(tds);
-        slip.setOtherDeductions(other);
-        slip.setHealthInsurance(0.0);
-        slip.setPfApplicable(pf);
-        slip.setEsiApplicable(esi);
-        slip.setPtMonthly(pt);
+        PayrollCalculator.applySalarySetup(slip, monthly, items);
     }
 
     private static final List<String> MONTH_NAMES = List.of(

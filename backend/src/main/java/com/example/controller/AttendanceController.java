@@ -41,6 +41,9 @@ import java.util.Optional;
 public class AttendanceController {
 
     @Autowired
+    private com.example.service.StaffNotices staffNotices;
+
+    @Autowired
     private AttendanceRepository attendanceRepository;
 
     @Autowired
@@ -270,9 +273,12 @@ public class AttendanceController {
     @PutMapping("/{id}/approve-regularization")
     public ResponseEntity<AttendanceRecord> approveRegularization(@PathVariable Long id) {
         return attendanceRepository.findById(id).map(record -> {
+            boolean wasApproved = "APPROVED".equalsIgnoreCase(record.getRegularizationStatus());
             record.setRegularizationStatus("APPROVED");
             record.setStatus("PRESENT");
-            return ResponseEntity.ok(attendanceRepository.save(record));
+            AttendanceRecord saved = attendanceRepository.save(record);
+            if (!wasApproved) staffNotices.correctionApproved(saved);
+            return ResponseEntity.ok(saved);
         }).orElseGet(() -> ResponseEntity.notFound().build());
     }
 

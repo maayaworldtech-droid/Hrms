@@ -28,7 +28,6 @@ import {
   CheckCircle2,
   AlertCircle,
   RotateCcw,
-  Plus,
 } from 'lucide-react';
 import {
   captureFaceSnapshot,
@@ -44,7 +43,8 @@ import { useAppDispatch } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
 
 import { useCenters, findCenter } from '@/hooks/useCenters';
-import { DynamicSalaryItem } from '@/types';
+import { SalarySetup } from './SalarySetup';
+import { SalarySetupValue, emptySalarySetup, salaryProblem, salarySetupFromEmployee, summarizeSalary } from '@/utils/salarySetup';
 import { businessDate } from '@/utils/operations';
 import { accessLabel } from '@/utils/access';
 import { getShiftLabel } from '@/utils/shiftUtils';
@@ -102,35 +102,17 @@ const EMERGENCY_RELATIONSHIPS = [
   'Other',
 ] as const;
 
-const AVAILABLE_SALARY_COMPONENTS = [
-  // Earnings
-  { code: 'BASIC', name: 'Basic Pay', type: 'EARNING' as const },
-  { code: 'MEDICAL', name: 'Medical Allowance', type: 'EARNING' as const, defaultAmount: 1250 },
-  { code: 'BONUS', name: 'Performance Bonus / Incentive', type: 'EARNING' as const, defaultAmount: 0 },
-  { code: 'OTHER_EARNING', name: 'Other Allowance', type: 'EARNING' as const, defaultAmount: 0 },
-  // Deductions
-  { code: 'PF', name: 'Provident Fund (PF / EPF)', type: 'DEDUCTION' as const, defaultAmount: 0 },
-  { code: 'ESI', name: 'State Insurance (ESI)', type: 'DEDUCTION' as const, defaultAmount: 0 },
-  { code: 'PT', name: 'Professional Tax (PT)', type: 'DEDUCTION' as const, defaultAmount: 200 },
-  { code: 'TDS', name: 'Tax Deducted at Source (TDS)', type: 'DEDUCTION' as const, defaultAmount: 0 },
-  { code: 'HEALTH_INS', name: 'Health Insurance', type: 'DEDUCTION' as const, defaultAmount: 500 },
-  { code: 'OTHER_DEDUCTION', name: 'Other Deduction', type: 'DEDUCTION' as const, defaultAmount: 0 },
-] as const;
-
 /**
  * A half-finished new employee is kept in sessionStorage so leaving the page, refreshing or
  * tapping back by mistake never loses what was typed. sessionStorage (not localStorage) because
  * the draft holds bank and PAN details and should not outlive the browser tab.
  */
-const DRAFT_KEY = 'maaya_new_employee_draft_v1';
+const DRAFT_KEY = 'maaya_new_employee_draft_v2';
 
 interface OnboardingDraft {
   values: Record<string, unknown>;
   maxStep: 1 | 2 | 3 | 4;
-  salaryComponents: DynamicSalaryItem[];
-  breakdownOn: boolean;
-  baseMonthly: number;
-  pfEditedByHand: boolean;
+  salary: SalarySetupValue;
   facePhoto: string | null;
   faceBiometrics: string | null;
   savedAt: string;
@@ -167,18 +149,6 @@ const clearDraft = () => {
 };
 
 /** Statutory PF: 12% of basic pay, with basic counted up to ₹15,000 a month (so at most ₹1,800). */
-const PF_WAGE_CEILING = 15000;
-const standardPf = (basic: number) => Math.round(Math.min(Math.max(0, basic), PF_WAGE_CEILING) * 0.12);
-
-/** "Other" lines may appear more than once; every other component only once. */
-const isRepeatable = (code?: string) => Boolean(code?.startsWith('OTHER'));
-
-const isPfComponentItem = (comp: Pick<DynamicSalaryItem, 'code' | 'name' | 'type'>) =>
-  comp.type === 'DEDUCTION' &&
-  (comp.code === 'PF' ||
-    comp.name.toUpperCase().includes('PF') ||
-    comp.name.toUpperCase().includes('PROVIDENT'));
-
 const onboardingSchema = z
   .object({
     // Step 1: Basic Information, Blood Group & Emergency Contact
@@ -254,9 +224,6 @@ const onboardingSchema = z
       .string()
       .trim()
       .min(1, 'Joining date is required'),
-    annualSalary: z.coerce
-      .number({ invalid_type_error: 'Enter the yearly salary' })
-      .min(120000, 'Minimum annual salary is ₹1,20,000'),
     hasPf: z.boolean().optional(),
     uanNumber: z.string().trim().optional().or(z.literal('')),
 
@@ -330,7 +297,6 @@ const employeeSchema = z
     shift: z.enum(['MORNING', 'EVENING']),
     managerId: z.string(),
     joiningDate: z.string().min(1, 'Joining date is required'),
-    monthlySalary: z.coerce.number().min(10000, 'Minimum monthly salary is ₹10,000'),
     accountNumber: z.string().trim().regex(/^\d{8,18}$/, 'Enter a valid bank account number (8 to 18 digits)'),
     confirmAccountNumber: z.string().trim().min(1, 'Please confirm the bank account number'),
     bankName: z.string().trim().min(2, 'Bank name is required'),
@@ -372,6 +338,13 @@ export const EmployeeManagement: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [editSalary, setEditSalary] = useState<SalarySetupValue>(emptySalarySetup);
+  const [editSalaryError, setEditSalaryError] = useState<string | null>(null);
+  // Face used for check-in: only the admin can replace it (staff cannot change their own)
+  const [editFacePhoto, setEditFacePhoto] = useState<string | null>(null);
+  const [editFaceBusy, setEditFaceBusy] = useState(false);
+  // Whose edit form is open, so a slow photo for someone else is never shown here
+  const editFaceForRef = useRef<string | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedLocationFilter, setSelectedLocationFilter] = useState<string>('ALL');
   const [selectedShiftFilter, setSelectedShiftFilter] = useState<string>('ALL');
@@ -653,7 +626,6 @@ export const EmployeeManagement: React.FC = () => {
       shift: '' as any,
       managerId: '',
       joiningDate: businessDate(),
-      annualSalary: '' as any,
       hasPf: false,
       uanNumber: '',
       bankName: '',
@@ -664,16 +636,12 @@ export const EmployeeManagement: React.FC = () => {
     },
   });
 
-  // Dynamic Salary Breakdown state
-  const [salaryComponents, setSalaryComponents] = useState<DynamicSalaryItem[]>([]);
-  const [selectedComponentToAdd, setSelectedComponentToAdd] = useState<string>('');
-  const [pfEditedByHand, setPfEditedByHand] = useState(false);
-  const [salaryMismatch, setSalaryMismatch] = useState<string | null>(null);
-  // Off by default: most staff only need a yearly salary. When switched on, the yearly salary is
-  // worked out from the earnings below and can no longer be typed, so the two can never disagree.
-  const [breakdownOn, setBreakdownOn] = useState(false);
-  const [baseMonthly, setBaseMonthly] = useState(0);
-  const hasPfComponent = useMemo(() => salaryComponents.some(isPfComponentItem), [salaryComponents]);
+
+  // Pay: yearly salary or a breakdown, plus the deductions that apply (see SalarySetup)
+  const [salary, setSalary] = useState<SalarySetupValue>(emptySalarySetup);
+  const [salaryError, setSalaryError] = useState<string | null>(null);
+  const salarySummary = summarizeSalary(salary);
+  const hasPfComponent = salarySummary.hasPf;
 
   /** Empties every field of the new-employee form (does not navigate). */
   const clearWizard = useCallback(
@@ -683,12 +651,8 @@ export const EmployeeManagement: React.FC = () => {
       setEnrolledFacePhoto(null);
       setEnrolledFaceBiometrics(null);
       setFaceSignature(null);
-      setSalaryComponents([]);
-      setSelectedComponentToAdd('');
-      setPfEditedByHand(false);
-      setSalaryMismatch(null);
-      setBreakdownOn(false);
-      setBaseMonthly(0);
+      setSalary(emptySalarySetup());
+      setSalaryError(null);
       stopCamera();
     },
     [resetAdd, stopCamera]
@@ -725,130 +689,6 @@ export const EmployeeManagement: React.FC = () => {
     navigate('/admin/employees');
   };
 
-  const handleAddComponent = () => {
-    if (!selectedComponentToAdd) return;
-    const def = AVAILABLE_SALARY_COMPONENTS.find((c) => c.code === selectedComponentToAdd);
-    if (!def) return;
-    if (!isRepeatable(def.code) && salaryComponents.some((c) => c.code === def.code)) {
-      setSelectedComponentToAdd('');
-      return;
-    }
-
-    const currentMonthlyGross = baseMonthly;
-    let defaultAmt = 0;
-
-    if (def.code === 'PF') {
-      const existingBasic = salaryComponents.find((c) => c.code === 'BASIC');
-      defaultAmt = standardPf(existingBasic ? Number(existingBasic.amount) || 0 : Math.round(currentMonthlyGross * 0.8));
-    } else if (def.code === 'ESI') {
-      // Payroll works ESI out each month as 0.75% of pay earned; this is the full-month figure
-      const earnings = salaryComponents.filter((c) => c.type === 'EARNING').reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
-      defaultAmt = Math.ceil((earnings || currentMonthlyGross) * 0.0075);
-    } else if (def.code === 'BASIC') {
-      // Basic takes whatever the other earnings leave of the monthly salary
-      const otherEarnings = salaryComponents.filter((c) => c.type === 'EARNING').reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
-      defaultAmt = Math.max(0, currentMonthlyGross - otherEarnings);
-    } else if ('defaultAmount' in def && def.defaultAmount) {
-      defaultAmt = def.defaultAmount;
-    }
-
-    const newItem: DynamicSalaryItem = {
-      id: `comp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      code: def.code,
-      name: def.name,
-      type: def.type,
-      amount: defaultAmt,
-    };
-
-    const nextComponents = [...salaryComponents, newItem];
-    setSalaryComponents(nextComponents);
-    setSelectedComponentToAdd('');
-    setSalaryMismatch(null);
-
-    if (nextComponents.some(isPfComponentItem)) {
-      setValueAdd('hasPf', true);
-    }
-  };
-
-  const handleRemoveComponent = (id: string) => {
-    const nextComponents = salaryComponents.filter((c) => c.id !== id);
-    setSalaryComponents(nextComponents);
-    const stillHasPf = nextComponents.some(isPfComponentItem);
-    setValueAdd('hasPf', stillHasPf);
-    if (!stillHasPf) {
-      setValueAdd('uanNumber', '');
-      clearErrorsAdd('uanNumber');
-    }
-  };
-
-  const handleUpdateComponentAmount = (id: string, amount: number) => {
-    const safe = Number.isFinite(amount) ? Math.max(0, Math.round(amount)) : 0;
-    setSalaryMismatch(null);
-    setSalaryComponents((prev) => {
-      const target = prev.find((c) => c.id === id);
-      if (target?.code === 'PF') setPfEditedByHand(true);
-      return prev.map((c) => {
-        if (c.id === id) return { ...c, amount: safe };
-        // PF follows basic pay until the admin types their own PF amount
-        if (target?.code === 'BASIC' && c.code === 'PF' && !pfEditedByHand) return { ...c, amount: standardPf(safe) };
-        return c;
-      });
-    });
-  };
-
-  const handleUpdateComponentName = (id: string, name: string) => {
-    setSalaryComponents((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, name } : c))
-    );
-  };
-
-  /** Turns the breakdown on, starting with the whole monthly salary as basic pay. */
-  const startBreakdown = () => {
-    const monthly = Math.round((Number(watchAdd('annualSalary')) || 0) / 12);
-    setBaseMonthly(monthly);
-    setSalaryComponents([{ id: `comp-${Date.now()}`, code: 'BASIC', name: 'Basic Pay', type: 'EARNING', amount: monthly }]);
-    setPfEditedByHand(false);
-    setSalaryMismatch(null);
-    setBreakdownOn(true);
-  };
-
-  /** Back to a plain yearly salary; the amount worked out so far stays in the field. */
-  const removeBreakdown = () => {
-    setSalaryComponents([]);
-    setSelectedComponentToAdd('');
-    setSalaryMismatch(null);
-    setBreakdownOn(false);
-    setValueAdd('hasPf', false);
-    setValueAdd('uanNumber', '');
-    clearErrorsAdd('uanNumber');
-  };
-
-  const watchedAnnualSalary = Number(watchAdd('annualSalary')) || 0;
-  const totalGrossFromComponents = useMemo(() => {
-    if (salaryComponents.length === 0) return Math.round(watchedAnnualSalary / 12);
-    return salaryComponents
-      .filter((c) => c.type === 'EARNING')
-      .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
-  }, [salaryComponents, watchedAnnualSalary]);
-
-  const totalDeductionsFromComponents = useMemo(() => {
-    return salaryComponents
-      .filter((c) => c.type === 'DEDUCTION')
-      .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
-  }, [salaryComponents]);
-
-  const netTakeHomeFromComponents = useMemo(() => {
-    return Math.max(0, totalGrossFromComponents - totalDeductionsFromComponents);
-  }, [totalGrossFromComponents, totalDeductionsFromComponents]);
-
-
-  const deductionsTooHigh = breakdownOn && totalDeductionsFromComponents > totalGrossFromComponents;
-
-  // With a breakdown, the yearly salary is always twelve times the monthly earnings
-  useEffect(() => {
-    if (!breakdownOn) return;
-    setValueAdd('annualSalary', totalGrossFromComponents * 12, { shouldValidate: Boolean(errorsAdd.annualSalary) });
-  }, [breakdownOn, totalGrossFromComponents, setValueAdd, errorsAdd.annualSalary]);
 
   const {
     register: registerEdit,
@@ -881,6 +721,18 @@ export const EmployeeManagement: React.FC = () => {
 
   const handleOpenEdit = (emp: Employee) => {
     setEditingEmployee(emp);
+    setEditSalary(salarySetupFromEmployee(emp));
+    setEditSalaryError(null);
+    setEditFacePhoto(emp.enrolledFacePhoto || null);
+    editFaceForRef.current = emp.id;
+    if (!emp.enrolledFacePhoto && emp.hasFacePhoto) {
+      api.employees
+        .getById(emp.id)
+        .then((full) => {
+          if (editFaceForRef.current === emp.id && full?.enrolledFacePhoto) setEditFacePhoto(full.enrolledFacePhoto);
+        })
+        .catch(() => undefined);
+    }
     resetEdit({
       firstName: emp.firstName,
       lastName: emp.lastName,
@@ -893,7 +745,6 @@ export const EmployeeManagement: React.FC = () => {
       shift: emp.shift || 'MORNING',
       managerId: getReportingManager(emp).id || '',
       joiningDate: emp.joiningDate,
-      monthlySalary: emp.monthlySalary || Math.round((emp.ctcAnnual || 0) / 12),
       accountNumber: emp.bankDetails?.accountNumber || '',
       confirmAccountNumber: emp.bankDetails?.accountNumber || '',
       bankName: emp.bankDetails?.bankName || '',
@@ -924,19 +775,18 @@ export const EmployeeManagement: React.FC = () => {
   };
 
   const handleNextStep2 = async () => {
-    const fieldsToValidate: (keyof OnboardingFormValues)[] = ['location', 'shift', 'managerId', 'joiningDate', 'annualSalary'];
+    // The UAN is only asked for (and checked) when PF is one of the deductions
+    setValueAdd('hasPf', hasPfComponent);
+    if (!hasPfComponent) {
+      setValueAdd('uanNumber', '');
+      clearErrorsAdd('uanNumber');
+    }
+    const fieldsToValidate: (keyof OnboardingFormValues)[] = ['location', 'shift', 'managerId', 'joiningDate'];
     if (hasPfComponent) fieldsToValidate.push('uanNumber');
     const isValid = await triggerAdd(fieldsToValidate);
-    if (breakdownOn && totalGrossFromComponents <= 0) {
-      setSalaryMismatch('Add at least one earning with an amount, or remove the breakdown.');
-      return;
-    }
-    if (deductionsTooHigh) {
-      setSalaryMismatch('Deductions are more than the earnings. Check the amounts.');
-      return;
-    }
-    setSalaryMismatch(null);
-    if (isValid) goToStep(3);
+    const problem = salaryProblem(salary);
+    setSalaryError(problem);
+    if (isValid && !problem) goToStep(3);
   };
 
   const handleNextStep3 = async () => {
@@ -964,10 +814,12 @@ export const EmployeeManagement: React.FC = () => {
 
     try {
       const fullAddress = `${values.addressLine}, ${values.city}, ${values.state} - ${values.pincode}`.trim();
-      // Step 2 only lets you continue when the breakdown matches the entered salary
-      const enteredAnnual = Number(values.annualSalary) || 0;
-      const finalMonthlySalary = Math.round(enteredAnnual / 12);
-      const finalAnnualSalary = enteredAnnual;
+      const problem = salaryProblem(salary);
+      if (problem) {
+        setSalaryError(problem);
+        goToStep(2);
+        return;
+      }
 
       const newEmp = await api.employees.onboard({
         firstName: values.firstName,
@@ -982,13 +834,13 @@ export const EmployeeManagement: React.FC = () => {
         shift: values.shift,
         managerId: values.managerId || undefined,
         managerName: employees.find((e) => e.id === values.managerId)?.fullName,
-        monthlySalary: finalMonthlySalary,
-        ctcAnnual: finalAnnualSalary,
+        monthlySalary: salarySummary.monthly,
+        ctcAnnual: salarySummary.yearly,
         joiningDate: values.joiningDate,
         employmentType: 'FULL_TIME',
         enrolledFacePhoto: enrolledFacePhoto,
         enrolledFaceBiometrics: enrolledFaceBiometrics || undefined,
-        salaryStructureJson: salaryComponents.length > 0 ? JSON.stringify(salaryComponents) : undefined,
+        salaryStructureJson: salarySummary.json,
         bankDetails: {
           accountNumber: values.accountNumber,
           ifscCode: values.ifscCode.toUpperCase(),
@@ -1025,8 +877,50 @@ export const EmployeeManagement: React.FC = () => {
     }
   };
 
+  /** Replaces the face used for check-in with an uploaded photo (saved straight away). */
+  const replaceFace = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !editingEmployee) return;
+    if (!file.type.startsWith('image/')) {
+      dispatch(addToast({ type: 'error', title: 'Not a photo', message: 'Choose a JPG, PNG or WebP photo.' }));
+      return;
+    }
+    setEditFaceBusy(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+      const descriptor = await extractDescriptorFromImage(dataUrl);
+      if (!descriptor) {
+        dispatch(addToast({ type: 'error', title: 'No face found in this photo', message: 'Use a clear photo looking straight at the camera.' }));
+        return;
+      }
+      await api.employees.enrollFace(editingEmployee.id, dataUrl, JSON.stringify(descriptor));
+      if (editFaceForRef.current === editingEmployee.id) setEditFacePhoto(dataUrl);
+      dispatch(addToast({ type: 'success', title: 'Face updated', message: `${editingEmployee.fullName} will check in with the new photo.` }));
+      loadEmployees();
+    } catch (err: any) {
+      dispatch(addToast({ type: 'error', title: 'Could not update the face', message: err?.message || 'Please try again.' }));
+    } finally {
+      setEditFaceBusy(false);
+    }
+  };
+
   const onEditSubmit = async (values: EmployeeFormValues) => {
     if (!editingEmployee) return;
+    const problem = salaryProblem(editSalary);
+    setEditSalaryError(problem);
+    if (problem) return;
+    const pay = summarizeSalary(editSalary);
+    const uan = (values.uanNumber || '').trim();
+    if (pay.hasPf && !/^\d{12}$/.test(uan)) {
+      setEditSalaryError('Enter the 12-digit PF number (UAN) because PF is deducted.');
+      return;
+    }
     try {
       await api.employees.update(editingEmployee.id, {
         firstName: values.firstName,
@@ -1040,8 +934,9 @@ export const EmployeeManagement: React.FC = () => {
         shift: values.shift,
         managerId: values.managerId,
         managerName: employees.find((e) => e.id === values.managerId)?.fullName,
-        monthlySalary: values.monthlySalary,
-        ctcAnnual: values.monthlySalary * 12,
+        monthlySalary: pay.monthly,
+        ctcAnnual: pay.yearly,
+        salaryStructureJson: pay.json,
         joiningDate: values.joiningDate,
         bankDetails: {
           accountNumber: values.accountNumber,
@@ -1221,7 +1116,8 @@ export const EmployeeManagement: React.FC = () => {
   const hasProgress =
     isAddingEmployee &&
     (maxStep > 1 ||
-      salaryComponents.length > 0 ||
+      salary.items.length > 0 ||
+      salary.yearly.trim() !== '' ||
       Boolean(enrolledFacePhoto) ||
       Object.entries(formValues).some(([key, value]) => key !== 'joiningDate' && key !== 'hasPf' && value !== '' && value !== undefined && value !== null && value !== false));
 
@@ -1260,16 +1156,13 @@ export const EmployeeManagement: React.FC = () => {
   }, [isAddingEmployee]);
 
   // Save the draft as the admin types
-  const draftJson = JSON.stringify({ formValues, maxStep, salaryComponents, breakdownOn, baseMonthly, pfEditedByHand });
+  const draftJson = JSON.stringify({ formValues, maxStep, salary });
   useEffect(() => {
     if (!isAddingEmployee || !restoredRef.current || !hasProgress) return;
     writeDraft({
       values: formValues as Record<string, unknown>,
       maxStep,
-      salaryComponents,
-      breakdownOn,
-      baseMonthly,
-      pfEditedByHand,
+      salary,
       facePhoto: enrolledFacePhoto,
       faceBiometrics: enrolledFaceBiometrics,
       savedAt: new Date().toISOString(),
@@ -1286,10 +1179,7 @@ export const EmployeeManagement: React.FC = () => {
     if (!draft) return;
     resetAdd(draft.values as Partial<OnboardingFormValues>);
     setMaxStep(draft.maxStep || 1);
-    setSalaryComponents(Array.isArray(draft.salaryComponents) ? draft.salaryComponents : []);
-    setBreakdownOn(Boolean(draft.breakdownOn));
-    setBaseMonthly(Number(draft.baseMonthly) || 0);
-    setPfEditedByHand(Boolean(draft.pfEditedByHand));
+    setSalary(draft.salary && Array.isArray(draft.salary.items) ? draft.salary : emptySalarySetup());
     setEnrolledFacePhoto(draft.facePhoto || null);
     setEnrolledFaceBiometrics(draft.faceBiometrics || null);
   }, [isAddingEmployee, resetAdd]);
@@ -1563,8 +1453,8 @@ export const EmployeeManagement: React.FC = () => {
                 </div>
 
                 <div className="border-t border-slate-200 pt-5">
-                  <h3 className="mb-3 text-base font-semibold text-slate-900">Joining date and salary</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <h3 className="mb-3 text-base font-semibold text-slate-900">Joining date</h3>
+                  <div className="max-w-sm">
                     <Input
                       label="Joining date"
                       type="date"
@@ -1572,185 +1462,34 @@ export const EmployeeManagement: React.FC = () => {
                       error={errorsAdd.joiningDate?.message}
                       {...registerAdd('joiningDate')}
                     />
-                    <Input
-                      label="Yearly salary (₹)"
-                      type="number"
-                      required
-                      inputMode="numeric"
-                      min={0}
-                      step={1}
-                      placeholder="For example 300000"
-                      readOnly={breakdownOn}
-                      aria-readonly={breakdownOn || undefined}
-                      className={breakdownOn ? 'cursor-not-allowed bg-slate-50 text-slate-700 focus:ring-0' : ''}
-                      helperText={
-                        breakdownOn
-                          ? `Worked out from the breakdown: ${formatINR(totalGrossFromComponents)} a month.`
-                          : watchedAnnualSalary >= 120000
-                          ? `That is ${formatINR(Math.round(watchedAnnualSalary / 12))} a month.`
-                          : 'Yearly salary in rupees, at least ₹1,20,000.'
-                      }
-                      error={errorsAdd.annualSalary?.message}
-                      {...registerAdd('annualSalary')}
-                    />
                   </div>
                 </div>
 
-                {!breakdownOn ? (
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5">
-                    <p className="text-sm text-slate-600">No deductions are taken from pay unless you add them here, for example PF or professional tax.</p>
-                    <Button type="button" variant="outline" onClick={startBreakdown} leftIcon={<Plus className="h-4 w-4" />}>
-                      Add salary breakdown
-                    </Button>
-                  </div>
-                ) : (
-                <div className="border-t border-slate-200 pt-5 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
-                    <div>
-                      <h3 className="text-base font-semibold text-slate-900">Salary breakdown</h3>
-                      <p className="mt-0.5 text-sm text-slate-600">
-                        The yearly salary follows these earnings. Payroll only deducts PF, ESI, tax or anything else you add here.
-                      </p>
-                    </div>
-                    <Button type="button" variant="ghost" size="sm" onClick={removeBreakdown} className="shrink-0 hover:bg-rose-50 hover:text-rose-700">
-                      Remove breakdown
-                    </Button>
-                  </div>
-
-                  {/* Component Adder Dropdown */}
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                    <select
-                      value={selectedComponentToAdd}
-                      onChange={(e) => setSelectedComponentToAdd(e.target.value)}
-                      aria-label="Salary component to add"
-                      className="h-10 flex-1 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/30"
-                    >
-                      <option value="">Choose a component to add</option>
-                      <optgroup label="Earnings">
-                        {AVAILABLE_SALARY_COMPONENTS.filter((c) => c.type === 'EARNING' && (isRepeatable(c.code) || !salaryComponents.some((x) => x.code === c.code))).map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="Deductions">
-                        {AVAILABLE_SALARY_COMPONENTS.filter((c) => c.type === 'DEDUCTION' && (isRepeatable(c.code) || !salaryComponents.some((x) => x.code === c.code))).map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    </select>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={handleAddComponent}
-                      disabled={!selectedComponentToAdd}
-                      leftIcon={<Plus className="h-4 w-4" />}
-                    >
-                      Add
-                    </Button>
-                  </div>
-
-                  {/* Configured Components Table / List */}
-                  {salaryComponents.length > 0 ? (
-                    <div className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white">
-                      {salaryComponents.map((comp) => {
-                        const isEarning = comp.type === 'EARNING';
-                        return (
-                          <div key={comp.id} className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                              <Badge variant={isEarning ? 'success' : 'neutral'} size="sm">
-                                {isEarning ? 'Earning' : 'Deduction'}
-                              </Badge>
-                              {comp.code?.startsWith('OTHER') ? (
-                                <input
-                                  type="text"
-                                  value={comp.name}
-                                  onChange={(e) => handleUpdateComponentName(comp.id, e.target.value)}
-                                  placeholder="Component name"
-                                  aria-label="Component name"
-                                  className="h-8 w-48 rounded-lg border border-slate-300 px-2.5 text-sm text-slate-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/30"
-                                />
-                              ) : (
-                                <span className="truncate text-sm font-medium text-slate-900">
-                                  {comp.name}
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-2 shrink-0">
-                              <div className="flex h-8 items-center rounded-lg border border-slate-300 bg-white px-2.5 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-400/30">
-                                <span className="mr-1 text-sm text-slate-600" aria-hidden="true">₹</span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="1"
-                                  inputMode="numeric"
-                                  value={comp.amount || ''}
-                                  onChange={(e) => handleUpdateComponentAmount(comp.id, Number(e.target.value))}
-                                  placeholder="0"
-                                  aria-label={`${comp.name} amount`}
-                                  className="w-24 text-sm tabular-nums text-slate-900 focus:outline-none"
-                                />
-                              </div>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleRemoveComponent(comp.id)}
-                                className="hover:bg-rose-50 hover:text-rose-700"
-                                aria-label={`Remove ${comp.name}`}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                      No pay items yet. Choose one above to start.
-                    </p>
-                  )}
-
-                  {/* Live Calculation Summary */}
-                  <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200">
-                    {(
-                      [
-                        ['Earnings a month', totalGrossFromComponents],
-                        ['Deductions a month', totalDeductionsFromComponents],
-                        ['Take-home a month', netTakeHomeFromComponents],
-                      ] as const
-                    ).map(([label, value]) => (
-                      <div key={label} className="bg-white px-4 py-3">
-                        <dt className="text-sm text-slate-600">{label}</dt>
-                        <dd className="mt-0.5 text-base font-semibold tabular-nums text-slate-900">{formatINR(value)}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                  {salaryMismatch && (
-                    <p role="alert" className="text-sm font-medium text-rose-700">
-                      {salaryMismatch}
-                    </p>
-                  )}
-
+                <div className="border-t border-slate-200 pt-5">
+                  <h3 className="mb-3 text-base font-semibold text-slate-900">Pay</h3>
+                  <SalarySetup
+                    idPrefix="add"
+                    value={salary}
+                    onChange={(next) => {
+                      setSalary(next);
+                      if (salaryError) setSalaryError(salaryProblem(next));
+                    }}
+                    error={salaryError}
+                  />
                   {hasPfComponent && (
-                  <div className="max-w-md">
-                    <Input
-                      label="PF number (UAN)"
-                      required
-                      inputMode="numeric"
-                      placeholder="12-digit number"
-                      helperText="Needed because PF is deducted."
-                      error={errorsAdd.uanNumber?.message}
-                      {...registerAdd('uanNumber')}
-                    />
-                  </div>
+                    <div className="mt-4 max-w-sm">
+                      <Input
+                        label="PF number (UAN)"
+                        required
+                        inputMode="numeric"
+                        placeholder="12-digit number"
+                        helperText="Needed because PF is deducted."
+                        error={errorsAdd.uanNumber?.message}
+                        {...registerAdd('uanNumber')}
+                      />
+                    </div>
                   )}
                 </div>
-                )}
               </div>
             )}
 
@@ -2079,6 +1818,27 @@ export const EmployeeManagement: React.FC = () => {
               </div>
             </div>
 
+            <div className="border-t border-slate-200 pt-5">
+              <h3 className="mb-3 text-base font-semibold text-slate-900">Face for check-in</h3>
+              <div className="flex flex-wrap items-center gap-4">
+                {editFacePhoto ? (
+                  <img src={editFacePhoto} alt={`Saved face of ${editingEmployee.fullName}`} className="h-16 w-16 shrink-0 rounded-lg border border-slate-200 object-cover" />
+                ) : (
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs text-slate-600">No photo</div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-slate-700">
+                    {editFacePhoto || editingEmployee.hasFacePhoto ? 'Replace it if check-in keeps failing or their look has changed.' : 'No face is saved, so they cannot check in yet.'}
+                  </p>
+                  <label className={`mt-2 inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-50 focus-within:ring-2 focus-within:ring-brand-400/60 ${editFaceBusy ? 'pointer-events-none opacity-60' : ''}`}>
+                    <Upload className="h-4 w-4" aria-hidden="true" />
+                    {editFaceBusy ? 'Checking the photo…' : editFacePhoto || editingEmployee.hasFacePhoto ? 'Upload a new photo' : 'Upload a photo'}
+                    <input type="file" accept="image/*" className="sr-only" onChange={replaceFace} disabled={editFaceBusy} />
+                  </label>
+                </div>
+              </div>
+            </div>
+
             {/* Placement Details */}
             <div className="border-t border-slate-200 pt-5">
               <h3 className="mb-3 text-base font-semibold text-slate-900">Work and pay</h3>
@@ -2106,20 +1866,26 @@ export const EmployeeManagement: React.FC = () => {
                   {...registerEdit('joiningDate')}
                 />
                 <Input
-                  label="Monthly salary (₹)"
-                  type="number"
-                  error={errorsEdit.monthlySalary?.message}
-                  helperText="Standard monthly salary in INR"
-                  {...registerEdit('monthlySalary')}
-                />
-                <Input
                   label="PF number (UAN)"
-                  placeholder="12-digit UAN (only if PF applies)"
-                  helperText="Optional unless PF deduction applies"
+                  placeholder="12-digit number"
+                  helperText={summarizeSalary(editSalary).hasPf ? 'Needed because PF is deducted.' : 'Only needed when PF is deducted.'}
                   error={errorsEdit.uanNumber?.message}
                   {...registerEdit('uanNumber')}
                 />
               </div>
+            </div>
+
+            <div className="border-t border-slate-200 pt-5">
+              <h3 className="mb-3 text-base font-semibold text-slate-900">Pay</h3>
+              <SalarySetup
+                idPrefix="edit"
+                value={editSalary}
+                onChange={(next) => {
+                  setEditSalary(next);
+                  if (editSalaryError) setEditSalaryError(salaryProblem(next));
+                }}
+                error={editSalaryError}
+              />
             </div>
 
             {/* Banking Details */}

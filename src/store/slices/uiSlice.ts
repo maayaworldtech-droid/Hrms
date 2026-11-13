@@ -8,30 +8,16 @@ export interface ToastMessage {
   duration?: number;
 }
 
-export interface AppNotification {
-  id: string;
-  title: string;
-  message: string;
-  type: 'info' | 'success' | 'warning' | 'error';
-  timestamp: string;
-  read: boolean;
-  actionUrl?: string;
-}
-
 interface UiState {
   sidebarCollapsed: boolean;
   mobileMenuOpen: boolean;
   toasts: ToastMessage[];
-  notifications: AppNotification[];
 }
-
-const initialNotifications: AppNotification[] = [];
 
 const initialState: UiState = {
   sidebarCollapsed: false,
   mobileMenuOpen: false,
   toasts: [],
-  notifications: initialNotifications,
 };
 
 export const uiSlice = createSlice({
@@ -57,15 +43,6 @@ export const uiSlice = createSlice({
     removeToast: (state, action: PayloadAction<string>) => {
       state.toasts = state.toasts.filter((t) => t.id !== action.payload);
     },
-    markNotificationAsRead: (state, action: PayloadAction<string>) => {
-      const n = state.notifications.find((notif) => notif.id === action.payload);
-      if (n) n.read = true;
-    },
-    markAllNotificationsAsRead: (state) => {
-      state.notifications.forEach((n) => {
-        n.read = true;
-      });
-    },
   },
 });
 
@@ -76,8 +53,6 @@ export const {
   setMobileMenuOpen,
   addToast,
   removeToast,
-  markNotificationAsRead,
-  markAllNotificationsAsRead,
 } = uiSlice.actions;
 
 export default uiSlice.reducer;

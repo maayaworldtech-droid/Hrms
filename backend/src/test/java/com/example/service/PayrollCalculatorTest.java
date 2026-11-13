@@ -196,4 +196,59 @@ class PayrollCalculatorTest {
         assertEquals(200.0, s.getProfessionalTax());
         assertEquals(29800.0, s.getNetMonthly());
     }
+
+    // ---------------------------------------------------------------- salary setup from onboarding
+
+    private static java.util.Map<String, Object> item(String type, String code, double amount) {
+        return java.util.Map.of("type", type, "code", code, "name", code, "amount", amount);
+    }
+
+    /** A full month with every day paid. */
+    private static Payslip fullMonth(Payslip s) {
+        s.setDaysInMonth(30);
+        s.setEmployedDays(30);
+        s.setLossOfPayDays(0);
+        PayrollCalculator.recompute(s);
+        return s;
+    }
+
+    @Test
+    void yearlySalaryWithNothingAddedIsOneTwelfthWithNoDeductions() {
+        Payslip s = new Payslip();
+        PayrollCalculator.applySalarySetup(s, 300000.0 / 12, List.of());
+        fullMonth(s);
+        assertEquals(25000.0, s.getFullMonthlySalary());
+        assertEquals(25000.0, s.getGrossMonthly());
+        assertEquals(0.0, s.getTotalDeductions());
+        assertEquals(25000.0, s.getNetMonthly());
+        assertEquals(0.0, s.getHra());
+    }
+
+    @Test
+    void yearlySalaryTakesOnlyTheDeductionsAdded() {
+        Payslip s = new Payslip();
+        PayrollCalculator.applySalarySetup(s, 25000.0, List.of(
+                item("DEDUCTION", "PF", 0), item("DEDUCTION", "TDS", 500), item("DEDUCTION", "OTHER_DEDUCTION", 300)));
+        fullMonth(s);
+        assertEquals(25000.0, s.getGrossMonthly());
+        assertEquals(1800.0, s.getEpfEmployee()); // 12% of the ₹15,000 cap
+        assertEquals(500.0, s.getTds());
+        assertEquals(0.0, s.getEsiEmployee()); // not added, not taken
+        assertEquals(0.0, s.getProfessionalTax()); // not added, not taken
+        assertEquals(2600.0, s.getTotalDeductions());
+        assertEquals(22400.0, s.getNetMonthly());
+    }
+
+    @Test
+    void breakdownUsesItsOwnEarningLines() {
+        Payslip s = new Payslip();
+        PayrollCalculator.applySalarySetup(s, 99999.0, List.of(
+                item("EARNING", "BASIC", 12000), item("EARNING", "HRA", 6000), item("EARNING", "OTHER_EARNING", 2000),
+                item("DEDUCTION", "PF", 0), item("DEDUCTION", "PT", 200)));
+        fullMonth(s);
+        assertEquals(20000.0, s.getFullMonthlySalary());
+        assertEquals(1440.0, s.getEpfEmployee()); // 12% of basic 12,000
+        assertEquals(200.0, s.getProfessionalTax());
+        assertEquals(18360.0, s.getNetMonthly());
+    }
 }

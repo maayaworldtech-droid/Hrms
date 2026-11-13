@@ -24,6 +24,9 @@ public class AuthService {
     private ZeptoMailService zeptoMailService;
 
     @Autowired
+    private com.example.service.StaffNotices staffNotices;
+
+    @Autowired
     private AuthTokenService authTokenService;
 
     public static class ResetTokenEntry {
@@ -141,9 +144,12 @@ public class AuthService {
             return response;
         }
 
+        // Setting the first password after the welcome email is expected; any later change is worth a warning
+        boolean firstPassword = emp.isMustChangePassword();
         emp.setPassword(PasswordHasher.hash(newPassword));
         emp.setMustChangePassword(false);
         Employee saved = employeeRepository.save(emp);
+        if (!firstPassword) staffNotices.passwordChanged(saved);
 
         response.put("success", true);
         response.put("message", "Password updated successfully. You may now continue.");
@@ -236,7 +242,8 @@ public class AuthService {
         Employee emp = empOpt.get();
         emp.setPassword(PasswordHasher.hash(newPassword));
         emp.setMustChangePassword(false);
-        employeeRepository.save(emp);
+        Employee resetDone = employeeRepository.save(emp);
+        staffNotices.passwordChanged(resetDone);
 
         emailToResetToken.remove(entry.getEmail(), entry);
 
