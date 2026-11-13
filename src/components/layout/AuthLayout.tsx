@@ -16,17 +16,15 @@ const POINTS = [
 
 /**
  * Shared shell for sign-in, forgot password and reset password. On large screens a brand panel in
- * deep logo blue sits beside the form; on phones it collapses to the logo above the form.
+ * deep logo blue sits beside the form. The logo sits centred above the form on every screen size.
  */
 export const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, children }) => (
   <div className="min-h-screen bg-white lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
     <aside className="hidden lg:flex flex-col justify-between bg-brand-900 px-12 py-10 text-white">
-      <div className="inline-flex w-fit items-center rounded-xl bg-white px-4 py-2.5">
-        <img src={maayaLogo} alt="Maaya World" className="h-9 w-auto object-contain" />
-      </div>
+      <span aria-hidden="true" />
 
       <div className="max-w-md">
-                <p className="text-3xl font-semibold leading-tight tracking-tight">
+        <p className="text-3xl font-semibold leading-tight tracking-tight">
           Run every Maaya World center from one place.
         </p>
         <ul className="mt-8 space-y-3">
@@ -44,9 +42,9 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, childre
 
     <main className="flex min-h-screen flex-col justify-center px-5 py-10 sm:px-10 lg:min-h-0 lg:px-16">
       <div className="mx-auto w-full max-w-sm">
-        <img src={maayaLogo} alt="Maaya World" className="mb-8 h-10 w-auto object-contain lg:hidden" />
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{title}</h1>
-        {subtitle && <p className="mt-2 text-sm text-slate-600">{subtitle}</p>}
+        <img src={maayaLogo} alt="Maaya World" className="mx-auto mb-10 h-20 w-auto object-contain sm:h-24" />
+        <h1 className="text-center text-2xl font-semibold tracking-tight text-slate-900">{title}</h1>
+        {subtitle && <p className="mt-2 text-center text-sm text-slate-600">{subtitle}</p>}
         <div className="mt-8">{children}</div>
       </div>
     </main>

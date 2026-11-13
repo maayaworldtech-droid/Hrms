@@ -27,6 +27,9 @@ public interface AttendanceRepository extends JpaRepository<AttendanceRecord, Lo
     Optional<AttendanceRecord> findByEmployeeIdAndDate(Long employeeId, String date);
     List<AttendanceRecord> findAllByOrderByDateDesc();
 
+    /** Every record in a date range (dates are stored as YYYY-MM-DD, so string order is date order). */
+    List<AttendanceRecord> findByDateBetween(String fromDate, String toDate);
+
     /** Keeps the denormalized center name in step when a center is renamed. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Transactional

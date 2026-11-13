@@ -60,8 +60,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
       { id: 'mgr-att', title: 'Team attendance', category: 'Manager', icon: Clock, action: () => navigate('/manager/attendance'), role: ['MANAGER'] },
       { id: 'mgr-leaves', title: 'Leave approvals', category: 'Manager', icon: CalendarDays, action: () => navigate('/manager/leaves'), role: ['MANAGER'] },
       { id: 'mgr-od', title: 'On Duty approvals', category: 'Manager', icon: Briefcase, action: () => navigate('/manager/on-duty'), role: ['MANAGER'] },
+      { id: 'mgr-payroll', title: 'Payroll for my center', category: 'Manager', icon: Banknote, action: () => navigate('/manager/payroll'), role: ['MANAGER'] },
       { id: 'profile', title: 'My profile', category: 'Me', icon: UserIcon, action: () => navigate('/profile'), role: ['MANAGER', 'EMPLOYEE'] },
-      { id: 'my-att', title: 'My attendance', category: 'Me', icon: Clock, action: () => navigate('/employee/attendance'), role: ['MANAGER', 'EMPLOYEE'] },
+      { id: 'my-att', title: 'My attendance', category: 'Me', icon: Clock, action: () => navigate('/employee/dashboard'), role: ['MANAGER', 'EMPLOYEE'] },
       { id: 'my-leaves', title: 'My leave', category: 'Me', icon: CalendarDays, action: () => navigate('/employee/leaves'), role: ['MANAGER', 'EMPLOYEE'] },
       { id: 'my-salary', title: 'My payslips', category: 'Me', icon: Wallet, action: () => navigate('/employee/salary'), role: ['MANAGER', 'EMPLOYEE'] },
     ];

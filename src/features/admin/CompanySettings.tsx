@@ -327,7 +327,7 @@ const CompanyPanel: React.FC<PanelProps> = ({ onError, onSuccess }) => {
           />
           <Input label="GSTIN / PAN" value={settings.corporateTaxId} onChange={(e) => set({ corporateTaxId: e.target.value })} />
           <Input label="PF registration number" value={settings.pfRegistrationNo} onChange={(e) => set({ pfRegistrationNo: e.target.value })} />
-          <Input label="ESI registration number" value={settings.esiRegistrationNo} onChange={(e) => set({ esiRegistrationNo: e.target.value })} />
+          <Input label="ESI registration number" value={settings.esiRegistrationNo} onChange={(e) => set({ esiRegistrationNo: e.target.value })} helperText="Printed on payslips. ESI is only deducted for staff who have it in their salary breakdown." />
           <Input label="HR contact email" type="email" value={settings.contactEmail} onChange={(e) => set({ contactEmail: e.target.value })} />
         </div>
         <Textarea
@@ -358,6 +358,16 @@ const CompanyPanel: React.FC<PanelProps> = ({ onError, onSuccess }) => {
             max={7}
             value={settings.workDaysPerWeek}
             onChange={(e) => set({ workDaysPerWeek: Number(e.target.value) })}
+            helperText="Payroll uses this to tell weekly offs from absences."
+          />
+          <Input
+            label="Paid leave days per month"
+            type="number"
+            min={0}
+            max={31}
+            value={settings.paidLeavesPerMonth ?? 1}
+            onChange={(e) => set({ paidLeavesPerMonth: Math.max(0, Math.min(31, Number(e.target.value) || 0)) })}
+            helperText="Leave after this many days in a month is cut from salary, one day's pay per day."
           />
           <Input
             label="Financial year starts in"

@@ -1,14 +1,23 @@
 package com.example.controller;
 
+import com.example.entity.AttendanceRecord;
 import com.example.entity.AuditLog;
+import com.example.entity.CompanySettings;
 import com.example.entity.Employee;
+import com.example.entity.LeaveRequest;
+import com.example.entity.OnDutyRequest;
 import com.example.entity.PayrollRun;
 import com.example.entity.Payslip;
+import com.example.repository.AttendanceRepository;
 import com.example.repository.AuditLogRepository;
+import com.example.repository.CompanySettingsRepository;
 import com.example.repository.EmployeeRepository;
+import com.example.repository.LeaveRequestRepository;
+import com.example.repository.OnDutyRequestRepository;
 import com.example.repository.PayrollRunRepository;
 import com.example.repository.PayslipRepository;
 import com.example.security.AuthFilter;
+import com.example.service.PayrollCalculator;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,6 +30,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -28,6 +38,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/payroll")
@@ -48,11 +59,27 @@ public class PayrollController {
     @Autowired
     private AuditLogRepository auditLogRepository;
 
+    @Autowired
+    private AttendanceRepository attendanceRepository;
+
+    @Autowired
+    private LeaveRequestRepository leaveRequestRepository;
+
+    @Autowired
+    private OnDutyRequestRepository onDutyRequestRepository;
+
+    @Autowired
+    private CompanySettingsRepository settingsRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @GetMapping("/runs")
-    public ResponseEntity<List<PayrollRun>> getRuns() {
+    public ResponseEntity<List<PayrollRun>> getRuns(HttpServletRequest request) {
+        String ownCenter = managerCenter(request);
         List<PayrollRun> runs = new ArrayList<>(payrollRunRepository.findAll());
+        if (isManager(request)) {
+            runs.removeIf(r -> ownCenter == null || r.getCenter() == null || !r.getCenter().equalsIgnoreCase(ownCenter));
+        }
         runs.sort(RUN_NEWEST_FIRST);
         return ResponseEntity.ok(runs);
     }
@@ -65,7 +92,10 @@ public class PayrollController {
     }
 
     @GetMapping("/payslips/run/{runId}")
-    public ResponseEntity<List<Payslip>> getPayslipsByRun(@PathVariable Long runId) {
+    public ResponseEntity<List<Payslip>> getPayslipsByRun(@PathVariable Long runId, HttpServletRequest request) {
+        PayrollRun run = payrollRunRepository.findById(runId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payroll not found."));
+        requireCenterAccess(request, run.getCenter());
         return ResponseEntity.ok(payslipRepository.findByPayrollRunId(runId));
     }
 
@@ -87,166 +117,89 @@ public class PayrollController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payroll year must be numeric.");
         }
 
-        List<PayrollRun> existingRuns = payrollRunRepository.findByMonthIgnoreCaseAndYear(month, year);
+        // Payroll is worked out one center at a time. A manager can only do their own center.
+        String requestedCenter = payload.get("center") != null ? payload.get("center").toString().trim() : "";
+        String center;
+        if (isManager(request)) {
+            center = managerCenter(request);
+            if (center == null) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not assigned to a center.");
+            }
+            if (!requestedCenter.isEmpty() && !requestedCenter.equalsIgnoreCase(center)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only run payroll for " + center + ".");
+            }
+        } else {
+            if (requestedCenter.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose a center.");
+            }
+            center = requestedCenter;
+        }
+        final String payCenter = center;
+
+        // The same center and month, plus any older all-centers run for the month
+        List<PayrollRun> existingRuns = payrollRunRepository.findByMonthIgnoreCaseAndYear(month, year).stream()
+                .filter(r -> r.getCenter() == null || r.getCenter().equalsIgnoreCase(payCenter))
+                .toList();
         for (PayrollRun existing : existingRuns) {
             if ("DISBURSED".equalsIgnoreCase(existing.getStatus())) {
                 throw new ResponseStatusException(
                         HttpStatus.CONFLICT,
-                        "Payroll for " + month + " " + year + " has already been finalized and disbursed."
+                        "Payroll for " + payCenter + ", " + month + " " + year + " is already paid."
                 );
             }
         }
-        // Replace existing unfinalized draft runs for the same pay cycle
+        // Replace the unpaid draft for this center and month
         for (PayrollRun draft : existingRuns) {
             payslipRepository.deleteByPayrollRunId(draft.getId());
             payrollRunRepository.delete(draft);
         }
 
-        // The admin is the owner, not salaried staff, so no payslip is generated for them
+        YearMonth payMonth = YearMonth.of(year, monthIndex(month));
+        String monthStart = payMonth.atDay(1).toString();
+        String monthEnd = payMonth.atEndOfMonth().toString();
+
+        // The admin is the owner, not salaried staff; people joining after this month are not paid yet
         List<Employee> employees = employeeRepository.findAll().stream()
                 .filter(emp -> !"TERMINATED".equalsIgnoreCase(emp.getStatus()))
                 .filter(emp -> !"ADMIN".equalsIgnoreCase(emp.getRole()))
+                .filter(emp -> emp.getDateOfJoining() == null || emp.getDateOfJoining().isBlank()
+                        || emp.getDateOfJoining().compareTo(monthEnd) <= 0)
+                .filter(emp -> emp.getLocationName() != null && emp.getLocationName().equalsIgnoreCase(payCenter))
                 .toList();
+        if (employees.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No staff to pay at " + payCenter + " for " + month + " " + year + ".");
+        }
+
+        CompanySettings settings = settingsRepository.findAll().stream().findFirst().orElseGet(CompanySettings::new);
+        int workDaysPerWeek = settings.getWorkDaysPerWeek() > 0 ? settings.getWorkDaysPerWeek() : 6;
+        double paidLeavesPerMonth = settings.getPaidLeavesPerMonth() != null ? settings.getPaidLeavesPerMonth() : 1;
+
+        // Attendance, approved leave and approved On Duty for the month, grouped by person
+        Map<Long, List<AttendanceRecord>> attendanceByPerson = attendanceRepository.findByDateBetween(monthStart, monthEnd)
+                .stream().filter(r -> r.getEmployeeId() != null)
+                .collect(Collectors.groupingBy(AttendanceRecord::getEmployeeId));
+        Map<Long, List<LeaveRequest>> leaveByPerson = leaveRequestRepository.findByStatusOrderByAppliedOnDesc("APPROVED")
+                .stream().filter(l -> l.getEmployeeId() != null
+                        && l.getStartDate() != null && l.getStartDate().compareTo(monthEnd) <= 0
+                        && (l.getEndDate() == null || l.getEndDate().compareTo(monthStart) >= 0))
+                .collect(Collectors.groupingBy(LeaveRequest::getEmployeeId));
+        Map<Long, List<OnDutyRequest>> dutyByPerson = onDutyRequestRepository.findAll().stream()
+                .filter(o -> o.getEmployeeId() != null
+                        && ("APPROVED".equalsIgnoreCase(o.getStatus()) || "COMPLETED".equalsIgnoreCase(o.getStatus()))
+                        && o.getDutyDate() != null && o.getDutyDate().compareTo(monthStart) >= 0 && o.getDutyDate().compareTo(monthEnd) <= 0)
+                .collect(Collectors.groupingBy(OnDutyRequest::getEmployeeId));
 
         PayrollRun run = new PayrollRun();
+        run.setCenter(payCenter);
         run.setMonth(month);
         run.setYear(year);
         run.setTotalEmployees(employees.size());
         run.setStatus("DRAFT");
-        run.setProcessedAt(LocalDate.now(BUSINESS_ZONE).toString());
-
-        double totalGross = 0.0;
-        double totalDeductions = 0.0;
-        double totalNet = 0.0;
-
+        run.setProcessedAt(today.toString());
         PayrollRun savedRun = payrollRunRepository.save(run);
+
         List<Payslip> generatedSlips = new ArrayList<>();
-
         for (Employee emp : employees) {
-            // No made-up default: staff without a salary on file get 0 and are flagged in Payroll and Reports
-            double gross = emp.getMonthlySalary() != null ? emp.getMonthlySalary() : 0.0;
-            boolean salarySet = gross > 0;
-            double basic = Math.round(gross * 0.50);
-            double hra = Math.round(gross * 0.30);
-            double special = Math.round(gross * 0.10);
-            double conveyance = salarySet ? 1600.0 : 0.0;
-            double medical = salarySet ? 1250.0 : 0.0;
-            double bonus = 0.0;
-            double incentives = 0.0;
-
-            double epfEmployee = Math.round(basic * 0.12);
-            double epfEmployer = Math.round(basic * 0.12);
-            double profTax = salarySet ? 200.0 : 0.0;
-            double tds = Math.round(gross * 0.05);
-            double healthIns = salarySet ? 500.0 : 0.0;
-            double deductions = 0.0;
-            boolean hasCustomDeductions = false;
-
-            // Check if employee has a custom dynamic salary structure breakdown
-            if (emp.getSalaryStructureJson() != null && !emp.getSalaryStructureJson().trim().isEmpty()) {
-                try {
-                    List<Map<String, Object>> components = objectMapper.readValue(
-                            emp.getSalaryStructureJson(),
-                            new TypeReference<List<Map<String, Object>>>() {}
-                    );
-                    if (components != null && !components.isEmpty()) {
-                        boolean hasEarnings = components.stream().anyMatch(
-                                c -> !"DEDUCTION".equalsIgnoreCase(String.valueOf(c.getOrDefault("type", "EARNING")))
-                        );
-                        boolean hasDeductions = components.stream().anyMatch(
-                                c -> "DEDUCTION".equalsIgnoreCase(String.valueOf(c.getOrDefault("type", "EARNING")))
-                        );
-
-                        if (hasEarnings) {
-                            basic = 0.0;
-                            hra = 0.0;
-                            special = 0.0;
-                            conveyance = 0.0;
-                            medical = 0.0;
-                            bonus = 0.0;
-                            incentives = 0.0;
-                        }
-                        if (hasDeductions) {
-                            epfEmployee = 0.0;
-                            epfEmployer = 0.0;
-                            profTax = 0.0;
-                            tds = 0.0;
-                            healthIns = 0.0;
-                            hasCustomDeductions = true;
-                        }
-
-                        double dynamicGross = 0.0;
-                        double dynamicDeductions = 0.0;
-
-                        for (Map<String, Object> comp : components) {
-                            String type = comp.get("type") != null ? comp.get("type").toString().toUpperCase() : "EARNING";
-                            String code = comp.get("code") != null ? comp.get("code").toString().toUpperCase() : "";
-                            String name = comp.get("name") != null ? comp.get("name").toString().toUpperCase() : "";
-                            double amt = 0.0;
-                            try {
-                                amt = Double.parseDouble(comp.get("amount").toString());
-                            } catch (Exception ignored) {}
-
-                            if ("DEDUCTION".equals(type)) {
-                                dynamicDeductions += amt;
-                                if (code.contains("PF") || name.contains("PROVIDENT") || name.contains("EPF")) {
-                                    epfEmployee += amt;
-                                    epfEmployer += amt;
-                                } else if (code.contains("PT") || name.contains("PROFESSIONAL")) {
-                                    profTax += amt;
-                                } else if (code.contains("TDS") || name.contains("TAX")) {
-                                    tds += amt;
-                                } else if (code.contains("ESI") || name.contains("HEALTH") || name.contains("INSURANCE")) {
-                                    healthIns += amt;
-                                }
-                            } else {
-                                dynamicGross += amt;
-                                if (code.contains("BASIC") || name.contains("BASIC")) {
-                                    basic += amt;
-                                } else if (code.contains("HRA") || name.contains("RENT")) {
-                                    hra += amt;
-                                } else if (code.contains("CONVEYANCE") || name.contains("TRAVEL")) {
-                                    conveyance += amt;
-                                } else if (code.contains("MEDICAL")) {
-                                    medical += amt;
-                                } else if (code.contains("BONUS") || name.contains("BONUS")) {
-                                    bonus += amt;
-                                } else if (code.contains("INCENTIVE") || name.contains("INCENTIVE")) {
-                                    incentives += amt;
-                                } else {
-                                    special += amt;
-                                }
-                            }
-                        }
-
-                        if (hasEarnings && dynamicGross > 0) {
-                            gross = dynamicGross;
-                            if (!hasCustomDeductions) {
-                                // Statutory defaults were computed from monthlySalary above; re-base them on the
-                                // custom structure so EPF/TDS match the earnings actually being paid.
-                                epfEmployee = Math.round(basic * 0.12);
-                                epfEmployer = Math.round(basic * 0.12);
-                                tds = Math.round(gross * 0.05);
-                            }
-                        }
-                        if (hasCustomDeductions) {
-                            deductions = dynamicDeductions;
-                        }
-                    }
-                } catch (Exception e) {
-                    System.err.println("Could not parse salary structure for " + emp.getEmail() + ": " + e.getMessage());
-                }
-            }
-
-            if (!hasCustomDeductions) {
-                deductions = epfEmployee + profTax + tds + healthIns;
-            }
-            double net = Math.max(0.0, gross - deductions);
-
-            totalGross += gross;
-            totalDeductions += deductions;
-            totalNet += net;
-
             Payslip slip = new Payslip();
             slip.setPayrollRunId(savedRun.getId());
             slip.setEmployeeId(emp.getId());
@@ -261,38 +214,42 @@ public class PayrollController {
             slip.setBankName(emp.getBankName() != null ? emp.getBankName() : "");
             slip.setMonth(month);
             slip.setYear(year);
-            slip.setPayableDays(30);
-            slip.setLossOfPayDays(0);
-
-            slip.setBasic(basic);
-            slip.setHra(hra);
-            slip.setSpecialAllowance(special);
-            slip.setConveyanceAllowance(conveyance);
-            slip.setMedicalAllowance(medical);
-            slip.setBonus(bonus);
-            slip.setIncentives(incentives);
-            slip.setGrossMonthly(gross);
-            slip.setEpfEmployee(epfEmployee);
-            slip.setEpfEmployer(epfEmployer);
-            slip.setProfessionalTax(profTax);
-            slip.setTds(tds);
-            slip.setHealthInsurance(healthIns);
-            slip.setTotalDeductions(deductions);
-            slip.setNetMonthly(net);
-            slip.setCtcAnnual(emp.getCtcAnnual() != null ? emp.getCtcAnnual() : gross * 12);
+            slip.setCtcAnnual(emp.getCtcAnnual() != null ? emp.getCtcAnnual() : 0.0);
             slip.setPaymentStatus("PENDING");
             slip.setPaymentMode("NEFT");
+            slip.setPtState(emp.getLocation() != null ? emp.getLocation().getState() : null);
 
+            applySalaryStructure(slip, emp);
+
+            PayrollCalculator.DayCount days = PayrollCalculator.countDays(
+                    payMonth,
+                    emp.getDateOfJoining(),
+                    workDaysPerWeek,
+                    paidLeavesPerMonth,
+                    today,
+                    attendanceByPerson.getOrDefault(emp.getId(), List.of()),
+                    leaveByPerson.getOrDefault(emp.getId(), List.of()),
+                    dutyByPerson.getOrDefault(emp.getId(), List.of())
+            );
+            slip.setDaysInMonth(days.daysInMonth);
+            slip.setEmployedDays(days.employedDays);
+            slip.setWorkedDays(days.workedDays);
+            slip.setPaidLeaveDays(days.paidLeaveDays);
+            slip.setUnpaidLeaveDays(days.unpaidLeaveDays);
+            slip.setAbsentDays(days.absentDays);
+            slip.setSuggestedLopDays(days.suggestedLopDays);
+            slip.setNoAttendance(days.noAttendance && !today.isBefore(payMonth.atDay(1)));
+            slip.setLossOfPayDays(days.suggestedLopDays);
+
+            PayrollCalculator.recompute(slip);
             generatedSlips.add(payslipRepository.save(slip));
         }
 
-        savedRun.setTotalGrossPay(totalGross);
-        savedRun.setTotalDeductions(totalDeductions);
-        savedRun.setTotalNetPay(totalNet);
+        updateRunTotals(savedRun, generatedSlips);
         PayrollRun persisted = payrollRunRepository.save(savedRun);
         persisted.setPayslips(generatedSlips);
 
-        recordAudit(request, "PAYROLL_DRAFT_CREATED", "Generated draft payroll for " + month + " " + year + " (" + employees.size() + " staff)");
+        recordAudit(request, "PAYROLL_DRAFT_CREATED", "Worked out payroll for " + payCenter + ", " + month + " " + year + " (" + employees.size() + " staff)");
         return ResponseEntity.ok(persisted);
     }
 
@@ -300,7 +257,8 @@ public class PayrollController {
     @Transactional
     public ResponseEntity<?> adjustPayslip(
             @PathVariable Long id,
-            @RequestBody Map<String, Object> payload
+            @RequestBody Map<String, Object> payload,
+            HttpServletRequest request
     ) {
         Optional<Payslip> opt = payslipRepository.findById(id);
         if (opt.isEmpty()) {
@@ -308,6 +266,16 @@ public class PayrollController {
         }
 
         Payslip slip = opt.get();
+        if (isManager(request)) {
+            String ownCenter = managerCenter(request);
+            if (ownCenter == null || slip.getLocation() == null || !slip.getLocation().equalsIgnoreCase(ownCenter)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "You can only change payroll for your own center."));
+            }
+            Long me = (Long) request.getAttribute(AuthFilter.ATTR_EMPLOYEE_ID);
+            if (me != null && me.equals(slip.getEmployeeId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Your own pay can only be changed by the admin."));
+            }
+        }
         if (slip.getPayrollRunId() != null) {
             Optional<PayrollRun> runOpt = payrollRunRepository.findById(slip.getPayrollRunId());
             if (runOpt.isPresent() && "DISBURSED".equalsIgnoreCase(runOpt.get().getStatus())) {
@@ -316,65 +284,33 @@ public class PayrollController {
             }
         }
 
-        // Snapshot the slip before applying changes. The stored gross is authoritative: the default component
-        // split (50/30/10% + fixed allowances) does not sum exactly to gross, so re-deriving gross from components
-        // here would silently change pay on any adjustment, even a notes-only edit.
-        double prevSpecial = nz(slip.getSpecialAllowance());
-        double prevBonus = nz(slip.getBonus());
-        double prevIncentives = nz(slip.getIncentives());
-        double prevBaseGross = Math.max(0.0, nz(slip.getGrossMonthly()) - prevBonus - prevIncentives);
-        double prevLop = computeLopDeduction(prevBaseGross, slip.getPayableDays(), slip.getLossOfPayDays());
-        double statutory = nz(slip.getEpfEmployee()) + nz(slip.getProfessionalTax())
-                + nz(slip.getTds()) + nz(slip.getHealthInsurance());
-        // Custom deduction components (loans, advances, ...) that are not one of the four statutory buckets
-        double otherDeductions = Math.max(0.0, nz(slip.getTotalDeductions()) - statutory - prevLop);
-
+        // Only these can change by hand; everything else follows from them in PayrollCalculator
         try {
-            if (payload.containsKey("bonus")) {
-                slip.setBonus(Math.max(0.0, Double.parseDouble(String.valueOf(payload.get("bonus")))));
-            }
-            if (payload.containsKey("incentives")) {
-                slip.setIncentives(Math.max(0.0, Double.parseDouble(String.valueOf(payload.get("incentives")))));
-            }
-            if (payload.containsKey("specialAllowance")) {
-                slip.setSpecialAllowance(Math.max(0.0, Double.parseDouble(String.valueOf(payload.get("specialAllowance")))));
-            }
             if (payload.containsKey("lossOfPayDays")) {
-                slip.setLossOfPayDays(Math.max(0, Math.min(31, Integer.parseInt(String.valueOf(payload.get("lossOfPayDays"))))));
+                slip.setLossOfPayDays((int) Math.max(0, Math.round(Double.parseDouble(String.valueOf(payload.get("lossOfPayDays"))))));
+            }
+            if (payload.containsKey("bonus")) {
+                slip.setBonus(Math.max(0.0, Math.round(Double.parseDouble(String.valueOf(payload.get("bonus"))))));
+            }
+            if (payload.containsKey("tds")) {
+                slip.setTds(Math.max(0.0, Math.round(Double.parseDouble(String.valueOf(payload.get("tds"))))));
+            }
+            if (payload.containsKey("otherDeductions")) {
+                slip.setOtherDeductions(Math.max(0.0, Math.round(Double.parseDouble(String.valueOf(payload.get("otherDeductions"))))));
             }
         } catch (NumberFormatException e) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Adjustment values must be numeric."));
+            return ResponseEntity.badRequest().body(Map.of("message", "Amounts and days must be numbers."));
         }
         if (payload.containsKey("notes")) {
-            slip.setAdjustmentNotes(payload.get("notes") != null ? payload.get("notes").toString() : "");
+            slip.setAdjustmentNotes(payload.get("notes") != null ? payload.get("notes").toString().trim() : "");
         }
 
-        double baseGross = Math.max(0.0, prevBaseGross + (nz(slip.getSpecialAllowance()) - prevSpecial));
-        double updatedGross = baseGross + nz(slip.getBonus()) + nz(slip.getIncentives());
-        slip.setGrossMonthly(updatedGross);
-
-        double lopDeduction = computeLopDeduction(baseGross, slip.getPayableDays(), slip.getLossOfPayDays());
-        double totalDeductions = statutory + otherDeductions + lopDeduction;
-        slip.setTotalDeductions(totalDeductions);
-        slip.setNetMonthly(Math.max(0.0, updatedGross - totalDeductions));
-
+        PayrollCalculator.recompute(slip);
         Payslip savedSlip = payslipRepository.save(slip);
 
-        // Synchronize parent PayrollRun totals
         if (savedSlip.getPayrollRunId() != null) {
             payrollRunRepository.findById(savedSlip.getPayrollRunId()).ifPresent(run -> {
-                List<Payslip> allSlips = payslipRepository.findByPayrollRunId(run.getId());
-                double totGross = 0;
-                double totDed = 0;
-                double totNet = 0;
-                for (Payslip s : allSlips) {
-                    totGross += s.getGrossMonthly() != null ? s.getGrossMonthly() : 0;
-                    totDed += s.getTotalDeductions() != null ? s.getTotalDeductions() : 0;
-                    totNet += s.getNetMonthly() != null ? s.getNetMonthly() : 0;
-                }
-                run.setTotalGrossPay(totGross);
-                run.setTotalDeductions(totDed);
-                run.setTotalNetPay(totNet);
+                updateRunTotals(run, payslipRepository.findByPayrollRunId(run.getId()));
                 payrollRunRepository.save(run);
             });
         }
@@ -419,9 +355,112 @@ public class PayrollController {
         return value != null ? value : 0.0;
     }
 
-    private static double computeLopDeduction(double baseGross, int payableDays, int lossOfPayDays) {
-        if (lossOfPayDays <= 0) return 0.0;
-        return Math.round((baseGross / Math.max(1, payableDays)) * lossOfPayDays);
+    private static boolean isManager(HttpServletRequest request) {
+        return "MANAGER".equals(request.getAttribute(AuthFilter.ATTR_ROLE));
+    }
+
+    /** The center a signed-in manager runs; null for admins or managers without a center. */
+    private String managerCenter(HttpServletRequest request) {
+        if (!isManager(request)) return null;
+        Long id = (Long) request.getAttribute(AuthFilter.ATTR_EMPLOYEE_ID);
+        if (id == null) return null;
+        return employeeRepository.findById(id).map(Employee::getLocationName).filter(n -> !n.isBlank()).orElse(null);
+    }
+
+    private void requireCenterAccess(HttpServletRequest request, String center) {
+        if (!isManager(request)) return;
+        String own = managerCenter(request);
+        if (own == null || center == null || !center.equalsIgnoreCase(own)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only see payroll for your own center.");
+        }
+    }
+
+    private static void updateRunTotals(PayrollRun run, List<Payslip> slips) {
+        double gross = 0;
+        double deductions = 0;
+        double net = 0;
+        for (Payslip s : slips) {
+            gross += nz(s.getGrossMonthly());
+            deductions += nz(s.getTotalDeductions());
+            net += nz(s.getNetMonthly());
+        }
+        run.setTotalEmployees(slips.size());
+        run.setTotalGrossPay(gross);
+        run.setTotalDeductions(deductions);
+        run.setTotalNetPay(net);
+    }
+
+    /**
+     * Fills the full monthly earning lines and the person's fixed deductions.
+     * With a salary breakdown on file, its lines are used as entered. Without one, the monthly salary
+     * is split 50% basic, 25% house rent allowance and the rest as special allowance, so the lines
+     * always add up to the salary. PF applies when the person has a PF number or a PF line.
+     */
+    private void applySalaryStructure(Payslip slip, Employee emp) {
+        double monthly = emp.getMonthlySalary() != null ? Math.max(0.0, emp.getMonthlySalary()) : 0.0;
+
+        List<Map<String, Object>> components = List.of();
+        if (emp.getSalaryStructureJson() != null && !emp.getSalaryStructureJson().isBlank()) {
+            try {
+                List<Map<String, Object>> parsed = objectMapper.readValue(
+                        emp.getSalaryStructureJson(), new TypeReference<List<Map<String, Object>>>() {});
+                if (parsed != null) components = parsed;
+            } catch (Exception e) {
+                System.err.println("Could not read salary breakdown for " + emp.getEmail() + ": " + e.getMessage());
+            }
+        }
+
+        double basic = 0, hra = 0, special = 0, conveyance = 0, medical = 0, tds = 0, pt = 0, other = 0;
+        boolean pf = false;
+        boolean esi = false;
+        boolean anyEarning = false;
+        for (Map<String, Object> comp : components) {
+            String type = String.valueOf(comp.getOrDefault("type", "EARNING")).toUpperCase();
+            String code = String.valueOf(comp.getOrDefault("code", "")).toUpperCase();
+            String name = String.valueOf(comp.getOrDefault("name", "")).toUpperCase();
+            double amt;
+            try {
+                amt = Math.max(0.0, Double.parseDouble(String.valueOf(comp.get("amount"))));
+            } catch (Exception e) {
+                amt = 0.0;
+            }
+            if ("DEDUCTION".equals(type)) {
+                if (code.equals("PF") || name.contains("PROVIDENT") || name.contains("EPF")) pf = true; // worked out by rule
+                else if (code.equals("ESI") || name.contains("STATE INSURANCE") || name.contains("ESI")) esi = true; // worked out by rule
+                else if (code.equals("PT") || name.contains("PROFESSIONAL")) pt += amt;
+                else if (code.equals("TDS") || name.contains("INCOME TAX") || name.contains("TDS")) tds += amt;
+                else other += amt;
+            } else {
+                anyEarning = true;
+                if (code.equals("BASIC") || name.contains("BASIC")) basic += amt;
+                else if (code.equals("HRA") || name.contains("RENT")) hra += amt;
+                else if (code.equals("CONVEYANCE") || name.contains("CONVEYANCE")) conveyance += amt;
+                else if (code.equals("MEDICAL") || name.contains("MEDICAL")) medical += amt;
+                else special += amt;
+            }
+        }
+
+        if (!anyEarning || basic + hra + special + conveyance + medical <= 0) {
+            basic = Math.round(monthly * 0.50);
+            hra = Math.round(monthly * 0.25);
+            special = Math.max(0.0, monthly - basic - hra);
+            conveyance = 0;
+            medical = 0;
+        }
+
+        slip.setBasic(basic);
+        slip.setHra(hra);
+        slip.setSpecialAllowance(special);
+        slip.setConveyanceAllowance(conveyance);
+        slip.setMedicalAllowance(medical);
+        slip.setBonus(0.0);
+        slip.setIncentives(0.0);
+        slip.setTds(tds);
+        slip.setOtherDeductions(other);
+        slip.setHealthInsurance(0.0);
+        slip.setPfApplicable(pf);
+        slip.setEsiApplicable(esi);
+        slip.setPtMonthly(pt);
     }
 
     private static final List<String> MONTH_NAMES = List.of(

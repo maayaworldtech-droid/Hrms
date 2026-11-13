@@ -4,14 +4,14 @@ import { useAppDispatch, useAppSelector } from '@/store';
 import { logout } from '@/store/slices/authSlice';
 import { markAllNotificationsAsRead } from '@/store/slices/uiSlice';
 import maayaLogo from '@/assets/logo-new.png';
-import { Home, Clock, CalendarDays, Wallet, User, Bell, X, ChevronRight, LogOut, Briefcase, LayoutDashboard } from 'lucide-react';
+import { Home, CalendarDays, Wallet, User, Bell, X, ChevronRight, LogOut, Briefcase, LayoutDashboard } from 'lucide-react';
 import './employee.css';
 import { useShiftTimes } from '@/utils/shiftUtils';
 
 const destinations = [
   { label: 'Home', path: 'dashboard', icon: Home },
-  { label: 'Attendance', path: 'attendance', icon: Clock },
   { label: 'Leave', path: 'leaves', icon: CalendarDays },
+  { label: 'On Duty', path: 'on-duty', icon: Briefcase },
   { label: 'Payslips', path: 'salary', icon: Wallet },
   { label: 'Profile', path: 'profile', icon: User },
 ];
@@ -145,10 +145,6 @@ export const EmployeeMobileLayout: React.FC = () => {
               {menuRow(<User size={18} />, 'My profile', () => {
                 close();
                 navigate('/employee/profile');
-              })}
-              {menuRow(<Briefcase size={18} />, 'On Duty and expenses', () => {
-                close();
-                navigate('/employee/on-duty');
               })}
               {workspacePath &&
                 menuRow(<LayoutDashboard size={18} />, activeRole === 'ADMIN' ? 'Back to admin screens' : 'Back to my team', () => {

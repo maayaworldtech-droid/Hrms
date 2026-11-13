@@ -92,6 +92,25 @@ const normalizePayslip = (slip: any): Payslip => {
     },
     paymentStatus: slip?.paymentStatus || 'PAID',
     paymentMode: slip?.paymentMode || 'NEFT',
+    // Payslips made before days were tracked have none of these; they covered the full month
+    daysInMonth: Number(slip?.daysInMonth) || 30,
+    employedDays: Number(slip?.employedDays ?? slip?.daysInMonth ?? 30),
+    workedDays: Number(slip?.workedDays) || 0,
+    paidLeaveDays: Number(slip?.paidLeaveDays) || 0,
+    unpaidLeaveDays: Number(slip?.unpaidLeaveDays) || 0,
+    absentDays: Number(slip?.absentDays) || 0,
+    suggestedLopDays: Number(slip?.suggestedLopDays ?? slip?.lossOfPayDays ?? 0),
+    noAttendance: Boolean(slip?.noAttendance),
+    fullMonthlySalary: Number(slip?.fullMonthlySalary) || Number(comp.grossMonthly ?? slip?.grossMonthly ?? 0),
+    unpaidAmount: Number(slip?.unpaidAmount) || 0,
+    esiEmployee: Number(slip?.esiEmployee) || 0,
+    esiEmployer: Number(slip?.esiEmployer) || 0,
+    otherDeductions: Number(slip?.otherDeductions) || 0,
+    pfApplicable: Boolean(slip?.pfApplicable),
+    esiApplicable: Boolean(slip?.esiApplicable),
+    ptState: slip?.ptState || undefined,
+    ptMonthly: Number(slip?.ptMonthly) || 0,
+    legacyCalculation: slip?.daysInMonth == null,
   };
 };
 
@@ -647,10 +666,10 @@ export const api = {
       return (list || []).map(normalizePayslip);
     },
 
-    process: async (month?: string, year?: number): Promise<PayrollRun> => {
+    process: async (month: string, year: number, center?: string): Promise<PayrollRun> => {
       const res = await fetchJSON<any>(`${API_BASE}/payroll/process`, {
         method: 'POST',
-        body: JSON.stringify({ month: month || 'October', year: year || 2026 }),
+        body: JSON.stringify({ month, year, center }),
       });
       return {
         ...res,
@@ -659,8 +678,8 @@ export const api = {
       };
     },
 
-    createRun: async (month?: string, year?: number): Promise<PayrollRun> => {
-      return api.payroll.process(month, year);
+    createRun: async (month: string, year: number, center?: string): Promise<PayrollRun> => {
+      return api.payroll.process(month, year, center);
     },
 
     disburseRun: async (runId: string | number, disbursedBy?: string): Promise<PayrollRun> => {
@@ -678,10 +697,10 @@ export const api = {
     adjustPayslip: async (
       payslipId: string | number,
       adjustment: {
-        bonus?: number;
-        incentives?: number;
-        specialAllowance?: number;
         lossOfPayDays?: number;
+        bonus?: number;
+        tds?: number;
+        otherDeductions?: number;
         notes?: string;
       }
     ): Promise<Payslip> => {

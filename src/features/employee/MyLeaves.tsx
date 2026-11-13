@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { api } from '@/services/api';
-import { LeaveRequest, LeaveBalance } from '@/types';
+import { LeaveRequest } from '@/types';
 import { Modal } from '@/components/common/Modal';
 import { Input } from '@/components/common/Input';
 import { Select } from '@/components/common/Select';
@@ -50,7 +50,13 @@ export const MyLeaves: React.FC = () => {
   const employeeId = user?.id || '';
   const [searchParams, setSearchParams] = useSearchParams();
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
-  const [balances, setBalances] = useState<LeaveBalance | null>(null);
+  const [paidPerMonth, setPaidPerMonth] = useState<number>(1);
+  useEffect(() => {
+    api.settings
+      .get()
+      .then((s) => setPaidPerMonth(typeof s?.paidLeavesPerMonth === 'number' ? s.paidLeavesPerMonth : 1))
+      .catch(() => setPaidPerMonth(1));
+  }, []);
   const [isLoading, setIsLoading] = useState(true);
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(() => searchParams.get('apply') === 'true');
   const [statusFilter, setStatusFilter] = useState<Filter>('ALL');
@@ -86,12 +92,8 @@ export const MyLeaves: React.FC = () => {
     }
     setIsLoading(true);
     try {
-      const [list, bal] = await Promise.all([
-        api.leaves.getByEmployee(employeeId).catch(() => []),
-        api.leaves.getBalances(employeeId).catch(() => null),
-      ]);
+      const list = await api.leaves.getByEmployee(employeeId).catch(() => []);
       setLeaves(Array.isArray(list) ? [...list].sort((a, b) => b.appliedOn.localeCompare(a.appliedOn)) : []);
-      setBalances(bal);
     } finally {
       setIsLoading(false);
     }
@@ -137,12 +139,6 @@ export const MyLeaves: React.FC = () => {
     }
   };
 
-  const totalRemaining = balances
-    ? (balances.casualLeave?.remaining ?? 0) +
-      (balances.sickLeave?.remaining ?? 0) +
-      (balances.earnedLeave?.remaining ?? 0) +
-      (balances.compOff?.remaining ?? 0)
-    : null;
 
   const counts = useMemo(
     () => ({
@@ -173,15 +169,7 @@ export const MyLeaves: React.FC = () => {
     <div className="space-y-4 pb-4">
       <MobileTitle
         title="Leave"
-        subtitle={
-          totalRemaining !== null ? (
-            <>
-              <span className="font-semibold tabular-nums text-slate-900">{totalRemaining}</span> days available this year
-            </>
-          ) : (
-            'Leave balance unavailable'
-          )
-        }
+        subtitle={`${paidPerMonth} paid leave day${paidPerMonth === 1 ? '' : 's'} a month. Leave after that is cut from salary.`}
         action={
           <Button size="md" onClick={() => setIsApplyModalOpen(true)} leftIcon={<Plus className="h-4 w-4" />}>
             Apply
@@ -253,8 +241,10 @@ export const MyLeaves: React.FC = () => {
           </div>
           <p className="text-sm text-slate-700">
             Duration: <span className="font-semibold tabular-nums text-slate-900">{computedDays} day{computedDays > 1 ? 's' : ''}</span>
-            {totalRemaining !== null && computedDays > totalRemaining && (
-              <span className="block mt-1 text-amber-800">This exceeds your {totalRemaining} remaining days; the extra days may be treated as loss of pay.</span>
+            {computedDays > paidPerMonth && (
+              <span className="mt-1 block text-amber-800">
+                Only {paidPerMonth} leave day{paidPerMonth === 1 ? ' is' : 's are'} paid each month. Days beyond that are cut from your salary.
+              </span>
             )}
           </p>
           <Textarea label="Reason" required rows={3} placeholder="Briefly explain the reason for leave" error={errors.reason?.message} {...register('reason')} />

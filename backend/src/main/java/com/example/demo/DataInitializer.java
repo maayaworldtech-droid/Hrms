@@ -3,7 +3,11 @@ package com.example.demo;
 import com.example.entity.CompanySettings;
 import com.example.entity.Employee;
 import com.example.entity.LeaveBalance;
+import com.example.entity.PayrollRun;
+import com.example.entity.Payslip;
 import com.example.repository.CompanySettingsRepository;
+import com.example.repository.PayrollRunRepository;
+import com.example.repository.PayslipRepository;
 import com.example.repository.EmployeeRepository;
 import com.example.repository.LeaveBalanceRepository;
 import com.example.security.PasswordHasher;
@@ -15,7 +19,10 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -40,6 +47,12 @@ public class DataInitializer {
     @Autowired
     private CenterService centerService;
 
+    @Autowired
+    private PayrollRunRepository payrollRunRepository;
+
+    @Autowired
+    private PayslipRepository payslipRepository;
+
     @EventListener(ApplicationReadyEvent.class)
     public void initData() {
         System.out.println("Running startup checks...");
@@ -49,11 +62,40 @@ public class DataInitializer {
 
         ensureAdministrator();
         clearLegacyPlaceholderSettings();
+        removeOwnersFromDraftPayroll();
 
         // Anyone without a center (e.g. a freshly created admin) is assigned to the head center
         centerService.assignUnassignedEmployees();
 
         System.out.println("Startup checks complete.");
+    }
+
+    /**
+     * Admins are the owners, not salaried staff. Drafts generated before that rule existed may still
+     * hold payslips for them; remove those and correct the draft's totals. Paid months are never changed.
+     */
+    private void removeOwnersFromDraftPayroll() {
+        Set<Long> adminIds = employeeRepository.findAll().stream()
+                .filter(e -> "ADMIN".equalsIgnoreCase(e.getRole()))
+                .map(Employee::getId)
+                .collect(Collectors.toSet());
+        if (adminIds.isEmpty()) return;
+
+        for (PayrollRun run : payrollRunRepository.findAll()) {
+            if ("DISBURSED".equalsIgnoreCase(run.getStatus())) continue;
+            List<Payslip> slips = payslipRepository.findByPayrollRunId(run.getId());
+            List<Payslip> ownerSlips = slips.stream().filter(s -> adminIds.contains(s.getEmployeeId())).toList();
+            if (ownerSlips.isEmpty()) continue;
+
+            payslipRepository.deleteAll(ownerSlips);
+            List<Payslip> kept = slips.stream().filter(s -> !adminIds.contains(s.getEmployeeId())).toList();
+            run.setTotalEmployees(kept.size());
+            run.setTotalGrossPay(kept.stream().mapToDouble(s -> s.getGrossMonthly() != null ? s.getGrossMonthly() : 0.0).sum());
+            run.setTotalDeductions(kept.stream().mapToDouble(s -> s.getTotalDeductions() != null ? s.getTotalDeductions() : 0.0).sum());
+            run.setTotalNetPay(kept.stream().mapToDouble(s -> s.getNetMonthly() != null ? s.getNetMonthly() : 0.0).sum());
+            payrollRunRepository.save(run);
+            System.out.println("Removed " + ownerSlips.size() + " admin payslip(s) from draft payroll " + run.getMonth() + " " + run.getYear());
+        }
     }
 
     /** Creates the administrator account if missing; never overwrites details on an existing one. */

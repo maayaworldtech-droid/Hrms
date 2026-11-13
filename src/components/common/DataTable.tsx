@@ -244,7 +244,7 @@ export function DataTable<T extends Record<string, any>>({
                   key={col.key}
                   scope="col"
                   aria-sort={sortKey === col.key ? (sortOrder === 'asc' ? 'ascending' : 'descending') : undefined}
-                  className={`px-4 py-2.5 font-medium ${alignClass(col.align)} ${col.className || ''}`}
+                  className={`whitespace-nowrap px-4 py-2.5 font-medium ${alignClass(col.align)} ${col.className || ''}`}
                 >
                   {col.sortable ? (
                     <button

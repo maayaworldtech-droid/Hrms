@@ -48,6 +48,8 @@ public class CompanySettings {
     private String contactPhone = "";
     private int standardWorkHoursPerDay = 8;
     private int workDaysPerWeek = 5;
+    /** Leave days a month paid in full; every leave day after these is cut from salary. */
+    private Integer paidLeavesPerMonth = 1;
     private String fiscalYearStartMonth = "April";
     private String currencySymbol = "INR";
     private boolean enableGeoFencingAttendance = true;

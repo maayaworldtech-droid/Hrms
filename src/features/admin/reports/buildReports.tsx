@@ -188,18 +188,21 @@ export const buildSalaryReport = (ctx: ReportContext): ReportData => {
       csv: {
         filename: `salary-${range.key}-${scopeSuffix(ctx)}`,
         headers: [
-          'Employee code', 'Name', 'Center', 'Basic', 'HRA', 'Other allowances', 'Bonus and incentives',
-          'Salary cost (gross)', 'PF', 'Professional tax', 'Income tax (TDS)', 'Total deductions', 'Take-home (net)',
-          'Unpaid days', 'Bank account', 'Status', 'Paid on',
+          'Employee code', 'Name', 'Center', 'Days in month', 'Paid days', 'Unpaid days', 'Monthly salary', 'Not paid for unpaid days',
+          'Basic', 'HRA', 'Other allowances', 'Bonus and incentives', 'Earned (gross)',
+          'PF', 'ESI', 'Professional tax', 'Income tax (TDS)', 'Other deductions', 'Total deductions', 'Take-home (net)',
+          'Employer PF', 'Employer ESI', 'Bank account', 'Status', 'Paid on',
         ],
         rows: sorted.map((s) => {
           const c = s.components;
           return [
-            s.employeeCode, s.employeeName, slipCenter(s), c.basic, c.hra,
+            s.employeeCode, s.employeeName, slipCenter(s), s.daysInMonth, s.payableDays, s.lossOfPayDays || 0,
+            s.fullMonthlySalary, s.unpaidAmount, c.basic, c.hra,
             Math.round((c.specialAllowance || 0) + (c.conveyanceAllowance || 0) + (c.medicalAllowance || 0)),
             Math.round((c.bonus || 0) + (c.incentives || 0)),
-            c.grossMonthly, c.epfEmployee, c.professionalTax, c.tds, c.totalDeductions, c.netMonthly,
-            s.lossOfPayDays || 0, s.bankAccount || '', s.paymentStatus === 'PAID' ? 'Paid' : 'Not paid yet', s.paymentDate || '',
+            c.grossMonthly, c.epfEmployee, s.esiEmployee || 0, c.professionalTax, c.tds,
+            Math.round((s.otherDeductions || 0) + (c.healthInsurance || 0)), c.totalDeductions, c.netMonthly,
+            c.epfEmployer || 0, s.esiEmployer || 0, s.bankAccount || '', s.paymentStatus === 'PAID' ? 'Paid' : 'Not paid yet', s.paymentDate || '',
           ];
         }),
       },

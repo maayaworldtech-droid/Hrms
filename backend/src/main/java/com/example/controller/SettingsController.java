@@ -64,6 +64,9 @@ public class SettingsController {
         if (settings.getContactPhone() != null) current.setContactPhone(settings.getContactPhone());
         if (settings.getStandardWorkHoursPerDay() > 0) current.setStandardWorkHoursPerDay(settings.getStandardWorkHoursPerDay());
         if (settings.getWorkDaysPerWeek() > 0) current.setWorkDaysPerWeek(settings.getWorkDaysPerWeek());
+        if (settings.getPaidLeavesPerMonth() != null && settings.getPaidLeavesPerMonth() >= 0 && settings.getPaidLeavesPerMonth() <= 31) {
+            current.setPaidLeavesPerMonth(settings.getPaidLeavesPerMonth());
+        }
         if (settings.getFiscalYearStartMonth() != null) current.setFiscalYearStartMonth(settings.getFiscalYearStartMonth());
         if (settings.getCurrencySymbol() != null) current.setCurrencySymbol(settings.getCurrencySymbol());
         if (settings.getAutoApproveRegularizationWithinDays() >= 0) {

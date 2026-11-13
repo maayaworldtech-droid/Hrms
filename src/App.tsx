@@ -28,7 +28,6 @@ const TeamAttendance = lazy(() => import('@/features/manager/TeamAttendance').th
 const TeamLeaves = lazy(() => import('@/features/manager/TeamLeaves').then((m) => ({ default: m.TeamLeaves })));
 const TeamOnDuty = lazy(() => import('@/features/manager/TeamOnDuty').then((m) => ({ default: m.TeamOnDuty })));
 const EmployeeDashboard = lazy(() => import('@/features/employee/EmployeeDashboard').then((m) => ({ default: m.EmployeeDashboard })));
-const MyAttendance = lazy(() => import('@/features/employee/MyAttendance').then((m) => ({ default: m.MyAttendance })));
 const MyLeaves = lazy(() => import('@/features/employee/MyLeaves').then((m) => ({ default: m.MyLeaves })));
 const MyOnDuty = lazy(() => import('@/features/employee/MyOnDuty').then((m) => ({ default: m.MyOnDuty })));
 const MySalary = lazy(() => import('@/features/employee/MySalary').then((m) => ({ default: m.MySalary })));
@@ -176,6 +175,15 @@ const router = createBrowserRouter(
               }
             />
 
+            <Route
+              path="/manager/payroll"
+              element={
+                <ProtectedRoute allowedRoles={['MANAGER']}>
+                  <PayrollProcessing />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Manager Module (Role Protected: MANAGER & ADMIN) */}
             <Route
               path="/manager/dashboard"
@@ -220,7 +228,8 @@ const router = createBrowserRouter(
             }
           >
             <Route path="/employee/dashboard" element={<EmployeeDashboard />} />
-            <Route path="/employee/attendance" element={<MyAttendance />} />
+            {/* Attendance now lives on Home; keep old links working */}
+            <Route path="/employee/attendance" element={<Navigate to="/employee/dashboard" replace />} />
             <Route path="/employee/leaves" element={<MyLeaves />} />
             <Route path="/employee/on-duty" element={<MyOnDuty />} />
             <Route path="/employee/salary" element={<MySalary />} />

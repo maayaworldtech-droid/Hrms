@@ -1,5 +1,5 @@
-import { PayrollReview } from '@/components/common/PayrollReview';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '@/services/api';
 import { CompanySettings, PayrollRun, Payslip } from '@/types';
 import { DataTable, Column } from '@/components/common/DataTable';
@@ -8,315 +8,713 @@ import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { Select } from '@/components/common/Select';
 import { Input } from '@/components/common/Input';
+import { Textarea } from '@/components/common/Textarea';
 import { PageHeader } from '@/components/common/PageHeader';
-import { formatINR, formatDate, numberToIndianWords, formatLabel } from '@/utils/formatters';
-import { Banknote, Printer } from 'lucide-react';
+import { EmptyState } from '@/components/common/EmptyState';
+import { StatTile, StatTiles } from '@/components/common/StatTile';
+import { PayslipView } from '@/components/payroll/PayslipView';
+import { formatINR, formatDate } from '@/utils/formatters';
+import { payslipWarnings, previewPayslip } from '@/utils/payroll';
+import { ArrowLeft, Banknote, Printer, AlertTriangle } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { addToast } from '@/store/slices/uiSlice';
-import maayaLogo from '@/assets/logo-new.png';
+import { useCenters } from '@/hooks/useCenters';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-const runVariant = (status: string) => (status === 'DISBURSED' ? 'success' : status === 'APPROVED' ? 'info' : 'warning');
+/** One row of the month table: the payslip plus the totals the columns sort by. */
+type PayRow = Payslip & { leaveDays: number; leaveDeduction: number; pf: number; otherDeductions: number; takeHome: number };
 
-const SlipRow: React.FC<{ label: string; value: number; strong?: boolean }> = ({ label, value, strong }) => (
-  <div className={`flex justify-between gap-4 py-1.5 ${strong ? 'font-semibold text-slate-900' : 'text-slate-700'}`}>
-    <span>{label}</span>
-    <span className="tabular-nums">{formatINR(value)}</span>
-  </div>
-);
+const toRow = (s: Payslip): PayRow => ({
+  ...s,
+  leaveDays: (s.paidLeaveDays || 0) + (s.unpaidLeaveDays || 0),
+  // One day's salary for every unpaid leave or absent day
+  leaveDeduction: s.unpaidAmount || 0,
+  pf: s.components.epfEmployee || 0,
+  // ESI, professional tax, income tax and anything else; PF has its own column
+  otherDeductions: Math.max(0, (s.components.totalDeductions || 0) - (s.components.epfEmployee || 0)),
+  takeHome: s.components.netMonthly || 0,
+});
+
+const EVERY_CENTER = '__every__';
+
+const runStatus = (status: string) => (status === 'DISBURSED' ? { label: 'Paid', variant: 'success' as const } : { label: 'Draft', variant: 'warning' as const });
+
+/** Last month by default: payroll is usually run after the month ends. */
+const defaultPayMonth = () => {
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return { month: MONTHS[d.getMonth()], year: d.getFullYear() };
+};
 
 export const PayrollProcessing: React.FC = () => {
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
-  const [saving, setSaving] = useState(false);
+  const activeRole = useAppSelector((state) => state.auth.activeRole);
+  // Admins pay every center; a manager works out payroll for their own center only
+  const isAdmin = activeRole === 'ADMIN';
+  const ownCenter = isAdmin ? '' : String(user?.location || '');
+  const { centerNames } = useCenters();
+  const [centerFilter, setCenterFilter] = useState('ALL');
+  const [newCenter, setNewCenter] = useState('');
+  const [params, setParams] = useSearchParams();
+  const openRunId = params.get('run');
+
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedRun, setSelectedRun] = useState<PayrollRun | null>(null);
-  const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
-  // Company name, address and tax ID on payslips come from Settings, never hardcoded
+  const [loadError, setLoadError] = useState(false);
   const [company, setCompany] = useState<CompanySettings | null>(null);
-  const [isRunModalOpen, setIsRunModalOpen] = useState(false);
-  const [newRunMonth, setNewRunMonth] = useState(() => new Date().toLocaleDateString('en-US', { month: 'long', timeZone: 'Asia/Kolkata' }));
-  const [newRunYear, setNewRunYear] = useState(() => Number(new Date().toLocaleDateString('en-US', { year: 'numeric', timeZone: 'Asia/Kolkata' })));
+
+  const [slips, setSlips] = useState<Payslip[]>([]);
+  const [slipsLoading, setSlipsLoading] = useState(false);
+  const [needsLookOnly, setNeedsLookOnly] = useState(false);
+
+  const [runDialogOpen, setRunDialogOpen] = useState(false);
+  const [newMonth, setNewMonth] = useState(defaultPayMonth().month);
+  const [newYear, setNewYear] = useState(defaultPayMonth().year);
+  const [saving, setSaving] = useState(false);
+
+  const [viewing, setViewing] = useState<Payslip | null>(null);
+  const [adjusting, setAdjusting] = useState<Payslip | null>(null);
+  const [adjust, setAdjust] = useState({ lossOfPayDays: 0, bonus: 0, tds: 0, otherDeductions: 0, notes: '' });
+  const [payDialogOpen, setPayDialogOpen] = useState(false);
+  const [confirmPaid, setConfirmPaid] = useState(false);
 
   useEffect(() => {
     api.settings.get().then(setCompany).catch(() => setCompany(null));
   }, []);
 
-  const loadData = useCallback(async () => {
+  const loadRuns = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(false);
     try {
-      const data = await api.payroll.getRuns();
-      setRuns(data);
-      setSelectedRun((prev) => (prev ? data.find((r) => r.id === prev.id) || prev : null));
+      setRuns(await api.payroll.getRuns());
     } catch {
-      dispatch(addToast({ type: 'error', title: 'Could not load payroll' }));
+      setLoadError(true);
     } finally {
       setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadRuns();
+  }, [loadRuns]);
+
+  const run = runs.find((r) => r.id === openRunId) || null;
+  const isPaid = run?.status === 'DISBURSED';
+
+  const loadSlips = useCallback(async (runId: string) => {
+    setSlipsLoading(true);
+    try {
+      const list = await api.payroll.getPayslipsByRun(runId);
+      setSlips([...list].sort((a, b) => (a.location || '').localeCompare(b.location || '') || a.employeeName.localeCompare(b.employeeName)));
+    } catch {
+      dispatch(addToast({ type: 'error', title: 'Could not load payslips' }));
+    } finally {
+      setSlipsLoading(false);
     }
   }, [dispatch]);
 
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    if (openRunId) void loadSlips(openRunId);
+    else setSlips([]);
+  }, [openRunId, loadSlips]);
 
-  const yearValid = Number.isInteger(newRunYear) && newRunYear >= 2000 && newRunYear <= 2100;
-  const finalizedAlready = runs.some((run) => run.month === newRunMonth && run.year === newRunYear && run.status === 'DISBURSED');
-  const draftExists = runs.some((run) => run.month === newRunMonth && run.year === newRunYear && run.status !== 'DISBURSED');
+  const openRun = (id: string) => setParams({ run: id });
+  const backToList = () => setParams({});
 
-  const handleCreateRun = async () => {
-    if (saving || !yearValid || finalizedAlready) return;
+  // ---------------- run payroll
+  const dialogCenter = isAdmin ? newCenter : ownCenter;
+  const existing = dialogCenter && dialogCenter !== EVERY_CENTER ? runs.find((r) => r.month === newMonth && r.year === newYear && (r.center || '') === dialogCenter) : undefined;
+  const yearValid = Number.isInteger(newYear) && newYear >= 2000 && newYear <= 2100;
+
+  const generate = async (month: string, year: number, center: string) => {
     setSaving(true);
     try {
-      const run = await api.payroll.createRun(newRunMonth, newRunYear);
-      dispatch(addToast({ type: 'success', title: 'Payroll draft ready', message: `${newRunMonth} ${newRunYear} for ${run.totalEmployees} employees.` }));
-      setIsRunModalOpen(false);
-      setSelectedRun(run);
-      void loadData();
+      if (center === EVERY_CENTER) {
+        // One payroll per center, so each can be checked and paid on its own
+        const paidAlready = new Set(runs.filter((r) => r.month === month && r.year === year && r.status === 'DISBURSED').map((r) => r.center));
+        const done: string[] = [];
+        const skipped: string[] = [];
+        for (const name of centerNames) {
+          if (paidAlready.has(name)) {
+            skipped.push(`${name} (already paid)`);
+            continue;
+          }
+          try {
+            await api.payroll.createRun(month, year, name);
+            done.push(name);
+          } catch (err: any) {
+            skipped.push(`${name} (${err?.message || 'failed'})`);
+          }
+        }
+        dispatch(
+          addToast({
+            type: done.length ? 'success' : 'error',
+            title: done.length ? `${month} ${year} worked out for ${done.length} center${done.length === 1 ? '' : 's'}` : 'Nothing was worked out',
+            message: skipped.length ? `Skipped: ${skipped.join(', ')}.` : 'Open each center to check it.',
+          })
+        );
+        setRunDialogOpen(false);
+        await loadRuns();
+        return;
+      }
+      const created = await api.payroll.createRun(month, year, center || undefined);
+      dispatch(addToast({ type: 'success', title: `${created.center || center}: ${month} ${year} worked out`, message: `${created.totalEmployees} people. Check the leaves, then mark as paid.` }));
+      setRunDialogOpen(false);
+      await loadRuns();
+      openRun(created.id);
+      void loadSlips(created.id);
     } catch (err: any) {
-      dispatch(addToast({ type: 'error', title: 'Could not generate payroll', message: err?.message || 'Please try again.' }));
+      dispatch(addToast({ type: 'error', title: 'Could not work out payroll', message: err?.message || 'Please try again.' }));
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDisburse = async (runId: string) => {
-    if (saving) return;
+  // ---------------- adjust one person
+  const openAdjust = (slip: Payslip) => {
+    setAdjusting(slip);
+    setAdjust({
+      lossOfPayDays: slip.lossOfPayDays,
+      bonus: (slip.components.bonus || 0) + (slip.components.incentives || 0),
+      tds: slip.components.tds || 0,
+      otherDeductions: slip.otherDeductions || 0,
+      notes: slip.components.adjustmentNotes || '',
+    });
+  };
+  const preview = adjusting ? previewPayslip(adjusting, adjust) : null;
+
+  const saveAdjust = async () => {
+    if (!adjusting) return;
     setSaving(true);
     try {
-      await api.payroll.disburseRun(runId, user?.name || 'People operations');
-      dispatch(addToast({ type: 'success', title: 'Payroll finalized', message: 'Payslips are now visible to employees.' }));
-      setSelectedRun(null);
-      void loadData();
+      const updated = await api.payroll.adjustPayslip(adjusting.id, adjust);
+      setSlips((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      setAdjusting(null);
+      dispatch(addToast({ type: 'success', title: 'Saved', message: `${updated.employeeName} now takes home ${formatINR(updated.components.netMonthly)}.` }));
+      void loadRuns();
     } catch (err: any) {
-      dispatch(addToast({ type: 'error', title: 'Could not finalize payroll', message: err?.message || 'Please try again.' }));
+      dispatch(addToast({ type: 'error', title: 'Could not save', message: err?.message || 'Please try again.' }));
     } finally {
       setSaving(false);
     }
   };
 
-  const columns: Column<PayrollRun>[] = [
+  // ---------------- mark as paid
+  const blockers = slips.filter((s) => (!s.bankAccount?.trim() || !s.bankName?.trim()) && s.components.netMonthly > 0);
+  const markPaid = async () => {
+    if (!run) return;
+    setSaving(true);
+    try {
+      await api.payroll.disburseRun(run.id, user?.name || 'Admin');
+      dispatch(addToast({ type: 'success', title: `${run.month} ${run.year} marked as paid`, message: 'Staff can now see their payslips.' }));
+      setPayDialogOpen(false);
+      setConfirmPaid(false);
+      await loadRuns();
+      void loadSlips(run.id);
+    } catch (err: any) {
+      dispatch(addToast({ type: 'error', title: 'Could not mark as paid', message: err?.message || 'Please try again.' }));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const flagged = useMemo(() => slips.filter((s) => payslipWarnings(s).length > 0 || s.lossOfPayDays > 0), [slips]);
+  const totalUnpaidDays = slips.reduce((sum, s) => sum + s.lossOfPayDays, 0);
+  const shownSlips = needsLookOnly ? flagged : slips;
+
+  // =====================================================================================
+  // One month
+  // =====================================================================================
+  if (openRunId) {
+    const money = (v: number) => <span className="whitespace-nowrap tabular-nums">{formatINR(v)}</span>;
+    const columns: Column<PayRow>[] = [
+      { key: 'employeeCode', header: 'Emp ID', sortable: true, render: (s) => <span className="whitespace-nowrap tabular-nums text-slate-900">{s.employeeCode}</span> },
+      { key: 'employeeName', header: 'Name', sortable: true, render: (s) => <span className="font-medium text-slate-900">{s.employeeName}</span> },
+      { key: 'workedDays', header: 'Working days', sortable: true, align: 'right', render: (s) => s.workedDays },
+      { key: 'leaveDays', header: 'Leaves', sortable: true, align: 'right', render: (s) => s.leaveDays },
+      { key: 'leaveDeduction', header: 'Leave deduction', sortable: true, align: 'right', render: (s) => money(s.leaveDeduction) },
+      { key: 'pf', header: 'PF', sortable: true, align: 'right', render: (s) => money(s.pf) },
+      { key: 'otherDeductions', header: 'Other deductions', sortable: true, align: 'right', render: (s) => money(s.otherDeductions) },
+      { key: 'takeHome', header: 'Take-home', sortable: true, align: 'right', render: (s) => <span className="whitespace-nowrap font-semibold tabular-nums text-slate-900">{formatINR(s.takeHome)}</span> },
+      {
+        key: 'actions',
+        header: '',
+        align: 'right',
+        render: (s) => (
+          <div className="flex justify-end gap-1">
+            {!isPaid && (isAdmin || s.employeeId !== String(user?.id)) && (
+              <Button variant="outline" size="xs" onClick={() => openAdjust(s)}>
+                Adjust
+              </Button>
+            )}
+            <Button variant="ghost" size="xs" onClick={() => setViewing(s)}>
+              Payslip
+            </Button>
+          </div>
+        ),
+      },
+    ];
+
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title={run ? `${run.center ? `${run.center} · ` : ''}${run.month} ${run.year}` : 'Payroll'}
+          description={
+            run ? (
+              isPaid ? (
+                `Paid on ${formatDate(run.disbursedAt)}${run.disbursedBy ? ` by ${run.disbursedBy}` : ''}. Staff can see their payslips.`
+              ) : (
+                isAdmin
+                  ? 'Draft. Working days and leaves come from attendance. Check them, then mark the month as paid.'
+                  : 'Draft. Working days and leaves come from attendance. Check them; the admin marks the month as paid.'
+              )
+            ) : undefined
+          }
+          actions={
+            <>
+              <Button variant="ghost" onClick={backToList} leftIcon={<ArrowLeft className="h-4 w-4" />}>
+                All months
+              </Button>
+              {run && !isPaid && (
+                <>
+                  <Button variant="outline" isLoading={saving && !payDialogOpen} onClick={() => generate(run.month, run.year, run.center || '')}>
+                    Recalculate
+                  </Button>
+                  {isAdmin && (
+                    <Button onClick={() => setPayDialogOpen(true)} disabled={slips.length === 0}>
+                      Mark as paid
+                    </Button>
+                  )}
+                </>
+              )}
+            </>
+          }
+        />
+
+        {run && (
+          <StatTiles columns={4} aria-label="Month totals">
+            <StatTile label="People" value={run.totalEmployees} />
+            <StatTile label="Earned" value={formatINR(run.totalGrossPay)} hint={totalUnpaidDays > 0 ? `After ${totalUnpaidDays} unpaid day${totalUnpaidDays === 1 ? '' : 's'}` : 'No unpaid days'} />
+            <StatTile label="Deductions" value={formatINR(run.totalDeductions)} hint="PF, ESI, professional tax and others" />
+            <StatTile label="Take-home to pay" value={formatINR(run.totalNetPay)} tone="brand" />
+          </StatTiles>
+        )}
+
+        {!isPaid && slips.some((s) => s.legacyCalculation) && (
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3">
+            <p className="text-sm text-rose-800">
+              This draft was made with the old calculation, which ignored attendance and leave. Recalculate it before paying.
+            </p>
+            <Button size="sm" isLoading={saving} onClick={() => run && generate(run.month, run.year, run.center || '')}>
+              Recalculate now
+            </Button>
+          </div>
+        )}
+
+        {!isPaid && flagged.length > 0 && !slips.some((s) => s.legacyCalculation) && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="flex items-center gap-2 text-sm text-amber-900">
+              <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {flagged.length} {flagged.length === 1 ? 'person needs' : 'people need'} a look: unpaid days, no check-ins or missing bank details.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => setNeedsLookOnly((v) => !v)}>
+              {needsLookOnly ? 'Show everyone' : 'Show only these'}
+            </Button>
+          </div>
+        )}
+
+        <DataTable
+          key={`${openRunId}:${needsLookOnly}`}
+          data={shownSlips.map(toRow)}
+          columns={columns}
+          isLoading={slipsLoading || (isLoading && !run)}
+          searchPlaceholder="Search by name, ID or center"
+          pageSize={25}
+          exportFileName={run ? `salary-${run.month}-${run.year}` : 'salary'}
+          onRowClick={setViewing}
+          mobileRender={(s) => (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-semibold text-slate-900">
+                  {s.employeeName} <span className="font-normal text-slate-600">· {s.employeeCode}</span>
+                </span>
+                <span className="text-sm font-semibold tabular-nums text-slate-900">{formatINR(s.takeHome)}</span>
+              </div>
+              <p className="text-sm text-slate-700 tabular-nums">
+                {s.workedDays} working days · {s.leaveDays} leaves · {formatINR(s.leaveDeduction)} leave deduction · {formatINR(s.pf)} PF
+              </p>
+              {payslipWarnings(s).length > 0 && <p className="text-xs font-medium text-amber-800">{payslipWarnings(s).join(' · ')}</p>}
+              <div className="flex gap-2 pt-1">
+                {!isPaid && (isAdmin || s.employeeId !== String(user?.id)) && (
+                  <Button variant="outline" size="sm" onClick={() => openAdjust(s)}>
+                    Adjust
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => setViewing(s)}>
+                  Payslip
+                </Button>
+              </div>
+            </div>
+          )}
+          emptyTitle={needsLookOnly ? 'Nothing needs a look' : 'No payslips in this month'}
+          emptyDescription={needsLookOnly ? 'Everyone has full pay and complete details.' : 'Recalculate to include current staff.'}
+        />
+
+        {/* Adjust one person */}
+        <Modal
+          isOpen={Boolean(adjusting)}
+          onClose={() => setAdjusting(null)}
+          title={adjusting ? adjusting.employeeName : 'Adjust'}
+          subtitle={adjusting ? `${adjusting.employeeCode} · ${adjusting.location || 'No center'} · ${run?.month} ${run?.year}` : undefined}
+          size="lg"
+          footer={
+            <>
+              <Button variant="outline" onClick={() => setAdjusting(null)} disabled={saving}>
+                Cancel
+              </Button>
+              <Button onClick={saveAdjust} isLoading={saving}>
+                Save
+              </Button>
+            </>
+          }
+        >
+          {adjusting && preview && (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div className="space-y-4">
+                <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm">
+                  <p className="font-medium text-slate-900">From attendance and leave</p>
+                  <dl className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 text-slate-700">
+                    <dt>Days in month</dt>
+                    <dd className="text-right tabular-nums">{adjusting.daysInMonth}</dd>
+                    {adjusting.employedDays < adjusting.daysInMonth && (
+                      <>
+                        <dt>Since joining</dt>
+                        <dd className="text-right tabular-nums">{adjusting.employedDays}</dd>
+                      </>
+                    )}
+                    <dt>Worked</dt>
+                    <dd className="text-right tabular-nums">{adjusting.workedDays}</dd>
+                    <dt>Paid leave</dt>
+                    <dd className="text-right tabular-nums">{adjusting.paidLeaveDays}</dd>
+                    <dt>Unpaid leave</dt>
+                    <dd className="text-right tabular-nums">{adjusting.unpaidLeaveDays}</dd>
+                    <dt>Absent</dt>
+                    <dd className="text-right tabular-nums">{adjusting.absentDays}</dd>
+                  </dl>
+                  {adjusting.noAttendance && <p className="mt-2 font-medium text-amber-800">No check-ins at all this month. Confirm the unpaid days with their manager.</p>}
+                </div>
+
+                <Input
+                  label="Unpaid days"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={adjusting.employedDays}
+                  step={1}
+                  value={adjust.lossOfPayDays}
+                  onChange={(e) => setAdjust({ ...adjust, lossOfPayDays: Math.max(0, Math.min(adjusting.employedDays, Math.round(Number(e.target.value) || 0))) })}
+                  helperText={
+                    adjust.lossOfPayDays === adjusting.suggestedLopDays ? (
+                      'As worked out from attendance and leave.'
+                    ) : (
+                      <>
+                        Worked out from attendance: {adjusting.suggestedLopDays}.{' '}
+                        <button type="button" className="font-medium text-brand-700 hover:underline" onClick={() => setAdjust({ ...adjust, lossOfPayDays: adjusting.suggestedLopDays })}>
+                          Use that
+                        </button>
+                      </>
+                    )
+                  }
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input label="Bonus (₹)" type="number" inputMode="numeric" min={0} value={adjust.bonus} onChange={(e) => setAdjust({ ...adjust, bonus: Math.max(0, Number(e.target.value) || 0) })} />
+                  <Input
+                    label="Salary advance or other deduction (₹)"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    value={adjust.otherDeductions}
+                    onChange={(e) => setAdjust({ ...adjust, otherDeductions: Math.max(0, Number(e.target.value) || 0) })}
+                  />
+                </div>
+                <Input
+                  label="Income tax (TDS) (₹)"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  value={adjust.tds}
+                  onChange={(e) => setAdjust({ ...adjust, tds: Math.max(0, Number(e.target.value) || 0) })}
+                  helperText="Leave at 0 unless this person pays income tax."
+                />
+                <Textarea label="Note on the payslip" rows={2} value={adjust.notes} onChange={(e) => setAdjust({ ...adjust, notes: e.target.value })} placeholder="For example: Diwali bonus" />
+              </div>
+
+              <dl className="h-fit divide-y divide-slate-100 rounded-lg border border-slate-200 px-4 py-2 text-sm">
+                <div className="flex justify-between py-1.5">
+                  <dt className="text-slate-700">Monthly salary</dt>
+                  <dd className="tabular-nums">{formatINR(preview.fullMonthlySalary)}</dd>
+                </div>
+                {preview.unpaidAmount > 0 && (
+                  <div className="flex justify-between py-1.5 text-slate-600">
+                    <dt>
+                      Not paid for {adjusting.daysInMonth - preview.paidDays} day{adjusting.daysInMonth - preview.paidDays === 1 ? '' : 's'}
+                    </dt>
+                    <dd className="tabular-nums">{'−'} {formatINR(preview.unpaidAmount)}</dd>
+                  </div>
+                )}
+                {preview.bonus > 0 && (
+                  <div className="flex justify-between py-1.5">
+                    <dt className="text-slate-700">Bonus</dt>
+                    <dd className="tabular-nums">+ {formatINR(preview.bonus)}</dd>
+                  </div>
+                )}
+                <div className="flex justify-between py-1.5 font-semibold text-slate-900">
+                  <dt>Earned</dt>
+                  <dd className="tabular-nums">{formatINR(preview.earned)}</dd>
+                </div>
+                {(
+                  [
+                    ['PF', preview.pf],
+                    ['ESI', preview.esi],
+                    ['Professional tax', preview.pt],
+                    ['Income tax', preview.tds],
+                    ['Other deductions', preview.other],
+                  ] as const
+                )
+                  .filter(([, v]) => v > 0)
+                  .map(([label, v]) => (
+                    <div key={label} className="flex justify-between py-1.5 text-slate-600">
+                      <dt>{label}</dt>
+                      <dd className="tabular-nums">{'−'} {formatINR(v)}</dd>
+                    </div>
+                  ))}
+                <div className="flex justify-between py-2 text-base font-semibold text-slate-900">
+                  <dt>Take-home</dt>
+                  <dd className="tabular-nums">{formatINR(preview.takeHome)}</dd>
+                </div>
+              </dl>
+            </div>
+          )}
+        </Modal>
+
+        {/* Mark as paid */}
+        <Modal
+          isOpen={payDialogOpen}
+          onClose={() => {
+            setPayDialogOpen(false);
+            setConfirmPaid(false);
+          }}
+          title={run ? `Mark ${run.center ? `${run.center}, ` : ''}${run.month} ${run.year} as paid?` : 'Mark as paid?'}
+          size="sm"
+          footer={
+            <>
+              <Button variant="outline" onClick={() => setPayDialogOpen(false)} disabled={saving}>
+                Cancel
+              </Button>
+              <Button onClick={markPaid} isLoading={saving} disabled={!confirmPaid || blockers.length > 0}>
+                Mark as paid
+              </Button>
+            </>
+          }
+        >
+          {run && (
+            <div className="space-y-4">
+              <p>
+                {formatINR(run.totalNetPay)} to {run.totalEmployees} people. Staff will see their payslips, and this month can no longer be changed.
+              </p>
+              {blockers.length > 0 ? (
+                <p role="alert" className="text-rose-700">
+                  Add bank details first for: {blockers.map((s) => s.employeeName).join(', ')}.
+                </p>
+              ) : (
+                <label className="flex items-start gap-3 text-slate-800">
+                  <input type="checkbox" className="mt-0.5" checked={confirmPaid} onChange={(e) => setConfirmPaid(e.target.checked)} />
+                  The salaries have been sent from the bank.
+                </label>
+              )}
+              <p className="text-xs text-slate-600">This app records the payment. It does not move money.</p>
+            </div>
+          )}
+        </Modal>
+
+        <Modal
+          isOpen={Boolean(viewing)}
+          onClose={() => setViewing(null)}
+          title={viewing ? viewing.employeeName : 'Payslip'}
+          size="lg"
+          printable
+          footer={
+            <>
+              <Button variant="outline" onClick={() => window.print()} leftIcon={<Printer className="h-4 w-4" />}>
+                Print or save PDF
+              </Button>
+              <Button onClick={() => setViewing(null)}>Done</Button>
+            </>
+          }
+        >
+          {viewing && <PayslipView slip={viewing} company={company} />}
+        </Modal>
+      </div>
+    );
+  }
+
+  // =====================================================================================
+  // All months
+  // =====================================================================================
+  const visibleRuns = isAdmin && centerFilter !== 'ALL' ? runs.filter((r) => (r.center || '') === centerFilter) : runs;
+
+  const runColumns: Column<PayrollRun>[] = [
     {
       key: 'month',
-      header: 'Pay month',
-      sortable: true,
-      render: (row) => (
-        <div>
-          <div className="font-medium text-slate-900">
-            {row.month} {row.year}
-          </div>
-          <div className="text-xs text-slate-600">Generated {formatDate(row.processedAt)}</div>
-        </div>
+      header: 'Month',
+      render: (r) => (
+        <span className="font-medium text-slate-900">
+          {r.month} {r.year}
+        </span>
       ),
     },
-    { key: 'totalEmployees', header: 'Employees', sortable: true, align: 'right', render: (row) => row.totalEmployees },
-    { key: 'totalGrossPay', header: 'Gross', sortable: true, align: 'right', render: (row) => formatINR(row.totalGrossPay) },
-    { key: 'totalDeductions', header: 'Deductions', sortable: true, align: 'right', render: (row) => formatINR(row.totalDeductions) },
-    { key: 'totalNetPay', header: 'Net pay', sortable: true, align: 'right', render: (row) => <span className="font-semibold text-slate-900">{formatINR(row.totalNetPay)}</span> },
+    ...(isAdmin ? [{ key: 'center', header: 'Center', render: (r: PayrollRun) => r.center || <span className="text-slate-600">All centers (old)</span> } as Column<PayrollRun>] : []),
+    { key: 'totalEmployees', header: 'People', align: 'right', render: (r) => r.totalEmployees },
+    { key: 'totalNetPay', header: 'Take-home paid', align: 'right', render: (r) => <span className="font-medium text-slate-900">{formatINR(r.totalNetPay)}</span> },
     {
       key: 'status',
       header: 'Status',
-      sortable: true,
-      render: (row) => (
-        <Badge variant={runVariant(row.status)} size="sm" dot>
-          {row.status === 'DISBURSED' ? 'Paid' : formatLabel(row.status)}
-        </Badge>
-      ),
+      render: (r) => {
+        const st = runStatus(r.status);
+        return (
+          <Badge variant={st.variant} size="sm" dot>
+            {st.label}
+            {r.status === 'DISBURSED' && r.disbursedAt ? ` · ${formatDate(r.disbursedAt)}` : ''}
+          </Badge>
+        );
+      },
     },
     {
-      key: 'actions',
+      key: 'open',
       header: '',
       align: 'right',
-      render: (row) => (
-        <Button variant={row.status === 'DISBURSED' ? 'ghost' : 'outline'} size="xs" onClick={() => setSelectedRun(row)}>
-          {row.status === 'DISBURSED' ? 'View' : 'Review'}
+      render: (r) => (
+        <Button variant={r.status === 'DISBURSED' ? 'ghost' : 'outline'} size="xs" onClick={() => openRun(r.id)}>
+          {r.status === 'DISBURSED' ? 'View' : 'Continue'}
         </Button>
       ),
     },
   ];
 
-  const slip = selectedPayslip;
-  const companyName = company?.legalEntityName || company?.companyName || 'Maaya World';
-
   return (
     <div className="space-y-6">
       <PageHeader
         title="Payroll"
-        description="Generate the monthly draft, review adjustments, then mark the month as paid."
+        description={
+          isAdmin
+            ? "Each center's salary is worked out from attendance and leave, checked, then marked as paid."
+            : `Salary for ${ownCenter || 'your center'}, worked out from attendance and leave. The admin marks each month as paid.`
+        }
         actions={
-          <Button onClick={() => setIsRunModalOpen(true)} leftIcon={<Banknote className="h-4 w-4" />}>
-            Run payroll
-          </Button>
+          <>
+            {isAdmin && (
+              <select
+                aria-label="Filter by center"
+                value={centerFilter}
+                onChange={(e) => setCenterFilter(e.target.value)}
+                className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/30"
+              >
+                <option value="ALL">All centers</option>
+                {centerNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <Button
+              onClick={() => {
+                if (isAdmin) setNewCenter(centerFilter !== 'ALL' ? centerFilter : '');
+                setRunDialogOpen(true);
+              }}
+              leftIcon={<Banknote className="h-4 w-4" />}
+              disabled={!isAdmin && !ownCenter}
+            >
+              Run payroll
+            </Button>
+          </>
         }
       />
 
-      <DataTable
-        data={runs}
-        columns={columns}
-        searchPlaceholder="Search by month or year"
-        exportFileName="maaya_payroll_cycles"
-        isLoading={isLoading}
-        onRowClick={setSelectedRun}
-        emptyTitle="No payroll runs yet"
-        emptyDescription="Run payroll to generate the first monthly draft."
-      />
+      {loadError ? (
+        <EmptyState tone="danger" title="Could not load payroll" actionLabel="Try again" onAction={loadRuns} />
+      ) : (
+        <DataTable
+          key={centerFilter}
+          data={visibleRuns}
+          columns={runColumns}
+          isLoading={isLoading}
+          searchPlaceholder="Search by month or year"
+          onRowClick={(r) => openRun(r.id)}
+          emptyTitle="No payroll yet"
+          emptyDescription="Run payroll for last month to get started."
+        />
+      )}
 
       <Modal
-        isOpen={isRunModalOpen}
-        onClose={() => setIsRunModalOpen(false)}
+        isOpen={runDialogOpen}
+        onClose={() => setRunDialogOpen(false)}
         title="Run payroll"
-        subtitle="Creates a draft from salary records. Nothing is paid until you finalize."
+        subtitle="Works out pay from salary, attendance and leave for one center. Nothing is paid yet."
         size="sm"
         footer={
           <>
-            <Button variant="outline" onClick={() => setIsRunModalOpen(false)}>
+            <Button variant="outline" onClick={() => setRunDialogOpen(false)}>
               Cancel
             </Button>
-            <Button isLoading={saving} disabled={!yearValid || finalizedAlready} onClick={handleCreateRun}>
-              {draftExists ? 'Regenerate draft' : 'Generate draft'}
+            {existing && existing.status !== 'DISBURSED' ? (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setRunDialogOpen(false);
+                  openRun(existing.id);
+                }}
+              >
+                Open the draft
+              </Button>
+            ) : null}
+            <Button isLoading={saving} disabled={!yearValid || !dialogCenter || existing?.status === 'DISBURSED'} onClick={() => generate(newMonth, newYear, dialogCenter)}>
+              {existing && existing.status !== 'DISBURSED' ? 'Start again' : 'Work out pay'}
             </Button>
           </>
         }
       >
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <Select label="Month" value={newRunMonth} onChange={(e) => setNewRunMonth(e.target.value)} options={MONTHS.map((m) => ({ value: m, label: m }))} />
-            <Input
-              label="Year"
-              type="number"
-              min={2000}
-              max={2100}
-              value={newRunYear}
-              onChange={(e) => setNewRunYear(Number(e.target.value))}
-              error={yearValid ? undefined : 'Enter a year between 2000 and 2100'}
+          {isAdmin ? (
+            <Select
+              label="Center"
+              required
+              placeholder="Choose a center"
+              value={newCenter}
+              onChange={(e) => setNewCenter(e.target.value)}
+              options={[...centerNames.map((name) => ({ value: name, label: name })), { value: EVERY_CENTER, label: 'Every center (one payroll each)' }]}
             />
-          </div>
-          {finalizedAlready ? (
-            <p className="text-sm text-rose-700">
-              {newRunMonth} {newRunYear} is already paid and cannot be regenerated.
-            </p>
-          ) : draftExists ? (
-            <p className="text-sm text-amber-800">
-              A draft for {newRunMonth} {newRunYear} exists. Generating again replaces it, including any adjustments.
-            </p>
           ) : (
-            <p className="text-sm text-slate-600">Review attendance, loss of pay and adjustments before you finalize.</p>
+            <p className="text-slate-700">
+              Center: <span className="font-medium text-slate-900">{ownCenter || 'Not assigned'}</span>
+            </p>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <Select label="Month" value={newMonth} onChange={(e) => setNewMonth(e.target.value)} options={MONTHS.map((m) => ({ value: m, label: m }))} />
+            <Input label="Year" type="number" min={2000} max={2100} value={newYear} onChange={(e) => setNewYear(Number(e.target.value))} error={yearValid ? undefined : 'Enter a valid year'} />
+          </div>
+          {existing?.status === 'DISBURSED' ? (
+            <p className="text-rose-700">
+              {newMonth} {newYear} is already paid.
+            </p>
+          ) : existing ? (
+            <p className="text-amber-800">A draft for this month exists. Starting again recalculates everyone and removes changes made to it.</p>
+          ) : (
+            <p className="text-slate-600">Best run after the month ends, once managers have approved leave and attendance corrections.</p>
           )}
         </div>
-      </Modal>
-
-      <Modal
-        isOpen={Boolean(selectedRun)}
-        onClose={() => setSelectedRun(null)}
-        title={selectedRun ? `Payroll · ${selectedRun.month} ${selectedRun.year}` : 'Payroll'}
-        subtitle={selectedRun ? `${selectedRun.totalEmployees} employees · ${selectedRun.status === 'DISBURSED' ? 'Paid' : formatLabel(selectedRun.status)}` : undefined}
-        size="2xl"
-      >
-        {selectedRun && (
-          <PayrollReview
-            key={selectedRun.id}
-            run={selectedRun}
-            saving={saving}
-            onFinalize={() => handleDisburse(selectedRun.id)}
-            onView={setSelectedPayslip}
-            onRunUpdated={() => void loadData()}
-          />
-        )}
-      </Modal>
-
-      <Modal
-        isOpen={Boolean(slip)}
-        onClose={() => setSelectedPayslip(null)}
-        title={slip ? `Payslip · ${slip.month} ${slip.year}` : 'Payslip'}
-        subtitle={slip ? `${slip.employeeName} · ${slip.employeeCode}` : undefined}
-        size="lg"
-        printable
-        footer={
-          <>
-            <Button variant="outline" onClick={() => window.print()} leftIcon={<Printer className="h-4 w-4" />}>
-              Print or save PDF
-            </Button>
-            <Button onClick={() => setSelectedPayslip(null)}>Done</Button>
-          </>
-        }
-      >
-        {slip && (
-          <div className="space-y-5 text-sm text-slate-800">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
-              <div>
-                <img src={maayaLogo} alt="" className="h-7 w-auto object-contain" />
-                <p className="mt-2 font-semibold text-slate-900">{companyName}</p>
-                {company?.registeredAddress && <p className="mt-0.5 max-w-sm text-xs text-slate-600">{company.registeredAddress}</p>}
-                {company?.corporateTaxId && <p className="mt-0.5 text-xs tabular-nums text-slate-600">GSTIN / PAN {company.corporateTaxId}</p>}
-              </div>
-              <div className="text-right">
-                <p className="font-semibold text-slate-900">
-                  {slip.month} {slip.year}
-                </p>
-                <p className="mt-0.5 text-xs tabular-nums text-slate-600">Ref {slip.id}</p>
-              </div>
-            </div>
-
-            <dl className="grid grid-cols-1 gap-x-8 gap-y-1.5 sm:grid-cols-2">
-              {(
-                [
-                  ['Employee', slip.employeeName],
-                  ['Employee ID', slip.employeeCode],
-                  ['Center', slip.location || 'Not recorded'],
-                  ['Payable days', String(slip.payableDays ?? '--')],
-                  ['Bank', slip.bankName],
-                  ['Account', slip.bankAccount],
-                  ['PAN', slip.panNumber],
-                  ['UAN', slip.uanNumber || 'Not applicable'],
-                ] as const
-              ).map(([label, value]) => (
-                <div key={label} className="flex justify-between gap-3">
-                  <dt className="text-slate-600">{label}</dt>
-                  <dd className="text-right font-medium tabular-nums text-slate-900">{value || 'Not provided'}</dd>
-                </div>
-              ))}
-            </dl>
-
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <div>
-                <h3 className="border-b border-slate-200 pb-1.5 font-semibold text-slate-900">Earnings</h3>
-                <div className="divide-y divide-slate-100">
-                  <SlipRow label="Basic salary" value={slip.components?.basic || 0} />
-                  <SlipRow label="House rent allowance" value={slip.components?.hra || 0} />
-                  <SlipRow label="Special allowance" value={slip.components?.specialAllowance || 0} />
-                  {(slip.components?.conveyanceAllowance || 0) > 0 && <SlipRow label="Conveyance allowance" value={slip.components.conveyanceAllowance} />}
-                  {(slip.components?.medicalAllowance || 0) > 0 && <SlipRow label="Medical allowance" value={slip.components.medicalAllowance} />}
-                  {(slip.components?.bonus || 0) > 0 && <SlipRow label="Bonus" value={slip.components.bonus || 0} />}
-                  {(slip.components?.incentives || 0) > 0 && <SlipRow label="Incentives" value={slip.components.incentives || 0} />}
-                  <SlipRow label="Gross earnings" value={slip.components?.grossMonthly || 0} strong />
-                </div>
-              </div>
-              <div>
-                <h3 className="border-b border-slate-200 pb-1.5 font-semibold text-slate-900">Deductions</h3>
-                <div className="divide-y divide-slate-100">
-                  <SlipRow label="Provident fund" value={slip.components?.epfEmployee || 0} />
-                  <SlipRow label="Professional tax" value={slip.components?.professionalTax || 0} />
-                  {(slip.components?.healthInsurance || 0) > 0 && <SlipRow label="Health insurance" value={slip.components.healthInsurance} />}
-                  {(slip.components?.tds || 0) > 0 && <SlipRow label="Income tax (TDS)" value={slip.components.tds} />}
-                  <SlipRow label="Total deductions" value={slip.components?.totalDeductions || 0} strong />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-end justify-between gap-3 rounded-lg bg-slate-50 px-4 py-3">
-              <div>
-                <p className="text-slate-600">Net pay</p>
-                <p className="text-xl font-semibold tabular-nums text-slate-900">{formatINR(slip.components?.netMonthly || 0)}</p>
-                <p className="mt-0.5 text-xs text-slate-600">{numberToIndianWords(slip.components?.netMonthly || 0)}</p>
-              </div>
-              <Badge variant={slip.paymentStatus === 'PAID' ? 'success' : 'warning'} dot>
-                {slip.paymentStatus === 'PAID' ? 'Paid' : formatLabel(slip.paymentStatus)}
-                {slip.paymentMode ? ` · ${slip.paymentMode}` : ''}
-              </Badge>
-            </div>
-          </div>
-        )}
       </Modal>
     </div>
   );

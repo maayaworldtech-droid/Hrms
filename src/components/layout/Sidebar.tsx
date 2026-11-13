@@ -102,6 +102,7 @@ export const Sidebar: React.FC = () => {
         { label: 'Attendance', path: '/manager/attendance', icon: Clock },
         { label: 'Leave approvals', path: '/manager/leaves', icon: CalendarDays },
         { label: 'On Duty approvals', path: '/manager/on-duty', icon: Briefcase },
+        { label: 'Payroll', path: '/manager/payroll', icon: Banknote },
       ],
     },
     {
@@ -122,7 +123,7 @@ export const Sidebar: React.FC = () => {
     {
       title: 'Time & Compensation',
       items: [
-        { label: 'My Attendance', path: '/employee/attendance', icon: Clock },
+        { label: 'My Attendance', path: '/employee/dashboard', icon: Clock },
         { label: 'My Leave Requests', path: '/employee/leaves', icon: CalendarDays },
         { label: 'My On Duty (OD)', path: '/employee/on-duty', icon: Briefcase },
         { label: 'My Salary & Payslips', path: '/employee/salary', icon: CreditCard },

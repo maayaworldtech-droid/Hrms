@@ -110,6 +110,7 @@ const AVAILABLE_SALARY_COMPONENTS = [
   { code: 'OTHER_EARNING', name: 'Other Allowance', type: 'EARNING' as const, defaultAmount: 0 },
   // Deductions
   { code: 'PF', name: 'Provident Fund (PF / EPF)', type: 'DEDUCTION' as const, defaultAmount: 0 },
+  { code: 'ESI', name: 'State Insurance (ESI)', type: 'DEDUCTION' as const, defaultAmount: 0 },
   { code: 'PT', name: 'Professional Tax (PT)', type: 'DEDUCTION' as const, defaultAmount: 200 },
   { code: 'TDS', name: 'Tax Deducted at Source (TDS)', type: 'DEDUCTION' as const, defaultAmount: 0 },
   { code: 'HEALTH_INS', name: 'Health Insurance', type: 'DEDUCTION' as const, defaultAmount: 500 },
@@ -739,6 +740,10 @@ export const EmployeeManagement: React.FC = () => {
     if (def.code === 'PF') {
       const existingBasic = salaryComponents.find((c) => c.code === 'BASIC');
       defaultAmt = standardPf(existingBasic ? Number(existingBasic.amount) || 0 : Math.round(currentMonthlyGross * 0.8));
+    } else if (def.code === 'ESI') {
+      // Payroll works ESI out each month as 0.75% of pay earned; this is the full-month figure
+      const earnings = salaryComponents.filter((c) => c.type === 'EARNING').reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+      defaultAmt = Math.ceil((earnings || currentMonthlyGross) * 0.0075);
     } else if (def.code === 'BASIC') {
       // Basic takes whatever the other earnings leave of the monthly salary
       const otherEarnings = salaryComponents.filter((c) => c.type === 'EARNING').reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
@@ -1597,7 +1602,7 @@ export const EmployeeManagement: React.FC = () => {
 
                 {!breakdownOn ? (
                   <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5">
-                    <p className="text-sm text-slate-600">Need to split the salary into basic pay, allowances and deductions such as PF?</p>
+                    <p className="text-sm text-slate-600">No deductions are taken from pay unless you add them here, for example PF or professional tax.</p>
                     <Button type="button" variant="outline" onClick={startBreakdown} leftIcon={<Plus className="h-4 w-4" />}>
                       Add salary breakdown
                     </Button>
@@ -1607,7 +1612,9 @@ export const EmployeeManagement: React.FC = () => {
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                     <div>
                       <h3 className="text-base font-semibold text-slate-900">Salary breakdown</h3>
-                      <p className="mt-0.5 text-sm text-slate-600">The yearly salary above now follows the earnings you enter here.</p>
+                      <p className="mt-0.5 text-sm text-slate-600">
+                        The yearly salary follows these earnings. Payroll only deducts PF, ESI, tax or anything else you add here.
+                      </p>
                     </div>
                     <Button type="button" variant="ghost" size="sm" onClick={removeBreakdown} className="shrink-0 hover:bg-rose-50 hover:text-rose-700">
                       Remove breakdown

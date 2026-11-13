@@ -3,7 +3,7 @@ import React, { forwardRef } from 'react';
 export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
   error?: string;
-  helperText?: string;
+  helperText?: React.ReactNode;
 }
 
 /** Multi-line sibling of Input: same label, error and focus treatment. */

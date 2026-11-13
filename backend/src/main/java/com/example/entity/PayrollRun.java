@@ -20,6 +20,9 @@ public class PayrollRun {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** The center this payroll covers. Older runs made before payroll was per center have none. */
+    private String center;
+
     private String month; // e.g. "October" or "2026-10"
     private int year = 2026;
     private int totalEmployees = 0;

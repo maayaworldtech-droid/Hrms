@@ -279,10 +279,40 @@ export interface Payslip {
   paymentStatus: 'PAID' | 'PENDING' | 'FAILED';
   paymentDate?: string;
   paymentMode: 'NEFT' | 'RTGS' | 'IMPS' | 'UPI';
+
+  // Days, worked out from attendance and approved leave when the month is generated
+  daysInMonth: number;
+  /** Days on the payroll this month (from the joining date or the 1st). */
+  employedDays: number;
+  workedDays: number;
+  paidLeaveDays: number;
+  unpaidLeaveDays: number;
+  absentDays: number;
+  /** Unpaid days suggested from attendance; lossOfPayDays may differ if the admin changed it. */
+  suggestedLopDays: number;
+  /** No check-in at all this month. */
+  noAttendance: boolean;
+
+  /** Full monthly salary before unpaid days. */
+  fullMonthlySalary: number;
+  /** Salary not paid for unpaid days and days before joining. */
+  unpaidAmount: number;
+  esiEmployee: number;
+  esiEmployer: number;
+  otherDeductions: number;
+  pfApplicable: boolean;
+  esiApplicable: boolean;
+  ptState?: string;
+  /** Professional tax entered at onboarding; 0 when none was added. */
+  ptMonthly: number;
+  /** Made by the old calculation, which ignored attendance and leave. */
+  legacyCalculation?: boolean;
 }
 
 export interface PayrollRun {
   id: string;
+  /** Center this payroll covers; empty on older all-centers runs. */
+  center?: string;
   month: string;
   year: number;
   totalEmployees: number;
@@ -327,6 +357,8 @@ export interface CompanySettings {
   contactPhone: string;
   standardWorkHoursPerDay: number;
   workDaysPerWeek: number;
+  /** Leave days a month paid in full; leave after that is cut from salary. */
+  paidLeavesPerMonth?: number;
   fiscalYearStartMonth: string;
   currencySymbol: string;
   enableGeoFencingAttendance: boolean;

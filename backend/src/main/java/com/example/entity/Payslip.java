@@ -58,6 +58,37 @@ public class Payslip {
     private Double netMonthly = 0.0;
     private Double ctcAnnual = 0.0;
 
+    // ---- Days (worked out from attendance and approved leave when the month is generated)
+    private Integer daysInMonth;
+    /** Days on the payroll this month, from the joining date (or the 1st) to the month end. */
+    private Integer employedDays;
+    private Double workedDays = 0.0;
+    private Double paidLeaveDays = 0.0;
+    private Double unpaidLeaveDays = 0.0;
+    private Double absentDays = 0.0;
+    /** Unpaid days suggested from attendance; lossOfPayDays may differ if the admin changed it. */
+    private Integer suggestedLopDays = 0;
+    /** No check-in at all this month: the unpaid days need a look before paying. */
+    private Boolean noAttendance = false;
+
+    // ---- Amounts
+    /** Full monthly salary before unpaid days (sum of the earning lines above). */
+    private Double fullMonthlySalary = 0.0;
+    /** Salary not paid for unpaid days and days before joining. */
+    private Double unpaidAmount = 0.0;
+    private Double esiEmployee = 0.0;
+    private Double esiEmployer = 0.0;
+    /** Salary advance recovery and similar, entered by the admin. */
+    private Double otherDeductions = 0.0;
+
+    // ---- Rules that apply to this person
+    private Boolean pfApplicable = false;
+    private Boolean esiApplicable = false;
+    /** State of the person's center (kept for reference). */
+    private String ptState;
+    /** Professional tax entered in the person's salary breakdown; 0 when none was added. */
+    private Double ptMonthly = 0.0;
+
     private String paymentStatus = "PAID"; // PAID, PENDING, FAILED
     private String paymentDate;
     private String paymentMode = "NEFT";

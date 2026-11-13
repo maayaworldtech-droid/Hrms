@@ -141,8 +141,11 @@ public class AuthFilter extends OncePerRequestFilter {
         if (path.startsWith("/api/employees/") && path.endsWith("/resend-email")) return isAdmin;
         if (path.equals("/api/employees/resend-email")) return isAdmin;
         if (path.equals("/api/settings") && "PUT".equalsIgnoreCase(method)) return isAdmin;
-        if (path.equals("/api/payroll/process") || path.startsWith("/api/payroll/disburse/")) return isAdmin;
-        if (path.startsWith("/api/payroll/payslips/") && path.endsWith("/adjust") && "PUT".equalsIgnoreCase(method)) return isAdmin;
+        // Managers work out and adjust payroll for their own center (checked in PayrollController);
+        // only the admin marks a month as paid
+        if (path.startsWith("/api/payroll/disburse/")) return isAdmin;
+        if (path.equals("/api/payroll/process")) return isPrivileged;
+        if (path.startsWith("/api/payroll/payslips/") && path.endsWith("/adjust") && "PUT".equalsIgnoreCase(method)) return isPrivileged;
 
         // Centers: any signed-in user may read (check-in geofence); every change is admin-only
         if (path.equals("/api/centers") || path.startsWith("/api/centers/")) {

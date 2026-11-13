@@ -1,6 +1,6 @@
 # Maaya World HRMS — Codebase Graph
 
-_Last updated: 2026-11-12 · Maintained by: Antigravity coding agent_
+_Last updated: 2026-11-13 · Maintained by: Antigravity coding agent_
 
 ## Overview
 
@@ -37,7 +37,7 @@ d:\Hrms/
 │       │   ├── entity/                — JPA Hibernate Entities (Employee, AttendanceRecord, LeaveRequest, OnDutyRequest, Payslip, AuditLog, Location, etc.)
 │       │   ├── repository/            — Spring Data JPA Repositories
 │       │   ├── security/              — AuthFilter (Bearer RBAC), AuthTokenService (HMAC-SHA256), PasswordHasher (PBKDF2), PortalUrlResolver
-│       │   └── service/               — Business logic (EmployeeServiceImpl, AuthService, CenterService, AuditService, ZeptoMailService)
+│       │   └── service/               — Business logic (EmployeeServiceImpl, AuthService, CenterService, AuditService, PayrollCalculator, ZeptoMailService)
 │       └── resources/
 │           └── application.properties — DB URL (PostgreSQL 5432/hrms_db), port 8083, env-backed ZeptoMail & auth secrets
 │
@@ -50,11 +50,12 @@ d:\Hrms/
     │   ├── attendance/                — Biometric webcam/geofence modal & 1-month paginated history modal (BiometricAttendanceModal.tsx, EmployeeAttendanceHistoryModal.tsx)
     │   ├── common/                    — Shared UI: Button, Input, PasswordInput, Textarea, Modal, DataTable, PageHeader, OperationsDashboard, StatTile, etc.
     │   ├── employee/                  — Mobile employee primitives (`MobilePrimitives.tsx`)
-    │   └── layout/                    — Shells: AppLayout (Desktop Admin/Manager), EmployeeMobileLayout (Mobile-First Shell), AuthLayout, Sidebar, Header
+    │   ├── layout/                    — Shells: AppLayout (Desktop Admin/Manager), EmployeeMobileLayout (Mobile-First Shell), AuthLayout, Sidebar, Header
+    │   └── payroll/                   — Modular payroll review modals & printable payslip components
     ├── features/
     │   ├── admin/                     — Admin screens: Dashboard, EmployeeManagement, Attendance, Leaves, Payroll, Reports (`reports/`), Settings (`settings/`)
     │   ├── auth/                      — Auth screens: Login, ForgotPassword, ResetPassword
-    │   ├── employee/                  — Employee screens: Dashboard, MyAttendance, MyLeaves, MySalary, Profile
+    │   ├── employee/                  — Employee screens: Dashboard (integrated attendance check-in & monthly history), MyLeaves, MySalary, Profile
     │   └── manager/                   — Manager screens: Dashboard, TeamAttendance, TeamLeaves
     ├── hooks/                         — Custom React hooks (`useOperationsFilters`, `useCenters`, etc.)
     ├── services/
@@ -62,7 +63,7 @@ d:\Hrms/
     ├── store/                         — Redux Toolkit store setup
     │   └── slices/                    — authSlice (session & roles), uiSlice (toasts & mobile/sidebar toggles)
     ├── types/                         — Domain TypeScript interfaces and types
-    └── utils/                         — Helpers: access, dutyTypes, faceBiometrics, formatters (INR, dates), geolocation (Haversine formula), operations, reportingManager, salaryCalculator, shiftUtils, status
+    └── utils/                         — Helpers: access, dutyTypes, faceBiometrics, formatters (INR, dates), geolocation (Haversine formula), operations, payroll, reportingManager, salaryCalculator, shiftUtils, status
 ```
 
 ---
@@ -292,3 +293,11 @@ Admin initiates cycle (PayrollProcessing.tsx)
 **Files changed:** `backend/.../controller/PayrollController.java`, `src/App.tsx`, `src/components/attendance/*`, `src/components/common/{PasswordInput,StatTile,Textarea}.tsx` (new), `src/components/common/{Breadcrumb,Card,StatCard}.tsx` (deleted), `src/components/employee/MobilePrimitives.tsx` (new), `src/components/layout/*`, `src/features/*`, `src/hooks/useRouteBackGuard.ts` (deleted), `src/utils/{access,status}.ts` (new), `src/index.css`
 
 **What & why:** Excluded `ADMIN` owner accounts from payroll payslip generation in `PayrollController`, introduced route code-splitting in `App.tsx`, consolidated shared UI primitives (`StatTile`, `PasswordInput`, `Textarea`, `MobilePrimitives`) and helpers (`access.ts`, `status.ts`), and removed unused `Breadcrumb`, `Card`, `StatCard`, and `useRouteBackGuard`.
+
+### 2026-11-13 — Payroll Calculation Engine & Unified Employee Attendance View
+
+**Request:** Deploy the latest code and push to AWS / GitHub.
+
+**Files changed:** `backend/.../service/PayrollCalculator.java` (new), `backend/.../test/.../PayrollCalculatorTest.java` (new), `backend/.../controller/PayrollController.java`, `backend/.../entity/{CompanySettings,PayrollRun,Payslip}.java`, `src/components/payroll/*` (new), `src/utils/payroll.ts` (new), `src/features/employee/EmployeeDashboard.tsx`, `src/features/employee/MyAttendance.tsx` (removed), `src/features/admin/PayrollProcessing.tsx`, `src/features/employee/MySalary.tsx`, `AGENTS.md`
+
+**What & why:** Extracted standalone Indian payroll calculation into dedicated `PayrollCalculator` service covered by unit tests, moved payroll review and payslip rendering into `src/components/payroll/`, unified employee attendance and punch-in history into the mobile `EmployeeDashboard` home view (retiring the standalone `MyAttendance` page per mobile-first AGENTS rules), and integrated statutory payroll settings.
