@@ -127,7 +127,3 @@ export const getShiftDefinition = (shift?: ShiftType | string): ShiftDefinition 
 
 /** "Morning (9 AM – 1 PM)" */
 export const getShiftLabel = (shift?: ShiftType | string): string => getShiftDefinition(shift).label;
-
-/** Kept for existing callers */
-export const formatShiftLabel = getShiftLabel;
-export const getShiftShortLabel = getShiftLabel;

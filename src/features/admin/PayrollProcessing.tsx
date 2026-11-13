@@ -8,7 +8,6 @@ import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { Select } from '@/components/common/Select';
 import { Input } from '@/components/common/Input';
-import { Textarea } from '@/components/common/Textarea';
 import { PageHeader } from '@/components/common/PageHeader';
 import { EmptyState } from '@/components/common/EmptyState';
 import { StatTile, StatTiles } from '@/components/common/StatTile';
@@ -23,13 +22,15 @@ import { useCenters } from '@/hooks/useCenters';
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 /** One row of the month table: the payslip plus the totals the columns sort by. */
-type PayRow = Payslip & { leaveDays: number; leaveDeduction: number; pf: number; otherDeductions: number; takeHome: number };
+type PayRow = Payslip & { monthlySalary: number; leaveDays: number; leaveDeduction: number; pf: number; otherDeductions: number; takeHome: number };
 
 const toRow = (s: Payslip): PayRow => ({
   ...s,
+  monthlySalary: s.fullMonthlySalary || 0,
   leaveDays: (s.paidLeaveDays || 0) + (s.unpaidLeaveDays || 0),
-  // One day's salary for every unpaid leave or absent day
-  leaveDeduction: s.unpaidAmount || 0,
+  // One day's salary for each unpaid leave or absent day only. Days before joining are not a
+  // deduction: they simply are not paid, which "Paid days" shows.
+  leaveDeduction: s.daysInMonth > 0 ? Math.round(((s.fullMonthlySalary || 0) * (s.lossOfPayDays || 0)) / s.daysInMonth) : 0,
   pf: s.components.epfEmployee || 0,
   // ESI, professional tax, income tax and anything else; PF has its own column
   otherDeductions: Math.max(0, (s.components.totalDeductions || 0) - (s.components.epfEmployee || 0)),
@@ -231,9 +232,11 @@ export const PayrollProcessing: React.FC = () => {
     const money = (v: number) => <span className="whitespace-nowrap tabular-nums">{formatINR(v)}</span>;
     const columns: Column<PayRow>[] = [
       { key: 'employeeCode', header: 'Emp ID', sortable: true, render: (s) => <span className="whitespace-nowrap tabular-nums text-slate-900">{s.employeeCode}</span> },
-      { key: 'employeeName', header: 'Name', sortable: true, render: (s) => <span className="font-medium text-slate-900">{s.employeeName}</span> },
+      { key: 'employeeName', header: 'Name', sortable: true, render: (s) => <span className="whitespace-nowrap font-medium text-slate-900">{s.employeeName}</span> },
+      { key: 'monthlySalary', header: 'Monthly salary', sortable: true, align: 'right', render: (s) => money(s.monthlySalary) },
       { key: 'workedDays', header: 'Working days', sortable: true, align: 'right', render: (s) => s.workedDays },
       { key: 'leaveDays', header: 'Leaves', sortable: true, align: 'right', render: (s) => s.leaveDays },
+      { key: 'payableDays', header: 'Paid days', sortable: true, align: 'right', render: (s) => s.payableDays },
       { key: 'leaveDeduction', header: 'Leave deduction', sortable: true, align: 'right', render: (s) => money(s.leaveDeduction) },
       { key: 'pf', header: 'PF', sortable: true, align: 'right', render: (s) => money(s.pf) },
       { key: 'otherDeductions', header: 'Other deductions', sortable: true, align: 'right', render: (s) => money(s.otherDeductions) },
@@ -245,11 +248,25 @@ export const PayrollProcessing: React.FC = () => {
         render: (s) => (
           <div className="flex justify-end gap-1">
             {!isPaid && (isAdmin || s.employeeId !== String(user?.id)) && (
-              <Button variant="outline" size="xs" onClick={() => openAdjust(s)}>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openAdjust(s);
+                }}
+              >
                 Adjust
               </Button>
             )}
-            <Button variant="ghost" size="xs" onClick={() => setViewing(s)}>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                setViewing(s);
+              }}
+            >
               Payslip
             </Button>
           </div>
@@ -343,16 +360,30 @@ export const PayrollProcessing: React.FC = () => {
                 <span className="text-sm font-semibold tabular-nums text-slate-900">{formatINR(s.takeHome)}</span>
               </div>
               <p className="text-sm text-slate-700 tabular-nums">
-                {s.workedDays} working days · {s.leaveDays} leaves · {formatINR(s.leaveDeduction)} leave deduction · {formatINR(s.pf)} PF
+                {s.payableDays} of {s.daysInMonth} days paid · {s.leaveDays} leaves · {formatINR(s.leaveDeduction)} leave deduction · {formatINR(s.pf)} PF
               </p>
               {payslipWarnings(s).length > 0 && <p className="text-xs font-medium text-amber-800">{payslipWarnings(s).join(' · ')}</p>}
               <div className="flex gap-2 pt-1">
                 {!isPaid && (isAdmin || s.employeeId !== String(user?.id)) && (
-                  <Button variant="outline" size="sm" onClick={() => openAdjust(s)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openAdjust(s);
+                    }}
+                  >
                     Adjust
                   </Button>
                 )}
-                <Button variant="ghost" size="sm" onClick={() => setViewing(s)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setViewing(s);
+                  }}
+                >
                   Payslip
                 </Button>
               </div>
@@ -367,8 +398,8 @@ export const PayrollProcessing: React.FC = () => {
           isOpen={Boolean(adjusting)}
           onClose={() => setAdjusting(null)}
           title={adjusting ? adjusting.employeeName : 'Adjust'}
-          subtitle={adjusting ? `${adjusting.employeeCode} · ${adjusting.location || 'No center'} · ${run?.month} ${run?.year}` : undefined}
-          size="lg"
+          subtitle={adjusting ? `${adjusting.employeeCode} · ${run?.month} ${run?.year}` : undefined}
+          size="sm"
           footer={
             <>
               <Button variant="outline" onClick={() => setAdjusting(null)} disabled={saving}>
@@ -381,120 +412,56 @@ export const PayrollProcessing: React.FC = () => {
           }
         >
           {adjusting && preview && (
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div className="space-y-4">
-                <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm">
-                  <p className="font-medium text-slate-900">From attendance and leave</p>
-                  <dl className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 text-slate-700">
-                    <dt>Days in month</dt>
-                    <dd className="text-right tabular-nums">{adjusting.daysInMonth}</dd>
-                    {adjusting.employedDays < adjusting.daysInMonth && (
-                      <>
-                        <dt>Since joining</dt>
-                        <dd className="text-right tabular-nums">{adjusting.employedDays}</dd>
-                      </>
-                    )}
-                    <dt>Worked</dt>
-                    <dd className="text-right tabular-nums">{adjusting.workedDays}</dd>
-                    <dt>Paid leave</dt>
-                    <dd className="text-right tabular-nums">{adjusting.paidLeaveDays}</dd>
-                    <dt>Unpaid leave</dt>
-                    <dd className="text-right tabular-nums">{adjusting.unpaidLeaveDays}</dd>
-                    <dt>Absent</dt>
-                    <dd className="text-right tabular-nums">{adjusting.absentDays}</dd>
-                  </dl>
-                  {adjusting.noAttendance && <p className="mt-2 font-medium text-amber-800">No check-ins at all this month. Confirm the unpaid days with their manager.</p>}
-                </div>
+            <div className="space-y-4">
+              <p className="text-sm text-slate-700">
+                From attendance: {adjusting.workedDays} worked · {adjusting.paidLeaveDays + adjusting.unpaidLeaveDays} leave · {adjusting.absentDays} absent
+                {adjusting.employedDays < adjusting.daysInMonth ? ` · joined ${adjusting.daysInMonth - adjusting.employedDays} days into the month` : ''}
+              </p>
+              {adjusting.noAttendance && <p className="text-sm font-medium text-amber-800">No check-ins this month. Confirm unpaid days with their manager.</p>}
 
+              <Input
+                label="Unpaid days"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={adjusting.employedDays}
+                step={1}
+                value={adjust.lossOfPayDays}
+                onChange={(e) => setAdjust({ ...adjust, lossOfPayDays: Math.max(0, Math.min(adjusting.employedDays, Math.round(Number(e.target.value) || 0))) })}
+                helperText={
+                  adjust.lossOfPayDays === adjusting.suggestedLopDays ? (
+                    'As worked out from attendance.'
+                  ) : (
+                    <>
+                      Attendance says {adjusting.suggestedLopDays}.{' '}
+                      <button type="button" className="font-medium text-brand-700 hover:underline" onClick={() => setAdjust({ ...adjust, lossOfPayDays: adjusting.suggestedLopDays })}>
+                        Use that
+                      </button>
+                    </>
+                  )
+                }
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Bonus (₹)" type="number" inputMode="numeric" min={0} value={adjust.bonus} onChange={(e) => setAdjust({ ...adjust, bonus: Math.max(0, Number(e.target.value) || 0) })} />
                 <Input
-                  label="Unpaid days"
+                  label="Advance or deduction (₹)"
                   type="number"
                   inputMode="numeric"
                   min={0}
-                  max={adjusting.employedDays}
-                  step={1}
-                  value={adjust.lossOfPayDays}
-                  onChange={(e) => setAdjust({ ...adjust, lossOfPayDays: Math.max(0, Math.min(adjusting.employedDays, Math.round(Number(e.target.value) || 0))) })}
-                  helperText={
-                    adjust.lossOfPayDays === adjusting.suggestedLopDays ? (
-                      'As worked out from attendance and leave.'
-                    ) : (
-                      <>
-                        Worked out from attendance: {adjusting.suggestedLopDays}.{' '}
-                        <button type="button" className="font-medium text-brand-700 hover:underline" onClick={() => setAdjust({ ...adjust, lossOfPayDays: adjusting.suggestedLopDays })}>
-                          Use that
-                        </button>
-                      </>
-                    )
-                  }
+                  value={adjust.otherDeductions}
+                  onChange={(e) => setAdjust({ ...adjust, otherDeductions: Math.max(0, Number(e.target.value) || 0) })}
                 />
-                <div className="grid grid-cols-2 gap-3">
-                  <Input label="Bonus (₹)" type="number" inputMode="numeric" min={0} value={adjust.bonus} onChange={(e) => setAdjust({ ...adjust, bonus: Math.max(0, Number(e.target.value) || 0) })} />
-                  <Input
-                    label="Salary advance or other deduction (₹)"
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    value={adjust.otherDeductions}
-                    onChange={(e) => setAdjust({ ...adjust, otherDeductions: Math.max(0, Number(e.target.value) || 0) })}
-                  />
-                </div>
-                <Input
-                  label="Income tax (TDS) (₹)"
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  value={adjust.tds}
-                  onChange={(e) => setAdjust({ ...adjust, tds: Math.max(0, Number(e.target.value) || 0) })}
-                  helperText="Leave at 0 unless this person pays income tax."
-                />
-                <Textarea label="Note on the payslip" rows={2} value={adjust.notes} onChange={(e) => setAdjust({ ...adjust, notes: e.target.value })} placeholder="For example: Diwali bonus" />
               </div>
 
-              <dl className="h-fit divide-y divide-slate-100 rounded-lg border border-slate-200 px-4 py-2 text-sm">
-                <div className="flex justify-between py-1.5">
-                  <dt className="text-slate-700">Monthly salary</dt>
-                  <dd className="tabular-nums">{formatINR(preview.fullMonthlySalary)}</dd>
-                </div>
-                {preview.unpaidAmount > 0 && (
-                  <div className="flex justify-between py-1.5 text-slate-600">
-                    <dt>
-                      Not paid for {adjusting.daysInMonth - preview.paidDays} day{adjusting.daysInMonth - preview.paidDays === 1 ? '' : 's'}
-                    </dt>
-                    <dd className="tabular-nums">{'−'} {formatINR(preview.unpaidAmount)}</dd>
-                  </div>
-                )}
-                {preview.bonus > 0 && (
-                  <div className="flex justify-between py-1.5">
-                    <dt className="text-slate-700">Bonus</dt>
-                    <dd className="tabular-nums">+ {formatINR(preview.bonus)}</dd>
-                  </div>
-                )}
-                <div className="flex justify-between py-1.5 font-semibold text-slate-900">
-                  <dt>Earned</dt>
-                  <dd className="tabular-nums">{formatINR(preview.earned)}</dd>
-                </div>
-                {(
-                  [
-                    ['PF', preview.pf],
-                    ['ESI', preview.esi],
-                    ['Professional tax', preview.pt],
-                    ['Income tax', preview.tds],
-                    ['Other deductions', preview.other],
-                  ] as const
-                )
-                  .filter(([, v]) => v > 0)
-                  .map(([label, v]) => (
-                    <div key={label} className="flex justify-between py-1.5 text-slate-600">
-                      <dt>{label}</dt>
-                      <dd className="tabular-nums">{'−'} {formatINR(v)}</dd>
-                    </div>
-                  ))}
-                <div className="flex justify-between py-2 text-base font-semibold text-slate-900">
-                  <dt>Take-home</dt>
-                  <dd className="tabular-nums">{formatINR(preview.takeHome)}</dd>
-                </div>
-              </dl>
+              <div className="flex items-baseline justify-between rounded-lg bg-slate-50 px-4 py-3">
+                <span className="text-sm text-slate-700">Take-home</span>
+                <span className="text-right">
+                  <span className="block text-base font-semibold tabular-nums text-slate-900">{formatINR(preview.takeHome)}</span>
+                  {preview.takeHome !== (adjusting.components.netMonthly || 0) && (
+                    <span className="block text-xs tabular-nums text-slate-600">was {formatINR(adjusting.components.netMonthly || 0)}</span>
+                  )}
+                </span>
+              </div>
             </div>
           )}
         </Modal>

@@ -210,6 +210,33 @@ export interface OnDutyRequest {
   createdAt?: string;
 }
 
+/** One center's sales for one day, reported by its manager. */
+export interface DailyCollection {
+  id: string;
+  date: string;
+  center: string;
+  centerId: number;
+  bookMyShow: number;
+  website: number;
+  cashCounter: number;
+  total: number;
+  submittedByName?: string;
+  submittedAt?: string;
+  updatedAt?: string;
+}
+
+/** One person's month in the attendance report (days counted the same way as payroll). */
+export interface AttendanceSummaryRow {
+  employeeId: string;
+  employeeCode: string;
+  name: string;
+  center: string | null;
+  worked: number;
+  late: number;
+  leave: number;
+  absent: number;
+}
+
 /** A note under the bell: leave decided, salary paid, and so on. Stored on the server. */
 export interface StaffNotification {
   id: string;
@@ -247,21 +274,6 @@ export interface SalaryComponent {
   totalDeductions: number;
   netMonthly: number;
   ctcAnnual: number;
-}
-
-export interface SalaryStructureTemplate {
-  id: string;
-  name: string;
-  designationLevel: string;
-  description: string;
-  basicPercent: number; // % of CTC/Gross
-  hraPercent: number; // % of Basic
-  conveyance: number;
-  medical: number;
-  specialPercent: number;
-  pfRate: number; // 12%
-  professionalTaxFixed: number;
-  standardTdsPercent: number;
 }
 
 export interface Payslip {
@@ -331,17 +343,6 @@ export interface PayrollRun {
   disbursedBy?: string;
   payslips: Payslip[];
 }
-
-export interface Holiday {
-  id: string;
-  name: string;
-  date: string;
-  dayOfWeek: string;
-  type: 'NATIONAL' | 'FESTIVAL' | 'OPTIONAL';
-  isMandatory: boolean;
-  description?: string;
-}
-
 
 export interface CompanySettings {
   companyName: string;

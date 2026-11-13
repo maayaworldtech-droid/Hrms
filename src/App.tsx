@@ -1,7 +1,6 @@
 import React, { lazy, Suspense } from 'react';
 import { createBrowserRouter, createRoutesFromElements, RouterProvider, Route, Navigate, Outlet } from 'react-router-dom';
 import { Provider } from 'react-redux';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { store, useAppSelector } from '@/store';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { EmployeeMobileLayout } from '@/components/layout/EmployeeMobileLayout';
@@ -26,21 +25,13 @@ const CompanySettings = lazy(() => import('@/features/admin/CompanySettings').th
 const ManagerDashboard = lazy(() => import('@/features/manager/ManagerDashboard').then((m) => ({ default: m.ManagerDashboard })));
 const TeamAttendance = lazy(() => import('@/features/manager/TeamAttendance').then((m) => ({ default: m.TeamAttendance })));
 const TeamLeaves = lazy(() => import('@/features/manager/TeamLeaves').then((m) => ({ default: m.TeamLeaves })));
+const DailyCollections = lazy(() => import('@/features/manager/DailyCollections').then((m) => ({ default: m.DailyCollections })));
 const TeamOnDuty = lazy(() => import('@/features/manager/TeamOnDuty').then((m) => ({ default: m.TeamOnDuty })));
 const EmployeeDashboard = lazy(() => import('@/features/employee/EmployeeDashboard').then((m) => ({ default: m.EmployeeDashboard })));
 const MyLeaves = lazy(() => import('@/features/employee/MyLeaves').then((m) => ({ default: m.MyLeaves })));
 const MyOnDuty = lazy(() => import('@/features/employee/MyOnDuty').then((m) => ({ default: m.MyOnDuty })));
 const MySalary = lazy(() => import('@/features/employee/MySalary').then((m) => ({ default: m.MySalary })));
 const EmployeeProfile = lazy(() => import('@/features/employee/EmployeeProfile').then((m) => ({ default: m.EmployeeProfile })));
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 1,
-    },
-  },
-});
 
 const RouteFallback: React.FC = () => (
   <div className="flex min-h-[50vh] items-center justify-center" role="status" aria-label="Loading">
@@ -108,7 +99,7 @@ const router = createBrowserRouter(
             />
             {/* One route for the list and /new, so moving between them keeps the screen mounted */}
             <Route
-              path="/admin/employees/:mode?"
+              path="/admin/employees/:mode?/:employeeId?"
               element={
                 <ProtectedRoute allowedRoles={['ADMIN']}>
                   <EmployeeManagement />
@@ -210,6 +201,14 @@ const router = createBrowserRouter(
               }
             />
             <Route
+              path="/manager/sales"
+              element={
+                <ProtectedRoute allowedRoles={['MANAGER']}>
+                  <DailyCollections />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/manager/on-duty"
               element={
                 <ProtectedRoute allowedRoles={['MANAGER', 'ADMIN']}>
@@ -248,9 +247,7 @@ export const AppContent: React.FC = () => <RouterProvider router={router} />;
 export default function App() {
   return (
     <Provider store={store}>
-      <QueryClientProvider client={queryClient}>
-        <AppContent />
-      </QueryClientProvider>
+      <AppContent />
     </Provider>
   );
 }

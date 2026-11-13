@@ -37,10 +37,6 @@ public class ZeptoMailService {
             .connectTimeout(Duration.ofSeconds(30))
             .build();
 
-    public boolean sendOnboardingEmail(String recipientEmail, String recipientName, String employeeCode, String defaultPassword) {
-        return sendOnboardingEmail(recipientEmail, recipientName, employeeCode, defaultPassword, null);
-    }
-
     public boolean sendOnboardingEmail(String recipientEmail, String recipientName, String employeeCode, String defaultPassword, String customPortalUrl) {
         String basePortalUrl = (customPortalUrl != null && !customPortalUrl.trim().isEmpty()) ? customPortalUrl.trim() : this.portalUrl;
         

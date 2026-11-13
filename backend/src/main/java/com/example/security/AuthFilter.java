@@ -152,6 +152,11 @@ public class AuthFilter extends OncePerRequestFilter {
         if (path.equals("/api/payroll/process")) return isPrivileged;
         if (path.startsWith("/api/payroll/payslips/") && path.endsWith("/adjust") && "PUT".equalsIgnoreCase(method)) return isPrivileged;
 
+        // Daily sales: managers report their own center, the admin sees every center (checked in the controller)
+        if (path.equals("/api/collections") || path.startsWith("/api/collections/")) return isPrivileged;
+        // Reports page: admin only
+        if (path.startsWith("/api/reports/")) return isAdmin;
+
         // Centers: any signed-in user may read (check-in geofence); every change is admin-only
         if (path.equals("/api/centers") || path.startsWith("/api/centers/")) {
             return "GET".equalsIgnoreCase(method) || isAdmin;
@@ -159,9 +164,8 @@ public class AuthFilter extends OncePerRequestFilter {
 
         // Manager or Admin routes
         if (path.equals("/api/employees") && "GET".equalsIgnoreCase(method)) return isPrivileged;
-        if (path.startsWith("/api/employees/code/")) return isPrivileged;
         if ((path.equals("/api/attendance") || path.equals("/api/attendance/paged")) && "GET".equalsIgnoreCase(method)) return isPrivileged;
-        if (path.startsWith("/api/attendance/") && (path.endsWith("/approve-regularization") || path.endsWith("/status"))) return isPrivileged;
+        if (path.startsWith("/api/attendance/") && path.endsWith("/approve-regularization")) return isPrivileged;
         if (path.equals("/api/leaves") && "GET".equalsIgnoreCase(method)) return isPrivileged;
         if (path.startsWith("/api/leaves/") && path.endsWith("/status")) return isPrivileged;
         if (path.equals("/api/on-duty") && "GET".equalsIgnoreCase(method)) return isPrivileged;
@@ -185,7 +189,6 @@ public class AuthFilter extends OncePerRequestFilter {
                 "/api/employees/",
                 "/api/attendance/employee/",
                 "/api/leaves/employee/",
-                "/api/leaves/balances/",
                 "/api/on-duty/employee/",
                 "/api/payroll/payslips/"
         };

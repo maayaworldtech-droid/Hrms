@@ -217,10 +217,9 @@ const onboardingSchema = z
     shift: z.enum(['MORNING', 'EVENING'], {
       errorMap: () => ({ message: 'Please choose a shift' }),
     }),
-    managerId: z
-      .string()
-      .trim()
-      .min(1, 'Please select a reporting manager'),
+    managerId: z.string().trim().optional().or(z.literal('')),
+    /** False when editing a center manager: they do not report to another manager. */
+    needsManager: z.boolean().optional(),
     joiningDate: z
       .string()
       .trim()
@@ -255,6 +254,9 @@ const onboardingSchema = z
       .regex(/^[A-Za-z]{5}[0-9]{4}[A-Za-z]{1}$/, 'Enter a valid 10-character PAN number'),
   })
   .superRefine((data, ctx) => {
+    if (data.needsManager !== false && !(data.managerId || '').trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Please select a reporting manager', path: ['managerId'] });
+    }
     if (data.hasPf) {
       const cleanUan = (data.uanNumber || '').trim();
       if (!cleanUan) {
@@ -282,46 +284,6 @@ const onboardingSchema = z
 
 type OnboardingFormValues = z.infer<typeof onboardingSchema>;
 
-const employeeSchema = z
-  .object({
-    firstName: z.string().trim().min(2, 'First name must be at least 2 characters'),
-    lastName: z.string().trim().min(1, 'Last name is required'),
-    email: z.string().trim().email('Enter a valid email address'),
-    phone: z.string().trim().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit mobile number'),
-    bloodGroup: z.string().optional(),
-    emergencyContactName: z.string().optional(),
-    emergencyContactRelationship: z.string().optional(),
-    emergencyContactPhone: z.string().optional(),
-    address: z.string().trim().min(5, 'Residential address is required'),
-    designation: z.string().trim().max(60, 'Keep the job title under 60 characters').optional().or(z.literal('')),
-    location: z.string().trim().min(1, 'Please select a center'),
-    shift: z.enum(['MORNING', 'EVENING']),
-    managerId: z.string(),
-    joiningDate: z.string().min(1, 'Joining date is required'),
-    accountNumber: z.string().trim().regex(/^\d{8,18}$/, 'Enter a valid bank account number (8 to 18 digits)'),
-    confirmAccountNumber: z.string().trim().min(1, 'Please confirm the bank account number'),
-    bankName: z.string().trim().min(2, 'Bank name is required'),
-    ifscCode: z.string().trim().regex(/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/, 'Enter a valid 11-character IFSC code'),
-    panNumber: z.string().trim().regex(/^[A-Za-z]{5}[0-9]{4}[A-Za-z]{1}$/, 'Enter a valid 10-character PAN number'),
-    uanNumber: z
-      .string()
-      .trim()
-      .optional()
-      .or(z.literal(''))
-      .refine((v) => !v || /^\d{12}$/.test(v), 'Enter a valid 12-digit UAN number'),
-  })
-  .superRefine((data, ctx) => {
-    if (data.accountNumber !== data.confirmAccountNumber) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Bank account numbers do not match',
-        path: ['confirmAccountNumber'],
-      });
-    }
-  });
-
-type EmployeeFormValues = z.infer<typeof employeeSchema>;
-
 export const EmployeeManagement: React.FC = () => {
   const dispatch = useAppDispatch();
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -333,19 +295,17 @@ export const EmployeeManagement: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { mode } = useParams();
+  const { mode, employeeId: editId } = useParams();
   const isAddingEmployee = mode === 'new';
+  // Editing uses the same four-step form, filled in with the person's details
+  const isEditing = mode === 'edit' && Boolean(editId);
+  const isWizard = isAddingEmployee || isEditing;
+  const [editTarget, setEditTarget] = useState<Employee | null>(null);
+  const [editLoadFailed, setEditLoadFailed] = useState(false);
+  // What was loaded, to tell whether anything changed before leaving
+  const editOriginalRef = useRef<{ salary: string; face: string | null } | null>(null);
   const [maxStep, setMaxStep] = useState<1 | 2 | 3 | 4>(1);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-  const [editSalary, setEditSalary] = useState<SalarySetupValue>(emptySalarySetup);
-  const [editSalaryError, setEditSalaryError] = useState<string | null>(null);
-  // Face used for check-in: only the admin can replace it (staff cannot change their own)
-  const [editFacePhoto, setEditFacePhoto] = useState<string | null>(null);
-  const [editFaceBusy, setEditFaceBusy] = useState(false);
-  // Whose edit form is open, so a slow photo for someone else is never shown here
-  const editFaceForRef = useRef<string | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedLocationFilter, setSelectedLocationFilter] = useState<string>('ALL');
   const [selectedShiftFilter, setSelectedShiftFilter] = useState<string>('ALL');
@@ -482,7 +442,7 @@ export const EmployeeManagement: React.FC = () => {
   }, [startAnalysisLoop]);
 
   useEffect(() => {
-    if (isAddingEmployee && currentStep === 4 && enrollmentMode === 'CAMERA' && !enrolledFacePhoto) {
+    if (isWizard && currentStep === 4 && enrollmentMode === 'CAMERA' && !enrolledFacePhoto) {
       void startCamera();
     } else {
       stopCamera();
@@ -490,7 +450,7 @@ export const EmployeeManagement: React.FC = () => {
     return () => {
       stopCamera();
     };
-  }, [isAddingEmployee, currentStep, enrollmentMode, enrolledFacePhoto, startCamera, stopCamera]);
+  }, [isWizard, currentStep, enrollmentMode, enrolledFacePhoto, startCamera, stopCamera]);
 
   const handleCaptureFromCamera = async () => {
     const video = videoRef.current;
@@ -605,8 +565,9 @@ export const EmployeeManagement: React.FC = () => {
     trigger: triggerAdd,
     setValue: setValueAdd,
     clearErrors: clearErrorsAdd,
+    setError: setErrorAdd,
     watch: watchAdd,
-    formState: { errors: errorsAdd, isSubmitting: isSubmittingAdd },
+    formState: { errors: errorsAdd, isSubmitting: isSubmittingAdd, isDirty: isDirtyAdd },
   } = useForm<OnboardingFormValues>({
     resolver: zodResolver(onboardingSchema),
     defaultValues: {
@@ -627,6 +588,7 @@ export const EmployeeManagement: React.FC = () => {
       shift: '' as any,
       managerId: '',
       joiningDate: businessDate(),
+      needsManager: true,
       hasPf: false,
       uanNumber: '',
       bankName: '',
@@ -691,15 +653,6 @@ export const EmployeeManagement: React.FC = () => {
   };
 
 
-  const {
-    register: registerEdit,
-    handleSubmit: handleSubmitEdit,
-    reset: resetEdit,
-    formState: { errors: errorsEdit, isSubmitting: isSubmittingEdit },
-  } = useForm<EmployeeFormValues>({
-    resolver: zodResolver(employeeSchema),
-  });
-
   const loadEmployees = useCallback(async () => {
     setIsLoading(true);
     setLoadError(null);
@@ -720,42 +673,86 @@ export const EmployeeManagement: React.FC = () => {
     void loadEmployees();
   }, [loadEmployees]);
 
+  /** Edit opens the onboarding form for this person. */
   const handleOpenEdit = (emp: Employee) => {
-    setEditingEmployee(emp);
-    setEditSalary(salarySetupFromEmployee(emp));
-    setEditSalaryError(null);
-    setEditFacePhoto(emp.enrolledFacePhoto || null);
-    editFaceForRef.current = emp.id;
-    if (!emp.enrolledFacePhoto && emp.hasFacePhoto) {
-      api.employees
-        .getById(emp.id)
-        .then((full) => {
-          if (editFaceForRef.current === emp.id && full?.enrolledFacePhoto) setEditFacePhoto(full.enrolledFacePhoto);
-        })
-        .catch(() => undefined);
-    }
-    resetEdit({
-      firstName: emp.firstName,
-      lastName: emp.lastName,
-      email: emp.email,
-      // Stored numbers may carry +91 or spaces; the form works with the 10-digit mobile number
-      phone: (emp.phone || '').replace(/\D/g, '').slice(-10),
-      address: emp.address || '',
-      designation: emp.designation || '',
-      location: findCenter(centers, emp.location)?.name || '',
-      shift: emp.shift || 'MORNING',
-      managerId: getReportingManager(emp).id || '',
-      joiningDate: emp.joiningDate,
-      accountNumber: emp.bankDetails?.accountNumber || '',
-      confirmAccountNumber: emp.bankDetails?.accountNumber || '',
-      bankName: emp.bankDetails?.bankName || '',
-      ifscCode: emp.bankDetails?.ifscCode || '',
-      panNumber: emp.bankDetails?.panNumber || '',
-      uanNumber: emp.bankDetails?.uanNumber || '',
-    });
     setIsViewModalOpen(false);
-    setIsEditModalOpen(true);
+    navigate(`/admin/employees/edit/${emp.id}?step=1`);
   };
+
+  /** Leaves the edit form (after saving or choosing Discard); a new-employee draft is left alone. */
+  const finishEdit = () => {
+    clearWizard();
+    setEditTarget(null);
+    editOriginalRef.current = null;
+    allowLeaveRef.current = true;
+    navigate('/admin/employees');
+  };
+
+  // Load the person and fill every step of the form with what is saved
+  useEffect(() => {
+    if (!isEditing || !editId) return;
+    let cancelled = false;
+    setEditLoadFailed(false);
+    setEditTarget(null);
+    api.employees
+      .getById(editId)
+      .then((emp) => {
+        if (cancelled) return;
+        if (!emp) {
+          setEditLoadFailed(true);
+          return;
+        }
+        // Address is saved as "line, city, state - PIN"; split it back for the form
+        const address = (emp.address || '').trim();
+        const parts = address.match(/^(.*),\s*([^,]+),\s*([^,]+?)\s*-\s*(\d{6})$/);
+        const digits = (v?: string) => (v || '').replace(/\D/g, '').slice(-10);
+        const isManager = emp.role === 'MANAGER';
+        resetAdd({
+          firstName: emp.firstName || '',
+          lastName: emp.lastName || '',
+          email: emp.email || '',
+          phone: digits(emp.phone),
+          bloodGroup: emp.bloodGroup || '',
+          addressLine: parts ? parts[1] : address,
+          city: parts ? parts[2] : '',
+          state: parts ? parts[3] : '',
+          pincode: parts ? parts[4] : '',
+          emergencyContactName: emp.emergencyContact?.name || emp.emergencyContactName || '',
+          emergencyContactRelationship: emp.emergencyContact?.relationship || emp.emergencyContactRelationship || '',
+          emergencyContactPhone: digits(emp.emergencyContact?.phone || emp.emergencyContactPhone),
+          designation: '',
+          location: (findCenter(centers, emp.location)?.name || emp.location || '') as any,
+          shift: (emp.shift || 'MORNING') as any,
+          managerId: isManager ? '' : getReportingManager(emp).id || '',
+          needsManager: !isManager,
+          joiningDate: emp.joiningDate || '',
+          hasPf: false,
+          uanNumber: emp.bankDetails?.uanNumber || '',
+          bankName: emp.bankDetails?.bankName || '',
+          accountNumber: emp.bankDetails?.accountNumber || '',
+          confirmAccountNumber: emp.bankDetails?.accountNumber || '',
+          ifscCode: emp.bankDetails?.ifscCode || '',
+          panNumber: emp.bankDetails?.panNumber || '',
+        });
+        const pay = salarySetupFromEmployee(emp);
+        setSalary(pay);
+        setSalaryError(null);
+        setEnrolledFacePhoto(emp.enrolledFacePhoto || null);
+        setEnrolledFaceBiometrics(emp.enrolledFaceBiometrics || null);
+        editOriginalRef.current = { salary: JSON.stringify(pay), face: emp.enrolledFacePhoto || null };
+        setMaxStep(4);
+        allowLeaveRef.current = false;
+        setEditTarget(emp);
+      })
+      .catch(() => {
+        if (!cancelled) setEditLoadFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // centers only fills the center name; reloading when they arrive is not wanted
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, editId, resetAdd]);
 
   const handleNextStep1 = async () => {
     const isValid = await triggerAdd([
@@ -784,7 +781,17 @@ export const EmployeeManagement: React.FC = () => {
     }
     const fieldsToValidate: (keyof OnboardingFormValues)[] = ['location', 'shift', 'managerId', 'joiningDate'];
     if (hasPfComponent) fieldsToValidate.push('uanNumber');
-    const isValid = await triggerAdd(fieldsToValidate);
+    let isValid = await triggerAdd(fieldsToValidate);
+    // Form-wide rules only run once every step is filled, so check these two here as well
+    if (watchAdd('needsManager') !== false && !(watchAdd('managerId') || '').trim()) {
+      setErrorAdd('managerId', { type: 'manual', message: 'Please select a reporting manager' });
+      isValid = false;
+    }
+    const uan = (watchAdd('uanNumber') || '').trim();
+    if (hasPfComponent && !/^\d{12}$/.test(uan)) {
+      setErrorAdd('uanNumber', { type: 'manual', message: uan ? 'Enter a valid 12-digit UAN number' : 'Enter the 12-digit UAN because PF is being deducted' });
+      isValid = false;
+    }
     const problem = salaryProblem(salary);
     setSalaryError(problem);
     if (isValid && !problem) goToStep(3);
@@ -819,6 +826,47 @@ export const EmployeeManagement: React.FC = () => {
       if (problem) {
         setSalaryError(problem);
         goToStep(2);
+        return;
+      }
+
+      if (isEditing && editTarget) {
+        await api.employees.update(editTarget.id, {
+          firstName: values.firstName,
+          lastName: values.lastName,
+          fullName: `${values.firstName} ${values.lastName}`.trim(),
+          email: values.email,
+          phone: values.phone,
+          bloodGroup: values.bloodGroup,
+          address: fullAddress,
+          location: values.location,
+          shift: values.shift,
+          ...(values.needsManager === false
+            ? {}
+            : { managerId: values.managerId || undefined, managerName: employees.find((e) => e.id === values.managerId)?.fullName }),
+          monthlySalary: salarySummary.monthly,
+          ctcAnnual: salarySummary.yearly,
+          joiningDate: values.joiningDate,
+          salaryStructureJson: salarySummary.json,
+          bankDetails: {
+            accountNumber: values.accountNumber,
+            ifscCode: values.ifscCode.toUpperCase(),
+            bankName: values.bankName,
+            panNumber: values.panNumber.toUpperCase(),
+            uanNumber: hasPfComponent ? (values.uanNumber || '').trim() : '',
+          },
+          emergencyContact: {
+            name: values.emergencyContactName,
+            relationship: values.emergencyContactRelationship,
+            phone: values.emergencyContactPhone,
+          },
+        });
+        // A new face photo is saved through its own step (only the admin can change it)
+        if (enrolledFacePhoto && enrolledFacePhoto !== editOriginalRef.current?.face) {
+          await api.employees.enrollFace(editTarget.id, enrolledFacePhoto, enrolledFaceBiometrics || '');
+        }
+        dispatch(addToast({ type: 'success', title: 'Changes saved', message: `${values.firstName} ${values.lastName}'s details were updated.` }));
+        finishEdit();
+        loadEmployees();
         return;
       }
 
@@ -874,92 +922,13 @@ export const EmployeeManagement: React.FC = () => {
         email: newEmp.email,
       });
     } catch (err: any) {
-      dispatch(addToast({ type: 'error', title: 'Could not add employee', message: err?.message || 'Please check the details and try again.' }));
-    }
-  };
-
-  /** Replaces the face used for check-in with an uploaded photo (saved straight away). */
-  const replaceFace = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file || !editingEmployee) return;
-    if (!file.type.startsWith('image/')) {
-      dispatch(addToast({ type: 'error', title: 'Not a photo', message: 'Choose a JPG, PNG or WebP photo.' }));
-      return;
-    }
-    setEditFaceBusy(true);
-    try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ''));
-        reader.onerror = () => reject(reader.error);
-        reader.readAsDataURL(file);
-      });
-      const descriptor = await extractDescriptorFromImage(dataUrl);
-      if (!descriptor) {
-        dispatch(addToast({ type: 'error', title: 'No face found in this photo', message: 'Use a clear photo looking straight at the camera.' }));
-        return;
-      }
-      await api.employees.enrollFace(editingEmployee.id, dataUrl, JSON.stringify(descriptor));
-      if (editFaceForRef.current === editingEmployee.id) setEditFacePhoto(dataUrl);
-      dispatch(addToast({ type: 'success', title: 'Face updated', message: `${editingEmployee.fullName} will check in with the new photo.` }));
-      loadEmployees();
-    } catch (err: any) {
-      dispatch(addToast({ type: 'error', title: 'Could not update the face', message: err?.message || 'Please try again.' }));
-    } finally {
-      setEditFaceBusy(false);
-    }
-  };
-
-  const onEditSubmit = async (values: EmployeeFormValues) => {
-    if (!editingEmployee) return;
-    const problem = salaryProblem(editSalary);
-    setEditSalaryError(problem);
-    if (problem) return;
-    const pay = summarizeSalary(editSalary);
-    const uan = (values.uanNumber || '').trim();
-    if (pay.hasPf && !/^\d{12}$/.test(uan)) {
-      setEditSalaryError('Enter the 12-digit PF number (UAN) because PF is deducted.');
-      return;
-    }
-    try {
-      await api.employees.update(editingEmployee.id, {
-        firstName: values.firstName,
-        lastName: values.lastName,
-        fullName: `${values.firstName} ${values.lastName}`.trim(),
-        email: values.email,
-        phone: values.phone,
-        address: values.address,
-        designation: editingEmployee.designation || '',
-        location: values.location,
-        shift: values.shift,
-        managerId: values.managerId,
-        managerName: employees.find((e) => e.id === values.managerId)?.fullName,
-        monthlySalary: pay.monthly,
-        ctcAnnual: pay.yearly,
-        salaryStructureJson: pay.json,
-        joiningDate: values.joiningDate,
-        bankDetails: {
-          accountNumber: values.accountNumber,
-          ifscCode: values.ifscCode.toUpperCase(),
-          bankName: values.bankName,
-          panNumber: values.panNumber.toUpperCase(),
-          uanNumber: (values.uanNumber || '').trim(),
-        },
-      });
-
       dispatch(
         addToast({
-          type: 'success',
-          title: 'Changes saved',
-          message: `${values.firstName} ${values.lastName}'s details were updated.`,
+          type: 'error',
+          title: isEditing ? 'Could not save changes' : 'Could not add employee',
+          message: err?.message || 'Please check the details and try again.',
         })
       );
-      setIsEditModalOpen(false);
-      setEditingEmployee(null);
-      loadEmployees();
-    } catch {
-      dispatch(addToast({ type: 'error', title: 'Could not save changes', message: 'Please try again.' }));
     }
   };
 
@@ -1135,11 +1104,20 @@ export const EmployeeManagement: React.FC = () => {
 
   // Blocks every way out of the form: browser or phone back, sidebar, search and links.
   // Moving between steps stays on the same path, so it is never blocked.
+  // Editing: anything changed since the details were loaded
+  const editChanged =
+    isEditing &&
+    Boolean(editTarget) &&
+    (isDirtyAdd ||
+      JSON.stringify(salary) !== editOriginalRef.current?.salary ||
+      (enrolledFacePhoto || null) !== (editOriginalRef.current?.face ?? null));
+  const guardLeaving = hasProgress || editChanged;
+
   const blocker = useBlocker(
     useCallback(
       ({ currentLocation, nextLocation }) =>
-        !allowLeaveRef.current && hasProgress && currentLocation.pathname !== nextLocation.pathname,
-      [hasProgress]
+        !allowLeaveRef.current && guardLeaving && currentLocation.pathname !== nextLocation.pathname,
+      [guardLeaving]
     )
   );
 
@@ -1150,6 +1128,18 @@ export const EmployeeManagement: React.FC = () => {
 
   const exitWizard = (keepDraft: boolean) => {
     setConfirmExitOpen(false);
+    if (isEditing) {
+      if (blocker.state === 'blocked') {
+        clearWizard();
+        setEditTarget(null);
+        editOriginalRef.current = null;
+        allowLeaveRef.current = true;
+        blocker.proceed();
+      } else {
+        finishEdit();
+      }
+      return;
+    }
     if (!keepDraft) {
       clearDraft();
       clearWizard();
@@ -1188,13 +1178,17 @@ export const EmployeeManagement: React.FC = () => {
     if (!isAddingEmployee || restoredRef.current) return;
     restoredRef.current = true;
     const draft = readDraft();
-    if (!draft) return;
+    if (!draft) {
+      // Start empty, even if the form was last used to edit someone
+      clearWizard();
+      return;
+    }
     resetAdd(draft.values as Partial<OnboardingFormValues>);
     setMaxStep(draft.maxStep || 1);
     setSalary(draft.salary && Array.isArray(draft.salary.items) ? draft.salary : emptySalarySetup());
     setEnrolledFacePhoto(draft.facePhoto || null);
     setEnrolledFaceBiometrics(draft.faceBiometrics || null);
-  }, [isAddingEmployee, resetAdd]);
+  }, [isAddingEmployee, resetAdd, clearWizard]);
 
   // On the list, offer to continue a saved draft
   useEffect(() => {
@@ -1211,14 +1205,14 @@ export const EmployeeManagement: React.FC = () => {
 
   // Closing or refreshing the tab with unsaved typing asks first
   useEffect(() => {
-    if (!hasProgress) return;
+    if (!guardLeaving) return;
     const warn = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = '';
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [hasProgress]);
+  }, [guardLeaving]);
 
   const STEPS = [
     { step: 1, title: 'Personal details' },
@@ -1234,12 +1228,27 @@ export const EmployeeManagement: React.FC = () => {
     document.getElementById('workspace-main')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  if (isAddingEmployee) {
+  if (isEditing && !editTarget) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-6 pb-12">
+        {editLoadFailed ? (
+          <EmptyState tone="danger" title="Could not open this employee" description="They may have been removed. Go back and try again." actionLabel="Back to employees" onAction={() => navigate('/admin/employees')} />
+        ) : (
+          <div className="space-y-4" role="status" aria-label="Loading">
+            <div className="h-16 animate-pulse rounded-lg bg-slate-200" />
+            <div className="h-96 animate-pulse rounded-lg bg-slate-200" />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (isWizard) {
     return (
       <div className="mx-auto max-w-4xl space-y-6 pb-12">
         <PageHeader
-          title="Add employee"
-          description={`Step ${currentStep} of 4 · ${STEPS[currentStep - 1].title}`}
+          title={isEditing && editTarget ? `Edit ${editTarget.fullName}` : 'Add employee'}
+          description={`${isEditing && editTarget ? `${editTarget.employeeCode} · ` : ''}Step ${currentStep} of 4 · ${STEPS[currentStep - 1].title}`}
           actions={
             <Button type="button" variant="outline" onClick={() => navigate('/admin/employees')} leftIcon={<ArrowLeft className="h-4 w-4" />}>
               Back to employees
@@ -1441,6 +1450,7 @@ export const EmployeeManagement: React.FC = () => {
                       error={errorsAdd.shift?.message}
                       {...registerAdd('shift')}
                     />
+                    {watchAdd('needsManager') !== false && (
                     <div className="sm:col-span-2">
                       <Select
                         id="add-reporting-manager"
@@ -1461,6 +1471,7 @@ export const EmployeeManagement: React.FC = () => {
                         {...registerAdd('managerId')}
                       />
                     </div>
+                    )}
                   </div>
                 </div>
 
@@ -1685,7 +1696,7 @@ export const EmployeeManagement: React.FC = () => {
                 <Button type="submit">Next: {STEPS[Math.min(currentStep, 3)].title.toLowerCase()}</Button>
               ) : (
                 <Button type="submit" isLoading={isSubmittingAdd} disabled={!enrolledFacePhoto}>
-                  Add employee
+                  {isEditing ? 'Save changes' : 'Add employee'}
                 </Button>
               )}
             </div>
@@ -1695,16 +1706,18 @@ export const EmployeeManagement: React.FC = () => {
         <Modal
           isOpen={confirmExitOpen || blocker.state === 'blocked'}
           onClose={stayInWizard}
-          title="Leave this new employee?"
+          title={isEditing ? 'Leave without saving?' : 'Leave this new employee?'}
           size="sm"
           footer={
             <>
               <Button variant="ghost" className="mr-auto hover:bg-rose-50 hover:text-rose-700" onClick={() => exitWizard(false)}>
                 Discard
               </Button>
-              <Button variant="outline" onClick={() => exitWizard(true)}>
-                Save draft and leave
-              </Button>
+              {!isEditing && (
+                <Button variant="outline" onClick={() => exitWizard(true)}>
+                  Save draft and leave
+                </Button>
+              )}
               <Button onClick={stayInWizard}>Keep editing</Button>
             </>
           }
@@ -1779,183 +1792,6 @@ export const EmployeeManagement: React.FC = () => {
           emptyTitle={employees.length === 0 ? 'No employees yet' : 'No employees match'}
           emptyDescription={employees.length === 0 ? 'Add the first employee to get started.' : 'Try a different search, center or shift.'}
         />
-      )}
-
-      {/* Edit Employee Modal */}
-      {editingEmployee && (
-        <Modal
-          isOpen={isEditModalOpen}
-          onClose={() => {
-            setIsEditModalOpen(false);
-            setEditingEmployee(null);
-          }}
-          title={`Edit ${editingEmployee.fullName}`}
-          subtitle={editingEmployee.employeeCode}
-          size="lg"
-        >
-          <form onSubmit={handleSubmitEdit(onEditSubmit)} className="space-y-5" noValidate>
-            {/* Basic Info */}
-            <div>
-              <h3 className="mb-3 text-base font-semibold text-slate-900">Personal details</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input
-                  label="First name"
-                  error={errorsEdit.firstName?.message}
-                  {...registerEdit('firstName')}
-                />
-                <Input
-                  label="Last name"
-                  error={errorsEdit.lastName?.message}
-                  {...registerEdit('lastName')}
-                />
-                <Input
-                  label="Email (used to sign in)"
-                  type="email"
-                  error={errorsEdit.email?.message}
-                  {...registerEdit('email')}
-                />
-                <Input
-                  label="Mobile number"
-                  error={errorsEdit.phone?.message}
-                  {...registerEdit('phone')}
-                />
-                <div className="sm:col-span-2">
-                  <Input
-                    label="Address"
-                    placeholder="e.g. Flat 301, Sri Sai Enclave, Madhapur, Hyderabad - 500081"
-                    error={errorsEdit.address?.message}
-                    {...registerEdit('address')}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-slate-200 pt-5">
-              <h3 className="mb-3 text-base font-semibold text-slate-900">Face for check-in</h3>
-              <div className="flex flex-wrap items-center gap-4">
-                {editFacePhoto ? (
-                  <img src={editFacePhoto} alt={`Saved face of ${editingEmployee.fullName}`} className="h-16 w-16 shrink-0 rounded-lg border border-slate-200 object-cover" />
-                ) : (
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs text-slate-600">No photo</div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-slate-700">
-                    {editFacePhoto || editingEmployee.hasFacePhoto ? 'Replace it if check-in keeps failing or their look has changed.' : 'No face is saved, so they cannot check in yet.'}
-                  </p>
-                  <label className={`mt-2 inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-50 focus-within:ring-2 focus-within:ring-brand-400/60 ${editFaceBusy ? 'pointer-events-none opacity-60' : ''}`}>
-                    <Upload className="h-4 w-4" aria-hidden="true" />
-                    {editFaceBusy ? 'Checking the photo…' : editFacePhoto || editingEmployee.hasFacePhoto ? 'Upload a new photo' : 'Upload a photo'}
-                    <input type="file" accept="image/*" className="sr-only" onChange={replaceFace} disabled={editFaceBusy} />
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            {/* Placement Details */}
-            <div className="border-t border-slate-200 pt-5">
-              <h3 className="mb-3 text-base font-semibold text-slate-900">Work and pay</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <Select
-                  label="Center"
-                  options={[{ value: '', label: 'Select center' }, ...centerSelectOptions]}
-                  error={errorsEdit.location?.message}
-                  {...registerEdit('location')}
-                />
-                <Select
-                  label="Shift"
-                  options={[
-                    { value: 'MORNING', label: getShiftLabel('MORNING') },
-                    { value: 'EVENING', label: getShiftLabel('EVENING') },
-                  ]}
-                  error={errorsEdit.shift?.message}
-                  {...registerEdit('shift')}
-                />
-                <Select id="edit-reporting-manager" label="Reports to" options={[{ value: '', label: 'Not assigned' }, ...managers.filter(manager => manager.id !== editingEmployee.id).map(manager => ({ value: manager.id, label: manager.name }))]} error={errorsEdit.managerId?.message} helperText="This Manager reviews leave requests." {...registerEdit('managerId')} />
-                <Input
-                  label="Joining date"
-                  type="date"
-                  error={errorsEdit.joiningDate?.message}
-                  {...registerEdit('joiningDate')}
-                />
-                <Input
-                  label="PF number (UAN)"
-                  placeholder="12-digit number"
-                  helperText={summarizeSalary(editSalary).hasPf ? 'Needed because PF is deducted.' : 'Only needed when PF is deducted.'}
-                  error={errorsEdit.uanNumber?.message}
-                  {...registerEdit('uanNumber')}
-                />
-              </div>
-            </div>
-
-            <div className="border-t border-slate-200 pt-5">
-              <h3 className="mb-3 text-base font-semibold text-slate-900">Pay</h3>
-              <SalarySetup
-                idPrefix="edit"
-                value={editSalary}
-                onChange={(next) => {
-                  setEditSalary(next);
-                  if (editSalaryError) setEditSalaryError(salaryProblem(next));
-                }}
-                error={editSalaryError}
-              />
-            </div>
-
-            {/* Banking Details */}
-            <div className="border-t border-slate-200 pt-5">
-              <h3 className="mb-3 text-base font-semibold text-slate-900">Bank and tax</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
-                  <Input
-                    label="Bank name"
-                    error={errorsEdit.bankName?.message}
-                    {...registerEdit('bankName')}
-                  />
-                </div>
-                <Input
-                  label="Account number"
-                  error={errorsEdit.accountNumber?.message}
-                  {...registerEdit('accountNumber')}
-                />
-                <Input
-                  label="Re-enter account number"
-                  error={errorsEdit.confirmAccountNumber?.message}
-                  {...registerEdit('confirmAccountNumber')}
-                />
-                <Input
-                  label="IFSC code"
-                  error={errorsEdit.ifscCode?.message}
-                  {...registerEdit('ifscCode')}
-                />
-                <Input
-                  label="PAN"
-                  error={errorsEdit.panNumber?.message}
-                  {...registerEdit('panNumber')}
-                />
-              </div>
-            </div>
-
-            {/* Form Actions */}
-            <div className="border-t border-slate-200 pt-5 flex items-center justify-end gap-2.5">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setIsEditModalOpen(false);
-                  setEditingEmployee(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                isLoading={isSubmittingEdit}
-              >
-                Save changes
-              </Button>
-            </div>
-          </form>
-        </Modal>
       )}
 
       {selectedEmployee && isViewModalOpen && <EmployeeDetailsPanel key={selectedEmployee.id} employee={selectedEmployee} isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} onEdit={() => handleOpenEdit(selectedEmployee)} />}

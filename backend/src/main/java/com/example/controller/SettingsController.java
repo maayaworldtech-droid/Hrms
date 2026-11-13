@@ -16,7 +16,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @RestController
@@ -24,11 +23,9 @@ import java.util.*;
 public class SettingsController {
 
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Kolkata");
-    private static final DateTimeFormatter TS_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Autowired
     private CompanySettingsRepository settingsRepository;
-
 
     @Autowired
     private AuditLogRepository auditLogRepository;
@@ -102,36 +99,9 @@ public class SettingsController {
         return ResponseEntity.ok(saved);
     }
 
-    @GetMapping("/holidays")
-    public ResponseEntity<List<Map<String, Object>>> getHolidays() {
-        List<Map<String, Object>> holidays = new ArrayList<>();
-        holidays.add(createHoliday("1", "Republic Day", "2026-01-26", "Monday", "NATIONAL", true));
-        holidays.add(createHoliday("2", "Holi", "2026-03-04", "Wednesday", "FESTIVAL", true));
-        holidays.add(createHoliday("3", "Ugadi / Telugu New Year", "2026-03-20", "Friday", "FESTIVAL", true));
-        holidays.add(createHoliday("4", "Good Friday", "2026-04-03", "Friday", "FESTIVAL", true));
-        holidays.add(createHoliday("5", "Eid-ul-Fitr", "2026-04-20", "Monday", "FESTIVAL", true));
-        holidays.add(createHoliday("6", "Independence Day", "2026-08-15", "Saturday", "NATIONAL", true));
-        holidays.add(createHoliday("7", "Gandhi Jayanti", "2026-10-02", "Friday", "NATIONAL", true));
-        holidays.add(createHoliday("8", "Dussehra (Vijayadashami)", "2026-10-20", "Tuesday", "FESTIVAL", true));
-        holidays.add(createHoliday("9", "Diwali (Deepavali)", "2026-11-08", "Sunday", "FESTIVAL", true));
-        holidays.add(createHoliday("10", "Christmas Day", "2026-12-25", "Friday", "FESTIVAL", true));
-        return ResponseEntity.ok(holidays);
-    }
-
     @GetMapping("/audit-logs")
     public ResponseEntity<List<AuditLog>> getAuditLogs() {
         return ResponseEntity.ok(auditLogRepository.findAllByOrderByIdDesc());
-    }
-
-    private Map<String, Object> createHoliday(String id, String name, String date, String day, String type, boolean mandatory) {
-        Map<String, Object> m = new HashMap<>();
-        m.put("id", id);
-        m.put("name", name);
-        m.put("date", date);
-        m.put("dayOfWeek", day);
-        m.put("type", type);
-        m.put("isMandatory", mandatory);
-        return m;
     }
 
     /** Shift times must be HH:mm (24-hour) and end after they start. */

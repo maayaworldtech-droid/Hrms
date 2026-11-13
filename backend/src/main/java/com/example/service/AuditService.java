@@ -8,14 +8,12 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 
 /** Writes entries to the admin activity log shown on the Settings page. Never throws. */
 @Service
 public class AuditService {
 
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Kolkata");
-    private static final DateTimeFormatter TS_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final AuditLogRepository auditLogRepository;
 

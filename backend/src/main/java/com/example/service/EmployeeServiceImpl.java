@@ -47,29 +47,8 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     @Override
-    public Optional<Employee> getEmployeeByCode(String code) {
-        return employeeRepository.findByEmployeeCode(code);
-    }
-
-    @Override
-    public Optional<Employee> getEmployeeByEmail(String email) {
-        if (email == null) return Optional.empty();
-        return employeeRepository.findByEmailIgnoreCase(email.trim());
-    }
-
-    @Override
-    public Employee createEmployee(Employee employee) {
-        return onboardEmployee(employee);
-    }
-
-    @Override
     public Employee saveEmployee(Employee employee) {
         return employeeRepository.save(employee);
-    }
-
-    @Override
-    public Employee onboardEmployee(Employee employee) {
-        return onboardEmployee(employee, null);
     }
 
     @Override
@@ -142,18 +121,8 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     @Override
-    public boolean resendWelcomeEmail(Long id) {
-        return resendWelcomeEmail(id, null);
-    }
-
-    @Override
     public boolean resendWelcomeEmail(Long id, String portalUrl) {
         return employeeRepository.findById(id).map(emp -> sendWelcomeEmailToEmployee(emp, portalUrl)).orElse(false);
-    }
-
-    @Override
-    public boolean resendWelcomeEmailByEmail(String email) {
-        return resendWelcomeEmailByEmail(email, null);
     }
 
     @Override

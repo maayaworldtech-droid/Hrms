@@ -14,7 +14,6 @@ import java.util.List;
 public interface OnDutyRequestRepository extends JpaRepository<OnDutyRequest, Long> {
     List<OnDutyRequest> findByEmployeeIdOrderByDutyDateDesc(Long employeeId);
     List<OnDutyRequest> findAllByOrderByDutyDateDesc();
-    List<OnDutyRequest> findByStatusOrderByDutyDateDesc(String status);
 
     /** Keeps the denormalized center name in step when a center is renamed. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)

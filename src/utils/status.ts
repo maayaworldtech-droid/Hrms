@@ -45,9 +45,3 @@ export const reimbursementStatusLabel = (status: ReimbursementStatus | string | 
     : status === 'REJECTED'
     ? 'Claim rejected'
     : 'No claim';
-
-export const paymentStatusVariant = (status: string | undefined): BadgeVariant =>
-  status === 'PAID' ? 'success' : status === 'FAILED' ? 'error' : 'warning';
-
-export const regularizationStatusVariant = (status: string | undefined): BadgeVariant =>
-  status === 'APPROVED' ? 'success' : status === 'PENDING' ? 'warning' : status === 'REJECTED' ? 'error' : 'neutral';

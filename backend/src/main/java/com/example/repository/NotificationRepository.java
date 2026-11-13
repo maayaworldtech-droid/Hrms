@@ -11,7 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
@@ -19,8 +18,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     List<Notification> findByEmployeeIdOrderByCreatedAtDescIdDesc(Long employeeId, Pageable page);
 
     long countByEmployeeIdAndReadFalse(Long employeeId);
-
-    Optional<Notification> findByEmployeeIdAndEventKey(Long employeeId, String eventKey);
 
     long countByEmployeeIdAndEventKeyStartingWith(Long employeeId, String prefix);
 

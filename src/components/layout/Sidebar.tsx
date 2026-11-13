@@ -20,6 +20,7 @@ import {
   CreditCard,
   LogOut,
   Smartphone,
+  IndianRupee,
 } from 'lucide-react';
 
 interface NavSection {
@@ -104,6 +105,10 @@ export const Sidebar: React.FC = () => {
         { label: 'On Duty approvals', path: '/manager/on-duty', icon: Briefcase },
         { label: 'Payroll', path: '/manager/payroll', icon: Banknote },
       ],
+    },
+    {
+      title: 'My center',
+      items: [{ label: 'Daily sales', path: '/manager/sales', icon: IndianRupee }],
     },
     {
       title: 'Personal',

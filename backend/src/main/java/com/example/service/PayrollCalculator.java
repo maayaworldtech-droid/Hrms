@@ -35,7 +35,6 @@ public final class PayrollCalculator {
 
     public static final double PF_WAGE_CEILING = 15000.0;
     public static final double PF_RATE = 0.12;
-    public static final double ESI_WAGE_LIMIT = 21000.0;
     public static final double ESI_EMPLOYEE_RATE = 0.0075;
     public static final double ESI_EMPLOYER_RATE = 0.0325;
 

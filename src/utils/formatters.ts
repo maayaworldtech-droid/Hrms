@@ -19,15 +19,6 @@ export function formatINR(amount: number, showDecimals = false): string {
 }
 
 /**
- * Formats a plain number in Indian numbering system without currency symbol
- * Example: 1250000 -> "12,50,000"
- */
-export function formatIndianNumber(num: number): string {
-  if (isNaN(num)) return '0';
-  return new Intl.NumberFormat('en-IN').format(num);
-}
-
-/**
  * Format date string (YYYY-MM-DD) to friendly format (e.g. 15 Oct, 2026)
  */
 export function formatDate(dateStr?: string | Date): string {
@@ -38,19 +29,6 @@ export function formatDate(dateStr?: string | Date): string {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
-  }).format(d);
-}
-
-/**
- * Format date to short readable string (e.g. Oct 15)
- */
-export function formatShortDate(dateStr?: string | Date): string {
-  if (!dateStr) return '-';
-  const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
-  if (isNaN(d.getTime())) return '-';
-  return new Intl.DateTimeFormat('en-IN', {
-    day: 'numeric',
-    month: 'short',
   }).format(d);
 }
 

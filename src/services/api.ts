@@ -1,17 +1,17 @@
 import {
-  User,
   Employee,
   AttendanceRecord,
   LeaveRequest,
   OnDutyRequest,
   PayrollRun,
   Payslip,
-  Holiday,
   CompanySettings,
   AuditLog,
   Center,
   CenterInput,
   StaffNotification,
+  DailyCollection,
+  AttendanceSummaryRow,
 } from '@/types';
 
 const API_BASE = '/api';
@@ -288,32 +288,6 @@ export const api = {
         body: JSON.stringify(payload),
       });
     },
-
-    getCurrentUser: async (): Promise<User | null> => {
-      try {
-        const stored = localStorage.getItem('maaya_current_user');
-        if (!stored) return null;
-        const u = JSON.parse(stored);
-        return {
-          id: String(u.id),
-          name: u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
-          email: u.email,
-          role: u.role || 'EMPLOYEE',
-          designation: u.jobTitle || u.designation || 'Staff',
-          department: u.department || '',
-          employeeId: u.employeeCode || `MW-${u.id}`,
-          joiningDate: u.dateOfJoining || u.joiningDate || '',
-          phone: u.phone || '',
-          address: u.address || '',
-          status: u.status || 'ACTIVE',
-          mustChangePassword: u.mustChangePassword,
-          enrolledFacePhoto: u.enrolledFacePhoto || undefined,
-          enrolledFaceBiometrics: u.enrolledFaceBiometrics || undefined,
-        };
-      } catch {
-        return null;
-      }
-    },
   },
 
   // Employee Directory & Onboarding Endpoints
@@ -347,10 +321,6 @@ export const api = {
       return mapped;
     },
 
-    create: async (employeeData: Partial<Employee>): Promise<Employee> => {
-      return api.employees.onboard(employeeData);
-    },
-
     update: async (id: string | number, employeeData: Partial<Employee>): Promise<Employee> => {
       const cleanId = String(id).replace('emp-', '');
       const payload = buildEmployeePayload(employeeData);
@@ -370,18 +340,6 @@ export const api = {
       const cleanId = String(id).replace('emp-', '');
       await fetchJSON(`${API_BASE}/employees/${cleanId}`, { method: 'DELETE' });
       return true;
-    },
-
-    resendWelcomeEmail: async (idOrEmail: string | number): Promise<{ success: boolean; message: string }> => {
-      const cleanId = String(idOrEmail).replace('emp-', '');
-      if (cleanId.includes('@')) {
-        return fetchJSON<{ success: boolean; message: string }>(`${API_BASE}/employees/resend-email?email=${encodeURIComponent(cleanId)}`, {
-          method: 'POST',
-        });
-      }
-      return fetchJSON<{ success: boolean; message: string }>(`${API_BASE}/employees/${cleanId}/resend-email`, {
-        method: 'POST',
-      });
     },
 
     enrollFace: async (
@@ -756,6 +714,32 @@ export const api = {
     },
   },
 
+  // Daily sales per center (managers: own center; admin: every center)
+  collections: {
+    list: async (params: { from?: string; to?: string; center?: string } = {}): Promise<DailyCollection[]> => {
+      const qs = new URLSearchParams();
+      if (params.from) qs.set('from', params.from);
+      if (params.to) qs.set('to', params.to);
+      if (params.center && params.center !== 'ALL') qs.set('center', params.center);
+      const list = await fetchJSON<any[]>(`${API_BASE}/collections?${qs.toString()}`);
+      return list.map((c) => ({ ...c, id: String(c.id) }));
+    },
+    submit: async (entry: { date: string; bookMyShow: number; website: number; cashCounter: number; center?: string }): Promise<DailyCollection> => {
+      const c = await fetchJSON<any>(`${API_BASE}/collections`, { method: 'POST', body: JSON.stringify(entry) });
+      return { ...c, id: String(c.id) };
+    },
+  },
+
+  // Reports page (admin)
+  reports: {
+    attendance: async (month: string, center?: string): Promise<AttendanceSummaryRow[]> => {
+      const qs = new URLSearchParams({ month });
+      if (center && center !== 'ALL') qs.set('center', center);
+      const rows = await fetchJSON<any[]>(`${API_BASE}/reports/attendance?${qs.toString()}`);
+      return rows.map((r) => ({ ...r, employeeId: String(r.employeeId) }));
+    },
+  },
+
   // Notifications (the bell): only ever the signed-in person's own
   notifications: {
     list: async (limit = 30): Promise<{ items: StaffNotification[]; unread: number }> => {
@@ -792,29 +776,9 @@ export const api = {
     },
   },
 
-  // Holidays Endpoints
-  holidays: {
-    getAll: async (): Promise<Holiday[]> => {
-      return fetchJSON<Holiday[]>(`${API_BASE}/holidays`);
-    },
-  },
-
-  // Audit Logs Endpoints
-  auditLogs: {
-    getAll: async (): Promise<AuditLog[]> => {
-      return fetchJSON<AuditLog[]>(`${API_BASE}/audit-logs`);
-    },
-  },
-
   audit: {
-    getAll: async (): Promise<AuditLog[]> => {
-      return fetchJSON<AuditLog[]>(`${API_BASE}/audit-logs`);
-    },
     getLogs: async (): Promise<AuditLog[]> => {
       return fetchJSON<AuditLog[]>(`${API_BASE}/audit-logs`);
-    },
-    log: async (_payload: any): Promise<{ success: boolean }> => {
-      return { success: true };
     },
   },
 };

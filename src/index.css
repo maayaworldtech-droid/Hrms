@@ -346,6 +346,4 @@ body:has(dialog[open]) {
   .print-target[open] > div, .print-target[open] > div > div { max-height: none !important; overflow: visible !important; }
   .print-target[open]::backdrop { background: transparent !important; }
   [data-print="hide"] { display: none !important; }
-  .no-print { display: none !important; }
-  .print-only { display: block !important; }
 }

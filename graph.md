@@ -327,3 +327,12 @@ Admin initiates cycle (PayrollProcessing.tsx)
 
 **What & why:** Isolated deductions configuration exclusively to Breakdown mode so that Yearly salary configurations maintain a clean single annual figure without deduction subtractions or deduction inputs, ensuring clear separation of salary models.
 
+### 2026-11-13 (Evening) — Daily Collections Module, Backend Reports & Codebase Cleanup
+
+**Request:** Push the code and deploy the latest code.
+
+**Files changed:** `backend/.../entity/DailyCollection.java` (new), `backend/.../controller/DailyCollectionController.java` (new), `backend/.../repository/DailyCollectionRepository.java` (new), `backend/.../controller/ReportsController.java` (new), `backend/.../resources/db/migration/V3__daily_collections.sql` (new), `src/features/manager/DailyCollections.tsx` (new), `src/features/admin/ReportsAnalytics.tsx`, `src/App.tsx`, `src/components/layout/Sidebar.tsx`, `src/services/api.ts`, `src/types/index.ts`, `backend/.../controller/*`, `backend/.../service/*`, removed legacy `.ui-backups/` and `src/features/admin/reports/*`
+
+**What & why:** Added Flyway migration V3 and full backend/frontend flow for manager daily revenue collections per center, integrated new backend reporting endpoints, overhauled Reports & Analytics view, and pruned legacy backup directories and dead report utilities.
+
+

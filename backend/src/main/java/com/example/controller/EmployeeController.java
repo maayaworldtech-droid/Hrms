@@ -56,13 +56,6 @@ public class EmployeeController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    @GetMapping("/code/{code}")
-    public ResponseEntity<Employee> getEmployeeByCode(@PathVariable String code) {
-        return employeeService.getEmployeeByCode(code)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
-    }
-
     @PostMapping({"", "/onboard", "/create"})
     public ResponseEntity<Employee> onboardEmployee(@RequestBody Employee employee, HttpServletRequest request) {
         // A client-supplied id would turn this insert into an overwrite of an existing employee row

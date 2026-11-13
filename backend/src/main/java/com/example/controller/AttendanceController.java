@@ -261,15 +261,6 @@ public class AttendanceController {
         return ResponseEntity.ok(attendanceRepository.save(record));
     }
 
-    @PutMapping("/{id}/status")
-    public ResponseEntity<AttendanceRecord> updateStatus(@PathVariable Long id, @RequestBody Map<String, String> payload) {
-        String status = payload.get("status");
-        return attendanceRepository.findById(id).map(record -> {
-            if (status != null) record.setStatus(status);
-            return ResponseEntity.ok(attendanceRepository.save(record));
-        }).orElseGet(() -> ResponseEntity.notFound().build());
-    }
-
     @PutMapping("/{id}/approve-regularization")
     public ResponseEntity<AttendanceRecord> approveRegularization(@PathVariable Long id) {
         return attendanceRepository.findById(id).map(record -> {

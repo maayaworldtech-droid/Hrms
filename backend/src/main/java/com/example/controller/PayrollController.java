@@ -34,7 +34,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -47,7 +46,6 @@ import java.util.stream.Collectors;
 public class PayrollController {
 
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Kolkata");
-    private static final DateTimeFormatter TS_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Autowired
     private com.example.service.StaffNotices staffNotices;
