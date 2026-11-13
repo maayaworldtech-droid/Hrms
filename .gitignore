@@ -27,3 +27,5 @@ dist-ssr
 target/
 backend/target/
 
+
+dist.tgz
