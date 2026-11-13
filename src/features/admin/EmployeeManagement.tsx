@@ -20,6 +20,7 @@ import { useBlocker, useNavigate, useParams, useSearchParams } from 'react-route
 import {
   UserPlus,
   Eye,
+  Pencil,
   Trash2,
   Check,
   ArrowLeft,
@@ -1043,22 +1044,33 @@ export const EmployeeManagement: React.FC = () => {
         ),
     },
     {
-      key: 'monthlySalary',
-      header: 'Monthly salary',
+      key: 'ctcAnnual',
+      header: 'Yearly salary',
       sortable: true,
       align: 'right',
-      render: (row) => (
-        <span className="font-medium text-slate-900">
-          {row.monthlySalary || row.ctcAnnual ? formatINR(row.monthlySalary || Math.round(row.ctcAnnual / 12)) : 'Not set'}
-        </span>
-      ),
+      render: (row) => {
+        const yearly = row.ctcAnnual || (row.monthlySalary ? row.monthlySalary * 12 : 0);
+        return <span className="font-medium text-slate-900">{yearly ? formatINR(yearly) : 'Not set'}</span>;
+      },
     },
     {
       key: 'actions',
-      header: '',
+      header: 'Actions',
       align: 'right',
       render: (row) => (
         <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenEdit(row);
+            }}
+            aria-label={`Edit ${row.fullName}`}
+            title="Edit"
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
           <Button
             variant="ghost"
             size="icon"
