@@ -33,7 +33,7 @@ public class AuditService {
             String role = request != null ? (String) request.getAttribute(AuthFilter.ATTR_ROLE) : null;
             log.setActorName(email != null ? email : "System");
             log.setActorRole(role != null ? role : "SYSTEM");
-            log.setTimestamp(LocalDateTime.now(BUSINESS_ZONE).format(TS_FORMATTER));
+            log.setTimestamp(LocalDateTime.now(BUSINESS_ZONE).withNano(0));
             log.setIpAddress(request != null && request.getRemoteAddr() != null ? request.getRemoteAddr() : "127.0.0.1");
             auditLogRepository.save(log);
         } catch (Exception ignored) {

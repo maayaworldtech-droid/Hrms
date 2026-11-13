@@ -20,17 +20,17 @@ class PayrollCalculatorTest {
 
     private static AttendanceRecord present(String date) {
         AttendanceRecord r = new AttendanceRecord();
-        r.setDate(date);
+        r.setDate(LocalDate.parse(date));
         r.setStatus("PRESENT");
-        r.setCheckIn("09:00:00");
+        r.setCheckIn(java.time.LocalTime.of(9, 0));
         return r;
     }
 
     private static LeaveRequest leave(String type, String from, String to, double days) {
         LeaveRequest l = new LeaveRequest();
         l.setLeaveType(type);
-        l.setStartDate(from);
-        l.setEndDate(to);
+        l.setStartDate(LocalDate.parse(from));
+        l.setEndDate(LocalDate.parse(to));
         l.setDays(days);
         l.setStatus("APPROVED");
         return l;
@@ -74,7 +74,7 @@ class PayrollCalculatorTest {
 
     @Test
     void fullAttendanceMeansNoUnpaidDays() {
-        var c = PayrollCalculator.countDays(NOV_2026, "2025-01-01", 6, 1, AFTER_MONTH, fullMonthSixDays(NOV_2026, 0), List.of(), List.of());
+        var c = PayrollCalculator.countDays(NOV_2026, LocalDate.parse("2025-01-01"), 6, 1, AFTER_MONTH, fullMonthSixDays(NOV_2026, 0), List.of(), List.of());
         assertEquals(30, c.daysInMonth);
         assertEquals(30, c.employedDays);
         assertEquals(0, c.suggestedLopDays);
@@ -82,7 +82,7 @@ class PayrollCalculatorTest {
 
     @Test
     void missedWorkdaysBecomeUnpaidDays() {
-        var c = PayrollCalculator.countDays(NOV_2026, "2025-01-01", 6, 1, AFTER_MONTH, fullMonthSixDays(NOV_2026, 3), List.of(), List.of());
+        var c = PayrollCalculator.countDays(NOV_2026, LocalDate.parse("2025-01-01"), 6, 1, AFTER_MONTH, fullMonthSixDays(NOV_2026, 3), List.of(), List.of());
         assertEquals(3, c.suggestedLopDays);
         assertEquals(3.0, c.absentDays);
     }
@@ -90,7 +90,7 @@ class PayrollCalculatorTest {
     @Test
     void onlyOnePaidLeaveDayAMonth() {
         // Missed Nov 2 and 3 on approved casual leave: the first day is paid, the second is cut
-        var c = PayrollCalculator.countDays(NOV_2026, "2025-01-01", 6, 1, AFTER_MONTH, fullMonthSixDays(NOV_2026, 2),
+        var c = PayrollCalculator.countDays(NOV_2026, LocalDate.parse("2025-01-01"), 6, 1, AFTER_MONTH, fullMonthSixDays(NOV_2026, 2),
                 List.of(leave("CASUAL_LEAVE", "2026-11-02", "2026-11-03", 2)), List.of());
         assertEquals(1.0, c.paidLeaveDays);
         assertEquals(1.0, c.unpaidLeaveDays);
@@ -99,7 +99,7 @@ class PayrollCalculatorTest {
 
     @Test
     void oneLeaveDayIsFullyPaid() {
-        var c = PayrollCalculator.countDays(NOV_2026, "2025-01-01", 6, 1, AFTER_MONTH, fullMonthSixDays(NOV_2026, 1),
+        var c = PayrollCalculator.countDays(NOV_2026, LocalDate.parse("2025-01-01"), 6, 1, AFTER_MONTH, fullMonthSixDays(NOV_2026, 1),
                 List.of(leave("SICK_LEAVE", "2026-11-02", "2026-11-02", 1)), List.of());
         assertEquals(0, c.suggestedLopDays);
         assertEquals(1.0, c.paidLeaveDays);
@@ -107,7 +107,7 @@ class PayrollCalculatorTest {
 
     @Test
     void paidLeaveAllowanceComesFromSettings() {
-        var c = PayrollCalculator.countDays(NOV_2026, "2025-01-01", 6, 2, AFTER_MONTH, fullMonthSixDays(NOV_2026, 2),
+        var c = PayrollCalculator.countDays(NOV_2026, LocalDate.parse("2025-01-01"), 6, 2, AFTER_MONTH, fullMonthSixDays(NOV_2026, 2),
                 List.of(leave("CASUAL_LEAVE", "2026-11-02", "2026-11-03", 2)), List.of());
         assertEquals(0, c.suggestedLopDays);
     }
@@ -122,7 +122,7 @@ class PayrollCalculatorTest {
 
     @Test
     void unpaidLeaveAlwaysCounts() {
-        var c = PayrollCalculator.countDays(NOV_2026, "2025-01-01", 6, 1, AFTER_MONTH, fullMonthSixDays(NOV_2026, 2),
+        var c = PayrollCalculator.countDays(NOV_2026, LocalDate.parse("2025-01-01"), 6, 1, AFTER_MONTH, fullMonthSixDays(NOV_2026, 2),
                 List.of(leave("LOSS_OF_PAY", "2026-11-02", "2026-11-03", 2)), List.of());
         assertEquals(2, c.suggestedLopDays);
         assertEquals(2.0, c.unpaidLeaveDays);
@@ -132,8 +132,8 @@ class PayrollCalculatorTest {
     @Test
     void joiningMidMonthOnlyCountsEmployedDays() {
         List<AttendanceRecord> fromJoining = new ArrayList<>();
-        for (AttendanceRecord r : fullMonthSixDays(NOV_2026, 0)) if (r.getDate().compareTo("2026-11-16") >= 0) fromJoining.add(r);
-        var c = PayrollCalculator.countDays(NOV_2026, "2026-11-16", 6, 1, AFTER_MONTH, fromJoining, List.of(), List.of());
+        for (AttendanceRecord r : fullMonthSixDays(NOV_2026, 0)) if (!r.getDate().isBefore(LocalDate.of(2026, 11, 16))) fromJoining.add(r);
+        var c = PayrollCalculator.countDays(NOV_2026, LocalDate.parse("2026-11-16"), 6, 1, AFTER_MONTH, fromJoining, List.of(), List.of());
         assertEquals(15, c.employedDays);
         assertEquals(0, c.suggestedLopDays);
     }
@@ -142,8 +142,8 @@ class PayrollCalculatorTest {
     void runningMidMonthDoesNotTreatFutureDaysAsAbsent() {
         LocalDate midMonth = LocalDate.of(2026, 11, 10);
         List<AttendanceRecord> soFar = new ArrayList<>();
-        for (AttendanceRecord r : fullMonthSixDays(NOV_2026, 0)) if (r.getDate().compareTo("2026-11-10") <= 0) soFar.add(r);
-        var c = PayrollCalculator.countDays(NOV_2026, "2025-01-01", 6, 1, midMonth, soFar, List.of(), List.of());
+        for (AttendanceRecord r : fullMonthSixDays(NOV_2026, 0)) if (!r.getDate().isAfter(LocalDate.of(2026, 11, 10))) soFar.add(r);
+        var c = PayrollCalculator.countDays(NOV_2026, LocalDate.parse("2025-01-01"), 6, 1, midMonth, soFar, List.of(), List.of());
         assertEquals(0, c.suggestedLopDays);
     }
 

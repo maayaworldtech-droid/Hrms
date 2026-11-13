@@ -55,6 +55,23 @@ export function formatShortDate(dateStr?: string | Date): string {
 }
 
 /**
+ * Format a date-time such as "2026-11-13T11:29:19" (India time, from the server) to
+ * "13 Nov 2026, 11:29 am".
+ */
+export function formatDateTime(value?: string): string {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  return new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(d);
+}
+
+/**
  * Format 24-hour time "14:30" or ISO to "02:30 PM"
  */
 export function formatTime(timeStr?: string): string {

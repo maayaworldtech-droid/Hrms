@@ -69,19 +69,18 @@ public class OnDutyController {
                 request.setStatus("PENDING");
             } else {
                 request.setStatus("APPROVED");
-                request.setReviewedOn(LocalDate.now(BUSINESS_ZONE).toString());
+                request.setReviewedOn(LocalDate.now(BUSINESS_ZONE));
                 request.setReviewedBy(resolveReviewerName(httpRequest, request.getReviewedBy()));
             }
         }
 
-        if (request.getDutyDate() == null || request.getDutyDate().trim().isEmpty()) {
-            request.setDutyDate(LocalDate.now(BUSINESS_ZONE).toString());
+        if (request.getDutyDate() == null) {
+            request.setDutyDate(LocalDate.now(BUSINESS_ZONE));
         }
 
         if (request.getEmployeeId() != null) {
             employeeRepository.findById(request.getEmployeeId()).ifPresent(emp -> {
                 request.setEmployeeName(emp.getFullName());
-                request.setDepartmentName(emp.getDepartment());
                 request.setLocation(emp.getLocationName());
             });
         }
@@ -123,7 +122,7 @@ public class OnDutyController {
         }
 
         if (cleanStatus != null) req.setStatus(cleanStatus);
-        req.setReviewedOn(LocalDate.now(BUSINESS_ZONE).toString());
+        req.setReviewedOn(LocalDate.now(BUSINESS_ZONE));
         req.setReviewedBy(resolveReviewerName(httpRequest, reviewer));
         if (reviewerComments != null) req.setReviewerComments(reviewerComments);
 
@@ -213,7 +212,7 @@ public class OnDutyController {
         }
 
         if (cleanStatus != null) req.setReimbursementStatus(cleanStatus);
-        req.setReimbursedOn(LocalDate.now(BUSINESS_ZONE).toString());
+        req.setReimbursedOn(LocalDate.now(BUSINESS_ZONE));
         req.setReimbursedBy(resolveReviewerName(httpRequest, reviewer));
         if (reviewerComments != null) req.setReimbursementComments(reviewerComments);
 

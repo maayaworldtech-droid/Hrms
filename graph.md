@@ -32,13 +32,14 @@ d:\Hrms/
 │   ├── mvnw / mvnw.cmd                — Maven wrappers
 │   └── src/main/
 │       ├── java/com/example/
-│       │   ├── controller/            — Spring REST Controllers (Auth, Center, Employee, Attendance, Leave, OnDuty, Payroll, Settings)
+│       │   ├── controller/            — Spring REST Controllers (Auth, Center, Employee, Attendance, Leave, OnDuty, Payroll, Settings, ApiErrorHandler)
 │       │   ├── demo/                  — Main class (EmployeeApplication) & seed data (DataInitializer)
 │       │   ├── entity/                — JPA Hibernate Entities (Employee, AttendanceRecord, LeaveRequest, OnDutyRequest, Payslip, AuditLog, Location, etc.)
 │       │   ├── repository/            — Spring Data JPA Repositories
 │       │   ├── security/              — AuthFilter (Bearer RBAC), AuthTokenService (HMAC-SHA256), PasswordHasher (PBKDF2), PortalUrlResolver
-│       │   └── service/               — Business logic (EmployeeServiceImpl, AuthService, CenterService, AuditService, PayrollCalculator, ZeptoMailService)
+│       │   └── service/               — Business logic (EmployeeServiceImpl, AuthService, CenterService, AuditService, PayrollCalculator, FaceDataRetention, ZeptoMailService)
 │       └── resources/
+│           ├── db/migration/          — Flyway versioned SQL migrations (V1__baseline.sql)
 │           └── application.properties — DB URL (PostgreSQL 5432/hrms_db), port 8083, env-backed ZeptoMail & auth secrets
 │
 └── src/                               — React TypeScript Single Page Application
@@ -301,3 +302,11 @@ Admin initiates cycle (PayrollProcessing.tsx)
 **Files changed:** `backend/.../service/PayrollCalculator.java` (new), `backend/.../test/.../PayrollCalculatorTest.java` (new), `backend/.../controller/PayrollController.java`, `backend/.../entity/{CompanySettings,PayrollRun,Payslip}.java`, `src/components/payroll/*` (new), `src/utils/payroll.ts` (new), `src/features/employee/EmployeeDashboard.tsx`, `src/features/employee/MyAttendance.tsx` (removed), `src/features/admin/PayrollProcessing.tsx`, `src/features/employee/MySalary.tsx`, `AGENTS.md`
 
 **What & why:** Extracted standalone Indian payroll calculation into dedicated `PayrollCalculator` service covered by unit tests, moved payroll review and payslip rendering into `src/components/payroll/`, unified employee attendance and punch-in history into the mobile `EmployeeDashboard` home view (retiring the standalone `MyAttendance` page per mobile-first AGENTS rules), and integrated statutory payroll settings.
+
+### 2026-11-13 (Midday) — Database Migrations (Flyway), API Error Handling & Face Data Retention
+
+**Request:** Deploy the latest code and push to GitHub and AWS.
+
+**Files changed:** `backend/pom.xml`, `backend/.../db/migration/V1__baseline.sql` (new), `backend/.../controller/ApiErrorHandler.java` (new), `backend/.../service/FaceDataRetention.java` (new), `backend/.../entity/{Department,LeaveBalance}.java` (deleted), `backend/.../repository/{Department,LeaveBalance}Repository.java` (deleted), `backend/.../controller/*`, `backend/.../service/*`, `backend/src/main/resources/application.properties`, `.gitignore`, `src/features/admin/EmployeeManagement.tsx`, `src/components/attendance/BiometricAttendanceModal.tsx`, `src/components/common/EmployeeDetailsPanel.tsx`, `src/services/api.ts`, `src/types/index.ts`, `src/utils/formatters.ts`
+
+**What & why:** Added Flyway database migrations with baseline V1 schema, added global API error handling (`ApiErrorHandler`), introduced face biometric data retention scheduled cleanup (`FaceDataRetention`), cleaned up deprecated entity repositories (`Department`, `LeaveBalance`), added Flyway baseline configuration in `application.properties`, and updated frontend employee & biometrics components.

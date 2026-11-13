@@ -87,6 +87,11 @@ public class AuthFilter extends OncePerRequestFilter {
 
         AuthTokenService.TokenClaims claims = claimsOpt.get();
         Optional<Employee> empOpt = employeeRepository.findById(claims.employeeId());
+        // The token must still belong to the same person: ids can be reused (for example after the
+        // database is rebuilt), so also match the email the token was issued for.
+        if (empOpt.isPresent() && (claims.email() == null || !claims.email().equalsIgnoreCase(empOpt.get().getEmail()))) {
+            empOpt = Optional.empty();
+        }
         if (empOpt.isEmpty() || "TERMINATED".equalsIgnoreCase(empOpt.get().getStatus())) {
             sendError(response, HttpServletResponse.SC_UNAUTHORIZED, "Account is inactive or unavailable.");
             return;

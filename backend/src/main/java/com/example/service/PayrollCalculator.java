@@ -71,7 +71,7 @@ public final class PayrollCalculator {
      */
     public static DayCount countDays(
             YearMonth month,
-            String joiningDate,
+            LocalDate joiningDate,
             int workDaysPerWeek,
             double paidLeavesPerMonth,
             LocalDate countUntil,
@@ -85,7 +85,7 @@ public final class PayrollCalculator {
         c.daysInMonth = month.lengthOfMonth();
 
         LocalDate start = monthStart;
-        LocalDate joined = parse(joiningDate);
+        LocalDate joined = joiningDate;
         if (joined != null && joined.isAfter(start)) start = joined;
         if (start.isAfter(monthEnd)) {
             c.employedDays = 0;
@@ -98,17 +98,17 @@ public final class PayrollCalculator {
 
         Map<LocalDate, Double> worked = new HashMap<>();
         for (AttendanceRecord r : attendance) {
-            LocalDate d = parse(r.getDate());
+            LocalDate d = r.getDate();
             if (d == null || d.isBefore(start) || d.isAfter(end)) continue;
             String status = r.getStatus() == null ? "" : r.getStatus().toUpperCase();
             double value;
             if ("HALF_DAY".equals(status)) value = 0.5;
-            else if (WORKED_STATUSES.contains(status) || (r.getCheckIn() != null && !r.getCheckIn().isBlank() && !"ABSENT".equals(status))) value = 1.0;
+            else if (WORKED_STATUSES.contains(status) || (r.getCheckIn() != null && !"ABSENT".equals(status))) value = 1.0;
             else value = 0.0;
             worked.merge(d, value, Math::max);
         }
         for (OnDutyRequest od : approvedDuties) {
-            LocalDate d = parse(od.getDutyDate());
+            LocalDate d = od.getDutyDate();
             if (d == null || d.isBefore(start) || d.isAfter(end)) continue;
             worked.merge(d, 1.0, Math::max);
         }
@@ -116,8 +116,8 @@ public final class PayrollCalculator {
         Map<LocalDate, Double> paidLeave = new HashMap<>();
         Map<LocalDate, Double> unpaidLeave = new HashMap<>();
         for (LeaveRequest l : approvedLeaves) {
-            LocalDate from = parse(l.getStartDate());
-            LocalDate to = parse(l.getEndDate());
+            LocalDate from = l.getStartDate();
+            LocalDate to = l.getEndDate();
             if (from == null) continue;
             if (to == null || to.isBefore(from)) to = from;
             // A single-day request for half a day counts as half
@@ -204,15 +204,6 @@ public final class PayrollCalculator {
         double total = pf + nz(s.getEsiEmployee()) + nz(s.getProfessionalTax()) + nz(s.getTds()) + other;
         s.setTotalDeductions(total);
         s.setNetMonthly(Math.max(0.0, gross - total));
-    }
-
-    private static LocalDate parse(String iso) {
-        if (iso == null || iso.isBlank()) return null;
-        try {
-            return LocalDate.parse(iso.trim().substring(0, Math.min(10, iso.trim().length())));
-        } catch (Exception e) {
-            return null;
-        }
     }
 
     private static double nz(Double v) {

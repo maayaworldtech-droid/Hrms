@@ -106,6 +106,8 @@ export interface Employee {
   avatarUrl?: string;
   enrolledFacePhoto?: string;
   enrolledFaceBiometrics?: string;
+  /** The employee list leaves the photo out; this says whether one is saved. */
+  hasFacePhoto?: boolean;
 }
 
 export type AttendanceStatus = 
@@ -168,13 +170,6 @@ export interface LeaveRequest {
   reviewedBy?: string;
   reviewedOn?: string;
   reviewerComments?: string;
-}
-
-export interface LeaveBalance {
-  casualLeave: { total: number; used: number; remaining: number };
-  sickLeave: { total: number; used: number; remaining: number };
-  earnedLeave: { total: number; used: number; remaining: number };
-  compOff: { total: number; used: number; remaining: number };
 }
 
 export type OnDutyType = 
@@ -336,15 +331,6 @@ export interface Holiday {
   description?: string;
 }
 
-export interface Department {
-  id: string;
-  name: string;
-  code: string;
-  headName: string;
-  headEmail: string;
-  employeeCount: number;
-  budgetAllocated: number;
-}
 
 export interface CompanySettings {
   companyName: string;

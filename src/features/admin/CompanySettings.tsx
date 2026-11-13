@@ -14,6 +14,7 @@ import { useCenters, centerTypeLabel, refreshCenters } from '@/hooks/useCenters'
 import { CenterFormModal } from './settings/CenterFormModal';
 import { CenterManagersModal } from './settings/CenterManagersModal';
 import { ShiftsPanel } from './settings/ShiftsPanel';
+import { formatDateTime } from '@/utils/formatters';
 import { PageHeader } from '@/components/common/PageHeader';
 
 type Tab = 'centers' | 'shifts' | 'company' | 'activity';
@@ -434,7 +435,7 @@ const ActivityPanel: React.FC = () => {
               <p className="text-sm text-slate-700">{log.details}</p>
             </div>
             <p className="text-xs text-slate-600 text-right shrink-0">
-              {log.timestamp}
+              {formatDateTime(log.timestamp)}
               <br />
               {log.actorName}
             </p>

@@ -1,5 +1,8 @@
 package com.example.entity;
 
+import java.time.LocalDate;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -20,8 +23,22 @@ public class PayrollRun {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** The center this payroll covers. Older runs made before payroll was per center have none. */
-    private String center;
+    /** The center this payroll covers. */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "location_id", nullable = false)
+    @JsonIgnore
+    private Location location;
+
+    /** Center name for the app; always the current name, so renaming a center never breaks payroll. */
+    @JsonProperty("center")
+    public String getCenter() {
+        return location != null ? location.getName() : null;
+    }
+
+    @JsonProperty("locationId")
+    public Integer getLocationId() {
+        return location != null ? location.getLocationId() : null;
+    }
 
     private String month; // e.g. "October" or "2026-10"
     private int year = 2026;
@@ -32,8 +49,8 @@ public class PayrollRun {
     private Double totalNetPay = 0.0;
 
     private String status = "DRAFT"; // DRAFT, APPROVED, DISBURSED
-    private String processedAt; // YYYY-MM-DD
-    private String disbursedAt; // YYYY-MM-DD
+    private LocalDate processedAt;
+    private LocalDate disbursedAt;
     private String disbursedBy;
 
     @Transient

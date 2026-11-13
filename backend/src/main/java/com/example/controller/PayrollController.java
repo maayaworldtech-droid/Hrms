@@ -13,6 +13,8 @@ import com.example.repository.AuditLogRepository;
 import com.example.repository.CompanySettingsRepository;
 import com.example.repository.EmployeeRepository;
 import com.example.repository.LeaveRequestRepository;
+import com.example.repository.LocationRepository;
+import com.example.entity.Location;
 import com.example.repository.OnDutyRequestRepository;
 import com.example.repository.PayrollRunRepository;
 import com.example.repository.PayslipRepository;
@@ -71,6 +73,9 @@ public class PayrollController {
     @Autowired
     private CompanySettingsRepository settingsRepository;
 
+    @Autowired
+    private LocationRepository locationRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @GetMapping("/runs")
@@ -119,26 +124,28 @@ public class PayrollController {
 
         // Payroll is worked out one center at a time. A manager can only do their own center.
         String requestedCenter = payload.get("center") != null ? payload.get("center").toString().trim() : "";
-        String center;
+        Location payLocation;
         if (isManager(request)) {
-            center = managerCenter(request);
-            if (center == null) {
+            payLocation = managerLocation(request);
+            if (payLocation == null) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not assigned to a center.");
             }
-            if (!requestedCenter.isEmpty() && !requestedCenter.equalsIgnoreCase(center)) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only run payroll for " + center + ".");
+            if (!requestedCenter.isEmpty() && !requestedCenter.equalsIgnoreCase(payLocation.getName())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only run payroll for " + payLocation.getName() + ".");
             }
         } else {
             if (requestedCenter.isEmpty()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose a center.");
             }
-            center = requestedCenter;
+            payLocation = locationRepository.findFirstByNameIgnoreCaseOrderByLocationIdAsc(requestedCenter)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown center: " + requestedCenter));
         }
-        final String payCenter = center;
+        final String payCenter = payLocation.getName();
+        final int payLocationId = payLocation.getLocationId();
 
-        // The same center and month, plus any older all-centers run for the month
+        // The same center and month
         List<PayrollRun> existingRuns = payrollRunRepository.findByMonthIgnoreCaseAndYear(month, year).stream()
-                .filter(r -> r.getCenter() == null || r.getCenter().equalsIgnoreCase(payCenter))
+                .filter(r -> r.getLocation() != null && r.getLocation().getLocationId() == payLocationId)
                 .toList();
         for (PayrollRun existing : existingRuns) {
             if ("DISBURSED".equalsIgnoreCase(existing.getStatus())) {
@@ -155,16 +162,15 @@ public class PayrollController {
         }
 
         YearMonth payMonth = YearMonth.of(year, monthIndex(month));
-        String monthStart = payMonth.atDay(1).toString();
-        String monthEnd = payMonth.atEndOfMonth().toString();
+        LocalDate monthStart = payMonth.atDay(1);
+        LocalDate monthEnd = payMonth.atEndOfMonth();
 
         // The admin is the owner, not salaried staff; people joining after this month are not paid yet
         List<Employee> employees = employeeRepository.findAll().stream()
                 .filter(emp -> !"TERMINATED".equalsIgnoreCase(emp.getStatus()))
                 .filter(emp -> !"ADMIN".equalsIgnoreCase(emp.getRole()))
-                .filter(emp -> emp.getDateOfJoining() == null || emp.getDateOfJoining().isBlank()
-                        || emp.getDateOfJoining().compareTo(monthEnd) <= 0)
-                .filter(emp -> emp.getLocationName() != null && emp.getLocationName().equalsIgnoreCase(payCenter))
+                .filter(emp -> emp.getDateOfJoining() == null || !emp.getDateOfJoining().isAfter(monthEnd))
+                .filter(emp -> emp.getLocation() != null && emp.getLocation().getLocationId() == payLocationId)
                 .toList();
         if (employees.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No staff to pay at " + payCenter + " for " + month + " " + year + ".");
@@ -180,22 +186,22 @@ public class PayrollController {
                 .collect(Collectors.groupingBy(AttendanceRecord::getEmployeeId));
         Map<Long, List<LeaveRequest>> leaveByPerson = leaveRequestRepository.findByStatusOrderByAppliedOnDesc("APPROVED")
                 .stream().filter(l -> l.getEmployeeId() != null
-                        && l.getStartDate() != null && l.getStartDate().compareTo(monthEnd) <= 0
-                        && (l.getEndDate() == null || l.getEndDate().compareTo(monthStart) >= 0))
+                        && l.getStartDate() != null && !l.getStartDate().isAfter(monthEnd)
+                        && (l.getEndDate() == null || !l.getEndDate().isBefore(monthStart)))
                 .collect(Collectors.groupingBy(LeaveRequest::getEmployeeId));
         Map<Long, List<OnDutyRequest>> dutyByPerson = onDutyRequestRepository.findAll().stream()
                 .filter(o -> o.getEmployeeId() != null
                         && ("APPROVED".equalsIgnoreCase(o.getStatus()) || "COMPLETED".equalsIgnoreCase(o.getStatus()))
-                        && o.getDutyDate() != null && o.getDutyDate().compareTo(monthStart) >= 0 && o.getDutyDate().compareTo(monthEnd) <= 0)
+                        && o.getDutyDate() != null && !o.getDutyDate().isBefore(monthStart) && !o.getDutyDate().isAfter(monthEnd))
                 .collect(Collectors.groupingBy(OnDutyRequest::getEmployeeId));
 
         PayrollRun run = new PayrollRun();
-        run.setCenter(payCenter);
+        run.setLocation(payLocation);
         run.setMonth(month);
         run.setYear(year);
         run.setTotalEmployees(employees.size());
         run.setStatus("DRAFT");
-        run.setProcessedAt(today.toString());
+        run.setProcessedAt(today);
         PayrollRun savedRun = payrollRunRepository.save(run);
 
         List<Payslip> generatedSlips = new ArrayList<>();
@@ -206,7 +212,6 @@ public class PayrollController {
             slip.setEmployeeCode(emp.getEmployeeCode());
             slip.setEmployeeName(emp.getFullName());
             slip.setDesignation(emp.getJobTitle());
-            slip.setDepartment(emp.getDepartment());
             slip.setLocation(emp.getLocationName());
             slip.setPanNumber(emp.getPanNumber() != null ? emp.getPanNumber() : "");
             slip.setUanNumber(emp.getUanNumber() != null ? emp.getUanNumber() : "");
@@ -326,7 +331,7 @@ public class PayrollController {
             HttpServletRequest request
     ) {
         String disbursedBy = payload != null && payload.get("disbursedBy") != null ? payload.get("disbursedBy") : "Administrator";
-        String todayStr = LocalDate.now(BUSINESS_ZONE).toString();
+        LocalDate todayDate = LocalDate.now(BUSINESS_ZONE);
         Optional<PayrollRun> existing = payrollRunRepository.findById(runId);
         if (existing.isPresent() && "DISBURSED".equalsIgnoreCase(existing.get().getStatus())) {
             // Re-disbursing would overwrite the original payment date and disburser on every payslip
@@ -334,13 +339,13 @@ public class PayrollController {
         }
         return existing.map(run -> {
             run.setStatus("DISBURSED");
-            run.setDisbursedAt(todayStr);
+            run.setDisbursedAt(todayDate);
             run.setDisbursedBy(disbursedBy);
 
             List<Payslip> slips = payslipRepository.findByPayrollRunId(runId);
             for (Payslip slip : slips) {
                 slip.setPaymentStatus("PAID");
-                slip.setPaymentDate(todayStr);
+                slip.setPaymentDate(todayDate);
             }
             payslipRepository.saveAll(slips);
 
@@ -360,11 +365,16 @@ public class PayrollController {
     }
 
     /** The center a signed-in manager runs; null for admins or managers without a center. */
-    private String managerCenter(HttpServletRequest request) {
+    private Location managerLocation(HttpServletRequest request) {
         if (!isManager(request)) return null;
         Long id = (Long) request.getAttribute(AuthFilter.ATTR_EMPLOYEE_ID);
         if (id == null) return null;
-        return employeeRepository.findById(id).map(Employee::getLocationName).filter(n -> !n.isBlank()).orElse(null);
+        return employeeRepository.findById(id).map(Employee::getLocation).orElse(null);
+    }
+
+    private String managerCenter(HttpServletRequest request) {
+        Location loc = managerLocation(request);
+        return loc != null ? loc.getName() : null;
     }
 
     private void requireCenterAccess(HttpServletRequest request, String center) {
@@ -513,7 +523,7 @@ public class PayrollController {
             String role = (String) request.getAttribute(AuthFilter.ATTR_ROLE);
             log.setActorName(email != null ? email : "Administrator");
             log.setActorRole(role != null ? role : "ADMIN");
-            log.setTimestamp(LocalDateTime.now(BUSINESS_ZONE).format(TS_FORMATTER));
+            log.setTimestamp(LocalDateTime.now(BUSINESS_ZONE).withNano(0));
             log.setIpAddress(request.getRemoteAddr() != null ? request.getRemoteAddr() : "127.0.0.1");
             auditLogRepository.save(log);
         } catch (Exception ignored) {}

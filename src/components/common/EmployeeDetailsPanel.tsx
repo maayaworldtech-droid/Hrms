@@ -3,6 +3,7 @@ import { X, Pencil } from 'lucide-react';
 import { Employee } from '@/types';
 import { getReportingManager } from '@/utils/reportingManager';
 import { formatDate, formatINR } from '@/utils/formatters';
+import { api } from '@/services/api';
 import { getShiftDefinition } from '@/utils/shiftUtils';
 import { accessLabel } from '@/utils/access';
 import { Button } from './Button';
@@ -24,6 +25,23 @@ export const EmployeeDetailsPanel = ({
 }) => {
   const dialog = useRef<HTMLDialogElement>(null);
   const [section, setSection] = useState<(typeof sections)[number]>('Personal');
+  // The list does not carry face photos, so fetch this one person's photo when the panel opens.
+  const [fetchedPhoto, setFetchedPhoto] = useState<{ id: string; photo: string } | null>(null);
+  const facePhoto = employee.enrolledFacePhoto || (fetchedPhoto?.id === employee.id ? fetchedPhoto.photo : undefined);
+
+  useEffect(() => {
+    if (!isOpen || employee.enrolledFacePhoto || !employee.hasFacePhoto) return;
+    let cancelled = false;
+    api.employees
+      .getById(employee.id)
+      .then((full) => {
+        if (!cancelled && full?.enrolledFacePhoto) setFetchedPhoto({ id: employee.id, photo: full.enrolledFacePhoto });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, employee.id, employee.enrolledFacePhoto, employee.hasFacePhoto]);
 
   useEffect(() => {
     const element = dialog.current;
@@ -98,9 +116,9 @@ export const EmployeeDetailsPanel = ({
 
           {section === 'Personal' && (
             <>
-              {employee.enrolledFacePhoto && (
+              {facePhoto && (
                 <div className="mb-5 flex items-center gap-3">
-                  <img src={employee.enrolledFacePhoto} alt="" className="h-14 w-14 shrink-0 rounded-lg border border-slate-200 object-cover" />
+                  <img src={facePhoto} alt="" className="h-14 w-14 shrink-0 rounded-lg border border-slate-200 object-cover" />
                   <div>
                     <p className="text-sm font-medium text-slate-900">Face saved for check-in</p>
                     <p className="text-xs text-slate-600">Used to verify daily attendance.</p>
@@ -114,7 +132,7 @@ export const EmployeeDetailsPanel = ({
                 ['Blood group', employee.bloodGroup],
                 ['Address', employee.address],
                 ['Emergency contact', emergency],
-                ['Face for check-in', employee.enrolledFacePhoto ? 'Saved' : 'Not saved yet'],
+                ['Face for check-in', employee.hasFacePhoto || facePhoto ? 'Saved' : 'Not saved yet'],
               ])}
             </>
           )}

@@ -2,10 +2,8 @@ package com.example.controller;
 
 import com.example.entity.AuditLog;
 import com.example.entity.CompanySettings;
-import com.example.entity.Department;
 import com.example.repository.AuditLogRepository;
 import com.example.repository.CompanySettingsRepository;
-import com.example.repository.DepartmentRepository;
 import com.example.security.AuthFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,8 +29,6 @@ public class SettingsController {
     @Autowired
     private CompanySettingsRepository settingsRepository;
 
-    @Autowired
-    private DepartmentRepository departmentRepository;
 
     @Autowired
     private AuditLogRepository auditLogRepository;
@@ -99,16 +95,11 @@ public class SettingsController {
         String role = request != null ? (String) request.getAttribute(AuthFilter.ATTR_ROLE) : null;
         log.setActorName(email != null ? email : "Administrator");
         log.setActorRole(role != null ? role : "ADMIN");
-        log.setTimestamp(LocalDateTime.now(BUSINESS_ZONE).format(TS_FORMATTER));
+        log.setTimestamp(LocalDateTime.now(BUSINESS_ZONE).withNano(0));
         log.setIpAddress(request != null && request.getRemoteAddr() != null ? request.getRemoteAddr() : "127.0.0.1");
         auditLogRepository.save(log);
 
         return ResponseEntity.ok(saved);
-    }
-
-    @GetMapping("/departments")
-    public ResponseEntity<List<Department>> getDepartments() {
-        return ResponseEntity.ok(departmentRepository.findAll());
     }
 
     @GetMapping("/holidays")

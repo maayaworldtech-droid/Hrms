@@ -1,10 +1,9 @@
 package com.example.service;
 
 import com.example.entity.Employee;
-import com.example.entity.LeaveBalance;
 import com.example.entity.Location;
 import com.example.repository.EmployeeRepository;
-import com.example.repository.LeaveBalanceRepository;
+import com.example.repository.PayslipRepository;
 import com.example.security.PasswordHasher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -21,11 +20,12 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Autowired
     private final EmployeeRepository employeeRepository;
 
-    @Autowired
-    private LeaveBalanceRepository leaveBalanceRepository;
 
     @Autowired
     private CenterService centerService;
+
+    @Autowired
+    private PayslipRepository payslipRepository;
 
     @Autowired
     private ZeptoMailService zeptoMailService;
@@ -122,21 +122,6 @@ public class EmployeeServiceImpl implements EmployeeService {
         Employee saved = employeeRepository.save(target);
         saved.setTemporaryPassword(plainPassword);
 
-        // Initialize Leave Balance for this employee
-        if (leaveBalanceRepository.findByEmployeeId(saved.getId()).isEmpty()) {
-            LeaveBalance balance = new LeaveBalance();
-            balance.setEmployeeId(saved.getId());
-            balance.setCasualTotal(12);
-            balance.setCasualUsed(0);
-            balance.setSickTotal(10);
-            balance.setSickUsed(0);
-            balance.setEarnedTotal(18);
-            balance.setEarnedUsed(0);
-            balance.setCompOffTotal(2);
-            balance.setCompOffUsed(0);
-            leaveBalanceRepository.save(balance);
-        }
-
         // Send onboarding email via ZeptoMail
         final String email = saved.getEmail();
         final String fullName = saved.getFullName();
@@ -202,7 +187,6 @@ public class EmployeeServiceImpl implements EmployeeService {
             if (updates.getPhone() != null) existing.setPhone(updates.getPhone());
             if (updates.getAddress() != null) existing.setAddress(updates.getAddress());
             if (updates.getJobTitle() != null) existing.setJobTitle(updates.getJobTitle());
-            if (updates.getDepartment() != null) existing.setDepartment(updates.getDepartment());
             if (updates.getManagerId() != null) existing.setManagerId(updates.getManagerId());
             if (updates.getManagerName() != null) existing.setManagerName(updates.getManagerName());
             if (updates.getEmploymentType() != null) existing.setEmploymentType(updates.getEmploymentType());
@@ -263,6 +247,11 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     public boolean deleteEmployee(Long id) {
         if (employeeRepository.existsById(id)) {
+            // Pay history has to be kept, so someone who has been paid is marked inactive instead.
+            if (payslipRepository.existsByEmployeeId(id)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "This person has payslips, so they can't be deleted. Set their status to Deactivated instead.");
+            }
             employeeRepository.deleteById(id);
             return true;
         }

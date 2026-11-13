@@ -126,21 +126,18 @@ public class AttendanceController {
 
         int safePage = Math.max(0, page);
         int safeSize = Math.max(1, Math.min(50, size));
-        String startStr = startDate.toString();
-        String endStr = endDate.toString();
-
         Slice<AttendanceRecord> slice = attendanceRepository.findByEmployeeIdAndDateBetweenOrderByDateDescIdDesc(
                 employeeId,
-                startStr,
-                endStr,
+                startDate,
+                endDate,
                 PageRequest.of(safePage, safeSize)
         );
-        boolean hasOlderRecords = attendanceRepository.existsByEmployeeIdAndDateLessThan(employeeId, startStr);
+        boolean hasOlderRecords = attendanceRepository.existsByEmployeeIdAndDateLessThan(employeeId, startDate);
 
         Map<String, Object> body = new HashMap<>();
         body.put("items", slice.getContent());
-        body.put("fromDate", startStr);
-        body.put("toDate", endStr);
+        body.put("fromDate", startDate.toString());
+        body.put("toDate", endDate.toString());
         body.put("page", slice.getNumber());
         body.put("size", slice.getSize());
         body.put("hasMore", slice.hasNext());
@@ -158,8 +155,8 @@ public class AttendanceController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Cannot record attendance for another employee"));
         }
 
-        String date = resolvePunchDate(request, employeeId, payload);
-        String time = resolvePunchTime(request, employeeId, payload);
+        LocalDate date = resolvePunchDate(request, employeeId, payload);
+        LocalTime time = resolvePunchTime(request, employeeId, payload);
         if (date == null || time == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Invalid date or time. Expected YYYY-MM-DD and HH:mm[:ss]."));
         }
@@ -174,7 +171,7 @@ public class AttendanceController {
         AttendanceRecord record;
         if (existingOpt.isPresent()) {
             record = existingOpt.get();
-            if (record.getCheckIn() != null && !record.getCheckIn().isBlank()) {
+            if (record.getCheckIn() != null) {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
                         .body(Map.of("message", "Already checked in for " + date));
             }
@@ -185,7 +182,6 @@ public class AttendanceController {
             record.setDate(date);
             record.setCheckIn(time);
             record.setEmployeeName(emp.getFullName());
-            record.setDepartmentName(emp.getDepartment());
             record.setLocation(emp.getLocationName());
             record.setShift(emp.getShift() != null ? emp.getShift() : "MORNING");
         }
@@ -208,20 +204,20 @@ public class AttendanceController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Cannot record check-out for another employee"));
         }
 
-        String date = resolvePunchDate(request, employeeId, payload);
-        String time = resolvePunchTime(request, employeeId, payload);
+        LocalDate date = resolvePunchDate(request, employeeId, payload);
+        LocalTime time = resolvePunchTime(request, employeeId, payload);
         if (date == null || time == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Invalid date or time. Expected YYYY-MM-DD and HH:mm[:ss]."));
         }
 
         Optional<AttendanceRecord> existingOpt = attendanceRepository.findByEmployeeIdAndDate(employeeId, date);
-        if (existingOpt.isEmpty() || existingOpt.get().getCheckIn() == null || existingOpt.get().getCheckIn().isBlank()) {
+        if (existingOpt.isEmpty() || existingOpt.get().getCheckIn() == null) {
             return ResponseEntity.badRequest()
                     .body(Map.of("message", "No check-in found for " + date + ". Please check in first."));
         }
 
         AttendanceRecord record = existingOpt.get();
-        if (record.getCheckOut() != null && !record.getCheckOut().isBlank()) {
+        if (record.getCheckOut() != null) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("message", "Already checked out for " + date));
         }
@@ -310,28 +306,28 @@ public class AttendanceController {
         return privileged && authId != null && !authId.equals(targetEmployeeId);
     }
 
-    private String resolvePunchDate(HttpServletRequest request, Long employeeId, Map<String, Object> payload) {
+    private LocalDate resolvePunchDate(HttpServletRequest request, Long employeeId, Map<String, Object> payload) {
         Object raw = payload.get("date");
         if (mayOverridePunchTime(request, employeeId) && raw != null && !raw.toString().isBlank()) {
             try {
-                return LocalDate.parse(raw.toString().trim()).toString();
+                return LocalDate.parse(raw.toString().trim());
             } catch (DateTimeParseException e) {
                 return null;
             }
         }
-        return LocalDate.now(BUSINESS_ZONE).toString();
+        return LocalDate.now(BUSINESS_ZONE);
     }
 
-    private String resolvePunchTime(HttpServletRequest request, Long employeeId, Map<String, Object> payload) {
+    private LocalTime resolvePunchTime(HttpServletRequest request, Long employeeId, Map<String, Object> payload) {
         Object raw = payload.get("time");
         if (mayOverridePunchTime(request, employeeId) && raw != null && !raw.toString().isBlank()) {
             try {
-                return parseTimeFlexible(raw.toString()).format(TIME_FORMATTER);
+                return parseTimeFlexible(raw.toString());
             } catch (DateTimeParseException e) {
                 return null;
             }
         }
-        return LocalTime.now(BUSINESS_ZONE).format(TIME_FORMATTER);
+        return LocalTime.now(BUSINESS_ZONE).withNano(0);
     }
 
     private void applyAuditPayload(AttendanceRecord record, Map<String, Object> payload) {
@@ -364,9 +360,8 @@ public class AttendanceController {
         }
     }
 
-    private String resolveArrivalStatus(String shift, String checkInTimeStr) {
+    private String resolveArrivalStatus(String shift, LocalTime checkIn) {
         try {
-            LocalTime checkIn = parseTimeFlexible(checkInTimeStr);
             // Shift start and late allowance come from Settings (defaults 09:00 / 13:00, 15 minutes)
             CompanySettings settings = settingsRepository.findAll().stream().findFirst().orElseGet(CompanySettings::new);
             LocalTime shiftStart = LocalTime.parse("EVENING".equalsIgnoreCase(shift)
@@ -379,10 +374,8 @@ public class AttendanceController {
         }
     }
 
-    private double calculateWorkHours(String checkInStr, String checkOutStr) {
+    private double calculateWorkHours(LocalTime start, LocalTime end) {
         try {
-            LocalTime start = parseTimeFlexible(checkInStr);
-            LocalTime end = parseTimeFlexible(checkOutStr);
             long minutes = Duration.between(start, end).toMinutes();
             if (minutes < 0) {
                 minutes += 24 * 60;
@@ -390,6 +383,15 @@ public class AttendanceController {
             return Math.round((minutes / 60.0) * 100.0) / 100.0;
         } catch (Exception e) {
             return 0.0;
+        }
+    }
+
+    private static LocalDate parseDateOrNull(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return LocalDate.parse(raw.trim());
+        } catch (DateTimeParseException e) {
+            return null;
         }
     }
 
@@ -417,13 +419,16 @@ public class AttendanceController {
                 predicates.add(root.get("employeeId").in(employeeIds));
             }
             if (date != null && !date.isBlank()) {
-                predicates.add(cb.equal(root.get("date"), date.trim()));
+                LocalDate on = parseDateOrNull(date);
+                if (on != null) predicates.add(cb.equal(root.<LocalDate>get("date"), on));
             }
             if (fromDate != null && !fromDate.isBlank()) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("date"), fromDate.trim()));
+                LocalDate from = parseDateOrNull(fromDate);
+                if (from != null) predicates.add(cb.greaterThanOrEqualTo(root.<LocalDate>get("date"), from));
             }
             if (toDate != null && !toDate.isBlank()) {
-                predicates.add(cb.lessThanOrEqualTo(root.get("date"), toDate.trim()));
+                LocalDate to = parseDateOrNull(toDate);
+                if (to != null) predicates.add(cb.lessThanOrEqualTo(root.<LocalDate>get("date"), to));
             }
             if (location != null && !location.isBlank() && !"ALL".equalsIgnoreCase(location.trim())) {
                 predicates.add(cb.equal(cb.lower(root.get("location")), location.trim().toLowerCase()));
@@ -456,7 +461,6 @@ public class AttendanceController {
                 String pattern = "%" + search.trim().toLowerCase() + "%";
                 predicates.add(cb.or(
                         cb.like(cb.lower(cb.coalesce(root.get("employeeName"), "")), pattern),
-                        cb.like(cb.lower(cb.coalesce(root.get("departmentName"), "")), pattern),
                         cb.like(cb.lower(cb.coalesce(root.get("location"), "")), pattern)
                 ));
             }

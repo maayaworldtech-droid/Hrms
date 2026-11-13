@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.LocalDate;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -49,13 +50,12 @@ public class Employee {
     private String address;
 
     private String jobTitle; // designation
-    private String department;
     private Long managerId;
     private String managerName;
     private String employmentType; // FULL_TIME, PART_TIME, CONTRACT, INTERN
     private String status;         // ACTIVE, PROBATION, ON_LEAVE, TERMINATED
     private String shift;          // MORNING, EVENING
-    private String dateOfJoining;  // YYYY-MM-DD
+    private LocalDate dateOfJoining;
 
     private Double monthlySalary;
     private Double ctcAnnual;
@@ -116,11 +116,11 @@ public class Employee {
     }
 
     @JsonProperty("joiningDate")
-    public String getJoiningDate() {
+    public LocalDate getJoiningDate() {
         return dateOfJoining;
     }
 
-    public void setJoiningDate(String joiningDate) {
+    public void setJoiningDate(LocalDate joiningDate) {
         this.dateOfJoining = joiningDate;
     }
 
@@ -161,5 +161,10 @@ public class Employee {
         contact.put("phone", emergencyContactPhone != null ? emergencyContactPhone : "");
         contact.put("relationship", emergencyContactRelationship != null ? emergencyContactRelationship : "");
         return contact;
+    }
+
+    /** Stored as ADMIN, MANAGER or EMPLOYEE whatever case the form sends. */
+    public void setRole(String role) {
+        this.role = role == null || role.isBlank() ? null : role.trim().toUpperCase(java.util.Locale.ROOT);
     }
 }

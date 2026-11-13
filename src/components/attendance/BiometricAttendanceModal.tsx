@@ -22,6 +22,7 @@ import {
   FaceBiometricDescriptor,
   VerificationComparisonResult,
 } from '@/utils/faceBiometrics';
+import { formatTime } from '@/utils/formatters';
 import {
   Camera,
   MapPin,
@@ -72,11 +73,11 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
   const [isFaceCentered, setIsFaceCentered] = useState(false);
 
   const [enrolledPhoto, setEnrolledPhoto] = useState<string | null>(
-    employee.enrolledFacePhoto || localStorage.getItem(`maaya_face_photo_${employee.id}`) || null
+    employee.enrolledFacePhoto || null
   );
   const [enrolledDescriptor, setEnrolledDescriptor] = useState<FaceBiometricDescriptor | null>(null);
   const [isEnrolled, setIsEnrolled] = useState<boolean>(
-    !!(employee.enrolledFacePhoto || localStorage.getItem(`maaya_face_photo_${employee.id}`))
+    !!(employee.enrolledFacePhoto)
   );
   const [isEnrollingMode, setIsEnrollingMode] = useState<boolean>(false);
   const [verificationResult, setVerificationResult] = useState<VerificationComparisonResult | null>(null);
@@ -142,8 +143,8 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
       return null;
     };
 
-    const photo = employee.enrolledFacePhoto || localStorage.getItem(`maaya_face_photo_${employee.id}`);
-    const bioJson = employee.enrolledFaceBiometrics || localStorage.getItem(`maaya_face_bio_${employee.id}`);
+    const photo = employee.enrolledFacePhoto;
+    const bioJson = employee.enrolledFaceBiometrics;
 
     if (photo) {
       setEnrolledPhoto(photo);
@@ -164,7 +165,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
         if (emp?.enrolledFacePhoto) {
           setEnrolledPhoto(emp.enrolledFacePhoto);
           setIsEnrolled(true);
-          const empBioJson = (emp as any).enrolledFaceBiometrics || localStorage.getItem(`maaya_face_bio_${emp.id || employee.id}`);
+          const empBioJson = (emp as any).enrolledFaceBiometrics;
           const savedDesc = tryParseDescriptor(empBioJson);
           if (savedDesc) {
             setEnrolledDescriptor(savedDesc);
@@ -720,7 +721,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
           addToast({
             type: 'success',
             title: 'Checked in',
-            message: `Checked in at ${record.checkIn || timeFormatted}.`,
+            message: `Checked in at ${formatTime(record.checkIn || timeFormatted)}.`,
           })
         );
         onSuccess(record);
@@ -730,7 +731,7 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
           addToast({
             type: 'success',
             title: 'Checked out',
-            message: `Checked out at ${record.checkOut || timeFormatted}.`,
+            message: `Checked out at ${formatTime(record.checkOut || timeFormatted)}.`,
           })
         );
         onSuccess(record);

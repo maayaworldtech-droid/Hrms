@@ -1,5 +1,8 @@
 package com.example.entity;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -20,15 +23,14 @@ public class AttendanceRecord {
 
     private Long employeeId;
     private String employeeName;
-    private String departmentName;
     private String location;
     private String shift;
 
     @Column(nullable = false)
-    private String date; // YYYY-MM-DD
+    private LocalDate date;
 
-    private String checkIn; // HH:mm:ss
-    private String checkOut; // HH:mm:ss
+    private LocalTime checkIn;
+    private LocalTime checkOut;
     private String status; // PRESENT, ABSENT, HALF_DAY, ON_LEAVE, LATE, WORK_FROM_HOME
     private Double workHours = 0.0;
 
@@ -47,7 +49,9 @@ public class AttendanceRecord {
     @Column(columnDefinition = "TEXT")
     private String facePhoto;
 
+    /** Face measurements taken at check-in. Accepted from the app but never sent back: lists stay small. */
     @Column(columnDefinition = "TEXT")
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String faceBiometrics;
 
     @CreationTimestamp

@@ -1,5 +1,7 @@
 package com.example.entity;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -20,12 +22,11 @@ public class OnDutyRequest {
 
     private Long employeeId;
     private String employeeName;
-    private String departmentName;
     private String location;
 
-    private String dutyDate;  // YYYY-MM-DD
-    private String startTime; // HH:mm
-    private String endTime;   // HH:mm
+    private LocalDate dutyDate;
+    private LocalTime startTime;
+    private LocalTime endTime;
 
     private String dutyType;  // BANK_DEPOSIT, PROCUREMENT, CLIENT_VISIT, DELIVERY, OFFICIAL_ERRAND, OTHER
 
@@ -35,7 +36,7 @@ public class OnDutyRequest {
     private String status = "PENDING"; // PENDING, APPROVED, REJECTED, COMPLETED, CANCELLED
 
     private String reviewedBy;
-    private String reviewedOn;
+    private LocalDate reviewedOn;
     @Column(columnDefinition = "TEXT")
     private String reviewerComments;
 
@@ -50,7 +51,7 @@ public class OnDutyRequest {
 
     private String reimbursementStatus = "NONE"; // NONE, PENDING, REIMBURSED, REJECTED
     private String reimbursedBy;
-    private String reimbursedOn;
+    private LocalDate reimbursedOn;
     @Column(columnDefinition = "TEXT")
     private String reimbursementComments;
 

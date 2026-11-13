@@ -3,12 +3,10 @@ import {
   Employee,
   AttendanceRecord,
   LeaveRequest,
-  LeaveBalance,
   OnDutyRequest,
   PayrollRun,
   Payslip,
   Holiday,
-  Department,
   CompanySettings,
   AuditLog,
   Center,
@@ -194,8 +192,9 @@ const mapEmployee = (emp: any, fallbackId?: string): Employee => {
     emergencyContactPhone: emp.emergencyContactPhone || emp.emergencyContact?.phone || '',
     emergencyContactRelationship: emp.emergencyContactRelationship || emp.emergencyContact?.relationship || '',
     salaryStructureJson: emp.salaryStructureJson || '',
-    enrolledFacePhoto: emp.enrolledFacePhoto || localStorage.getItem(`maaya_face_photo_${storageKeyId}`) || undefined,
-    enrolledFaceBiometrics: emp.enrolledFaceBiometrics || localStorage.getItem(`maaya_face_bio_${storageKeyId}`) || undefined,
+    enrolledFacePhoto: emp.enrolledFacePhoto || undefined,
+    enrolledFaceBiometrics: emp.enrolledFaceBiometrics || undefined,
+    hasFacePhoto: Boolean(emp.hasFacePhoto || emp.enrolledFacePhoto),
   };
 };
 
@@ -308,8 +307,8 @@ export const api = {
           address: u.address || '',
           status: u.status || 'ACTIVE',
           mustChangePassword: u.mustChangePassword,
-          enrolledFacePhoto: u.enrolledFacePhoto || localStorage.getItem(`maaya_face_photo_${u.id}`) || undefined,
-          enrolledFaceBiometrics: u.enrolledFaceBiometrics || localStorage.getItem(`maaya_face_bio_${u.id}`) || undefined,
+          enrolledFacePhoto: u.enrolledFacePhoto || undefined,
+          enrolledFaceBiometrics: u.enrolledFaceBiometrics || undefined,
         };
       } catch {
         return null;
@@ -355,6 +354,10 @@ export const api = {
     update: async (id: string | number, employeeData: Partial<Employee>): Promise<Employee> => {
       const cleanId = String(id).replace('emp-', '');
       const payload = buildEmployeePayload(employeeData);
+      // Faces are changed only through enroll-face; never send a face back with an edit.
+      delete payload.enrolledFacePhoto;
+      delete payload.enrolledFaceBiometrics;
+      delete payload.hasFacePhoto;
       const res = await fetchJSON<any>(`${API_BASE}/employees/${cleanId}`, {
         method: 'PUT',
         body: JSON.stringify(payload),
@@ -394,8 +397,6 @@ export const api = {
           body: JSON.stringify({ enrolledFacePhoto, enrolledFaceBiometrics }),
         }
       );
-      localStorage.setItem(`maaya_face_photo_${cleanId}`, enrolledFacePhoto);
-      localStorage.setItem(`maaya_face_bio_${cleanId}`, enrolledFaceBiometrics);
       try {
         const rawUser = localStorage.getItem('maaya_current_user');
         if (rawUser) {
@@ -552,11 +553,6 @@ export const api = {
     getByEmployee: async (employeeId: string | number): Promise<LeaveRequest[]> => {
       const cleanId = String(employeeId).replace('emp-', '');
       return listWithStringIds<LeaveRequest>(await fetchJSON<any[]>(`${API_BASE}/leaves/employee/${cleanId}`));
-    },
-
-    getBalances: async (employeeId: string | number): Promise<LeaveBalance> => {
-      const cleanId = String(employeeId).replace('emp-', '');
-      return fetchJSON<LeaveBalance>(`${API_BASE}/leaves/balances/${cleanId}`);
     },
 
     apply: async (request: Partial<LeaveRequest>): Promise<LeaveRequest> => {
@@ -757,13 +753,6 @@ export const api = {
         { method: 'DELETE' }
       );
       return normalizeCenter(res);
-    },
-  },
-
-  // Department Endpoints
-  departments: {
-    getAll: async (): Promise<Department[]> => {
-      return fetchJSON<Department[]>(`${API_BASE}/departments`);
     },
   },
 

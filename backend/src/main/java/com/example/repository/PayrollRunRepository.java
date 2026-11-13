@@ -10,4 +10,5 @@ import java.util.List;
 public interface PayrollRunRepository extends JpaRepository<PayrollRun, Long> {
     List<PayrollRun> findAllByOrderByYearDescMonthDesc();
     List<PayrollRun> findByMonthIgnoreCaseAndYear(String month, int year);
+    boolean existsByLocation_LocationId(int locationId);
 }

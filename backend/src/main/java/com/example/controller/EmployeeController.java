@@ -4,6 +4,8 @@ import com.example.entity.Employee;
 import com.example.security.AuthFilter;
 import com.example.security.PortalUrlResolver;
 import com.example.service.EmployeeService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,14 +21,29 @@ public class EmployeeController {
     private final EmployeeService employeeService;
     private final PortalUrlResolver portalUrlResolver;
 
-    public EmployeeController(EmployeeService employeeService, PortalUrlResolver portalUrlResolver) {
+    private final ObjectMapper objectMapper;
+
+    public EmployeeController(EmployeeService employeeService, PortalUrlResolver portalUrlResolver, ObjectMapper objectMapper) {
         this.employeeService = employeeService;
         this.portalUrlResolver = portalUrlResolver;
+        this.objectMapper = objectMapper;
     }
 
+    /**
+     * The list leaves out the saved face photo and face measurements (about 90 KB per person),
+     * so a center of 40 people does not send megabytes on every page load. It says whether a
+     * face is saved instead; open one employee to get the photo.
+     */
     @GetMapping
-    public ResponseEntity<List<Employee>> getAllEmployees() {
-        return ResponseEntity.ok(employeeService.getAllEmployees());
+    public ResponseEntity<List<ObjectNode>> getAllEmployees() {
+        List<ObjectNode> rows = employeeService.getAllEmployees().stream().map(emp -> {
+            ObjectNode node = objectMapper.valueToTree(emp);
+            node.remove("enrolledFacePhoto");
+            node.remove("enrolledFaceBiometrics");
+            node.put("hasFacePhoto", emp.getEnrolledFacePhoto() != null && !emp.getEnrolledFacePhoto().isBlank());
+            return node;
+        }).toList();
+        return ResponseEntity.ok(rows);
     }
 
     @GetMapping("/{id}")

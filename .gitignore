@@ -29,3 +29,5 @@ backend/target/
 
 
 dist.tgz
+db-backups/
+*.dump

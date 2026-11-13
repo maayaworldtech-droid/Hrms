@@ -14,6 +14,7 @@ import java.util.List;
 public interface PayslipRepository extends JpaRepository<Payslip, Long> {
     List<Payslip> findByEmployeeIdOrderByYearDescMonthDesc(Long employeeId);
     List<Payslip> findByPayrollRunId(Long payrollRunId);
+    boolean existsByEmployeeId(Long employeeId);
     void deleteByPayrollRunId(Long payrollRunId);
 
     /** Keeps the denormalized center name in step when a center is renamed. */

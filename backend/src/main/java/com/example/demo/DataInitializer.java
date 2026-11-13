@@ -2,14 +2,12 @@ package com.example.demo;
 
 import com.example.entity.CompanySettings;
 import com.example.entity.Employee;
-import com.example.entity.LeaveBalance;
 import com.example.entity.PayrollRun;
 import com.example.entity.Payslip;
 import com.example.repository.CompanySettingsRepository;
 import com.example.repository.PayrollRunRepository;
 import com.example.repository.PayslipRepository;
 import com.example.repository.EmployeeRepository;
-import com.example.repository.LeaveBalanceRepository;
 import com.example.security.PasswordHasher;
 import com.example.service.CenterService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,8 +36,6 @@ public class DataInitializer {
     @Autowired
     private EmployeeRepository employeeRepository;
 
-    @Autowired
-    private LeaveBalanceRepository leaveBalanceRepository;
 
     @Autowired
     private CompanySettingsRepository settingsRepository;
@@ -115,7 +111,7 @@ public class DataInitializer {
             admin.setEmploymentType("FULL_TIME");
             admin.setStatus("ACTIVE");
             admin.setShift("MORNING");
-            admin.setDateOfJoining(LocalDate.now(ZoneId.of("Asia/Kolkata")).toString());
+            admin.setDateOfJoining(LocalDate.now(ZoneId.of("Asia/Kolkata")));
             admin = employeeRepository.save(admin);
             System.out.println("Created administrator account for: " + ADMIN_EMAIL);
         } else {
@@ -128,12 +124,6 @@ public class DataInitializer {
                 admin.setPassword(PasswordHasher.hash(admin.getPassword()));
             }
             employeeRepository.save(admin);
-        }
-
-        if (leaveBalanceRepository.findByEmployeeId(admin.getId()).isEmpty()) {
-            LeaveBalance lb = new LeaveBalance();
-            lb.setEmployeeId(admin.getId());
-            leaveBalanceRepository.save(lb);
         }
     }
 

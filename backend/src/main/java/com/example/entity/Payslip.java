@@ -1,5 +1,6 @@
 package com.example.entity;
 
+import java.time.LocalDate;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -26,7 +27,6 @@ public class Payslip {
     private String employeeCode;
     private String employeeName;
     private String designation;
-    private String department;
     private String location;
 
     private String panNumber;
@@ -90,7 +90,7 @@ public class Payslip {
     private Double ptMonthly = 0.0;
 
     private String paymentStatus = "PAID"; // PAID, PENDING, FAILED
-    private String paymentDate;
+    private LocalDate paymentDate;
     private String paymentMode = "NEFT";
 
     @CreationTimestamp

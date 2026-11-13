@@ -52,13 +52,16 @@ public class CenterService {
     private final LeaveRequestRepository leaveRequestRepository;
     private final OnDutyRequestRepository onDutyRequestRepository;
     private final PayslipRepository payslipRepository;
+    private final com.example.repository.PayrollRunRepository payrollRunRepository;
 
     public CenterService(LocationRepository locationRepository,
                          EmployeeRepository employeeRepository,
                          AttendanceRepository attendanceRepository,
                          LeaveRequestRepository leaveRequestRepository,
                          OnDutyRequestRepository onDutyRequestRepository,
-                         PayslipRepository payslipRepository) {
+                         PayslipRepository payslipRepository,
+                         com.example.repository.PayrollRunRepository payrollRunRepository) {
+        this.payrollRunRepository = payrollRunRepository;
         this.locationRepository = locationRepository;
         this.employeeRepository = employeeRepository;
         this.attendanceRepository = attendanceRepository;
@@ -175,6 +178,10 @@ public class CenterService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     loc.getName() + " still has " + assigned + " staff member" + (assigned == 1 ? "" : "s")
                             + ". Move them to another center before deleting it.");
+        }
+        if (payrollRunRepository.existsByLocation_LocationId(id)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    loc.getName() + " has payroll history, so it cannot be deleted. Rename it instead if it has moved.");
         }
         // Deactivated staff keep their history; detach them so the foreign key does not block the delete
         for (Employee former : employeeRepository.findByLocation_LocationId(id)) {

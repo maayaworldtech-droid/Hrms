@@ -1,5 +1,6 @@
 package com.example.entity;
 
+import java.time.LocalDateTime;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -21,7 +22,7 @@ public class AuditLog {
     private String details;
     private String actorName;
     private String actorRole;
-    private String timestamp;
+    private LocalDateTime timestamp;
     private String ipAddress;
 }
 

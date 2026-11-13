@@ -1102,13 +1102,9 @@ export const EmployeeManagement: React.FC = () => {
       sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2.5">
-          {row.enrolledFacePhoto ? (
-            <img src={row.enrolledFacePhoto} alt="" className="h-8 w-8 shrink-0 rounded-full border border-slate-200 object-cover" />
-          ) : (
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700" aria-hidden="true">
-              {(row.firstName?.[0] || '') + (row.lastName?.[0] || '')}
-            </div>
-          )}
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700" aria-hidden="true">
+            {(row.firstName?.[0] || '') + (row.lastName?.[0] || '')}
+          </div>
           <div className="min-w-0">
             <div className="truncate font-medium text-slate-900">{row.fullName}</div>
             <div className="truncate text-xs text-slate-600">
@@ -1138,10 +1134,10 @@ export const EmployeeManagement: React.FC = () => {
       },
     },
     {
-      key: 'enrolledFacePhoto',
+      key: 'hasFacePhoto',
       header: 'Face ID',
       render: (row) =>
-        row.enrolledFacePhoto ? (
+        row.hasFacePhoto ? (
           <Badge variant="success" size="sm" dot>
             Registered
           </Badge>
