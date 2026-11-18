@@ -291,7 +291,7 @@ export const MyOnDuty: React.FC = () => {
               <li key={req.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-sm font-semibold text-slate-900">{dutyTypeLabel(req.dutyType)}</span>
-                  <Badge variant={onDutyStatusVariant(req.status)} size="sm" dot>
+                  <Badge variant={onDutyStatusVariant(req.status)} size="sm">
                     {req.status === 'PENDING' ? 'Pending approval' : req.status[0] + req.status.slice(1).toLowerCase()}
                   </Badge>
                 </div>

@@ -234,7 +234,7 @@ export const EmployeeAttendanceHistoryModal: React.FC<EmployeeAttendanceHistoryM
                         {rec.workHours ? `${rec.workHours} h` : '--'}
                       </td>
                       <td className="py-2.5 px-3 whitespace-nowrap">
-                        <Badge variant={attendanceStatusVariant(rec.status)} size="sm" dot>
+                        <Badge variant={attendanceStatusVariant(rec.status)} size="sm">
                           {formatLabel(rec.status)}
                         </Badge>
                       </td>

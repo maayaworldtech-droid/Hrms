@@ -48,8 +48,13 @@ public class CompanySettings {
     private String contactPhone = "";
     private int standardWorkHoursPerDay = 8;
     private int workDaysPerWeek = 5;
-    /** Leave days a month paid in full; every leave day after these is cut from salary. */
+    /** Paid leave a month, on top of the week offs. */
     private Integer paidLeavesPerMonth = 1;
+    /**
+     * Week offs a month. Staff choose their own days (Sunday is a working day at the venues), so payroll
+     * only counts how many days someone did not work: up to week offs + paid leave is paid in full.
+     */
+    private Integer weekOffsPerMonth = 4;
     private String fiscalYearStartMonth = "April";
     private String currencySymbol = "INR";
     private boolean enableGeoFencingAttendance = true;

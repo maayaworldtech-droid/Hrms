@@ -24,7 +24,10 @@ export const PayslipView: React.FC<{ slip: Payslip; company?: CompanySettings | 
   const c = slip.components;
   const companyName = company?.legalEntityName || company?.companyName || 'Maaya World';
   const unpaidDays = slip.daysInMonth - slip.payableDays;
-  const beforeJoining = slip.daysInMonth - slip.employedDays;
+  // Days before joining or after the last working day
+  const notEmployed = slip.daysInMonth - slip.employedDays;
+  // Week-off rule: up to the allowed days off is paid; each one after that costs salary / working days
+  const weekOffRule = !!slip.workingDays;
 
   const earningLines = [
     ['Basic pay', c.basic],
@@ -80,14 +83,20 @@ export const PayslipView: React.FC<{ slip: Payslip; company?: CompanySettings | 
 
       <section aria-label="Days" className="rounded-lg bg-slate-50 px-4 py-3">
         <p className="font-semibold text-slate-900">
-          Paid for {slip.payableDays} of {slip.daysInMonth} days
+          {weekOffRule
+            ? slip.lossOfPayDays > 0
+              ? `${slip.lossOfPayDays} unpaid day${slip.lossOfPayDays === 1 ? '' : 's'}`
+              : 'No unpaid days'
+            : `Paid for ${slip.payableDays} of ${slip.daysInMonth} days`}
         </p>
         <p className="mt-0.5 text-slate-600">
           {[
             slip.workedDays > 0 ? `${slip.workedDays} worked` : null,
-            slip.paidLeaveDays > 0 ? `${slip.paidLeaveDays} paid leave` : null,
-            slip.lossOfPayDays > 0 ? `${slip.lossOfPayDays} unpaid` : null,
-            beforeJoining > 0 ? `${beforeJoining} before joining` : null,
+            weekOffRule && slip.daysOffAllowed != null ? `${slip.daysOffTaken ?? 0} days off (${slip.daysOffAllowed} paid)` : null,
+            !weekOffRule && slip.paidLeaveDays > 0 ? `${slip.paidLeaveDays} paid leave` : null,
+            !weekOffRule && slip.lossOfPayDays > 0 ? `${slip.lossOfPayDays} unpaid` : null,
+            weekOffRule && slip.lossOfPayDays > 0 ? `each ${formatINR(Math.round(slip.fullMonthlySalary / (slip.workingDays || 1)))} (salary ÷ ${slip.workingDays} working days)` : null,
+            notEmployed > 0 ? `${notEmployed} days not employed` : null,
           ]
             .filter(Boolean)
             .join(' · ') || 'Full month'}
@@ -104,7 +113,18 @@ export const PayslipView: React.FC<{ slip: Payslip; company?: CompanySettings | 
               <Line key={label} label={label} amount={v} />
             ))}
             <Line label="Monthly salary" amount={f.fullMonthlySalary} strong />
-            {f.unpaidAmount > 0 && <Line label={`Not paid for ${unpaidDays} day${unpaidDays === 1 ? '' : 's'}`} amount={f.unpaidAmount} sign="-" muted />}
+            {f.unpaidAmount > 0 && (
+              <Line
+                label={
+                  weekOffRule
+                    ? [slip.lossOfPayDays > 0 ? `${slip.lossOfPayDays} unpaid day${slip.lossOfPayDays === 1 ? '' : 's'}` : null, notEmployed > 0 ? `${notEmployed} days not employed` : null].filter(Boolean).join(' and ') || 'Not paid'
+                    : `Not paid for ${unpaidDays} day${unpaidDays === 1 ? '' : 's'}`
+                }
+                amount={f.unpaidAmount}
+                sign="-"
+                muted
+              />
+            )}
             {f.bonus > 0 && <Line label="Bonus" amount={f.bonus} sign="+" />}
             <Line label="Earned this month" amount={f.earned} strong />
           </dl>

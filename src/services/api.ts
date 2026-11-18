@@ -11,6 +11,8 @@ import {
   CenterInput,
   StaffNotification,
   DailyCollection,
+  DailyCollectionInput,
+  SalesMonthTotals,
   AttendanceSummaryRow,
 } from '@/types';
 
@@ -94,6 +96,9 @@ const normalizePayslip = (slip: any): Payslip => {
     // Payslips made before days were tracked have none of these; they covered the full month
     daysInMonth: Number(slip?.daysInMonth) || 30,
     employedDays: Number(slip?.employedDays ?? slip?.daysInMonth ?? 30),
+    workingDays: slip?.workingDays != null ? Number(slip.workingDays) : undefined,
+    daysOffAllowed: slip?.daysOffAllowed != null ? Number(slip.daysOffAllowed) : undefined,
+    daysOffTaken: slip?.daysOffTaken != null ? Number(slip.daysOffTaken) : undefined,
     workedDays: Number(slip?.workedDays) || 0,
     paidLeaveDays: Number(slip?.paidLeaveDays) || 0,
     unpaidLeaveDays: Number(slip?.unpaidLeaveDays) || 0,
@@ -170,6 +175,7 @@ const mapEmployee = (emp: any): Employee => {
     monthlySalary: emp.monthlySalary || 0,
     ctcAnnual: emp.ctcAnnual || (emp.monthlySalary || 0) * 12,
     joiningDate: emp.dateOfJoining || emp.joiningDate || '',
+    dateOfExit: emp.dateOfExit || undefined,
     employmentType: emp.employmentType || 'FULL_TIME',
     role: emp.role || 'EMPLOYEE',
     mustChangePassword: emp.mustChangePassword,
@@ -724,7 +730,7 @@ export const api = {
       const list = await fetchJSON<any[]>(`${API_BASE}/collections?${qs.toString()}`);
       return list.map((c) => ({ ...c, id: String(c.id) }));
     },
-    submit: async (entry: { date: string; bookMyShow: number; website: number; cashCounter: number; center?: string }): Promise<DailyCollection> => {
+    submit: async (entry: DailyCollectionInput): Promise<DailyCollection> => {
       const c = await fetchJSON<any>(`${API_BASE}/collections`, { method: 'POST', body: JSON.stringify(entry) });
       return { ...c, id: String(c.id) };
     },
@@ -737,6 +743,13 @@ export const api = {
       if (center && center !== 'ALL') qs.set('center', center);
       const rows = await fetchJSON<any[]>(`${API_BASE}/reports/attendance?${qs.toString()}`);
       return rows.map((r) => ({ ...r, employeeId: String(r.employeeId) }));
+    },
+    /** Month totals per center, grand total last (center null). */
+    sales: async (month: string): Promise<SalesMonthTotals[]> =>
+      fetchJSON<SalesMonthTotals[]>(`${API_BASE}/reports/sales?month=${encodeURIComponent(month)}`),
+    /** Sends the month's sales report to the admins now (it also goes out on the 1st). */
+    sendSales: async (month: string): Promise<void> => {
+      await fetchJSON(`${API_BASE}/reports/sales/send?month=${encodeURIComponent(month)}`, { method: 'POST' });
     },
   },
 

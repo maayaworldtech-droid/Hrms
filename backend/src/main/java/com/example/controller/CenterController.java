@@ -114,6 +114,8 @@ public class CenterController {
         String outcome = "changed to regular staff";
         if ("deactivate".equalsIgnoreCase(action)) {
             emp.setStatus("TERMINATED");
+            // Today is their last working day, so payroll still pays them for this month
+            if (emp.getDateOfExit() == null) emp.setDateOfExit(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata")));
             outcome = "removed and account deactivated";
         }
         employeeRepository.save(emp);

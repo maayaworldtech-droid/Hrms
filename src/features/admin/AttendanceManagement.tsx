@@ -122,7 +122,7 @@ export const AttendanceManagement: React.FC = () => {
       sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2">
-          <Badge variant={attendanceStatusVariant(row.status)} size="sm" dot>
+          <Badge variant={attendanceStatusVariant(row.status)} size="sm">
             {formatLabel(row.status)}
           </Badge>
           {row.regularizationStatus === 'PENDING' && (

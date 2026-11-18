@@ -22,15 +22,22 @@ import { useCenters } from '@/hooks/useCenters';
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 /** One row of the month table: the payslip plus the totals the columns sort by. */
-type PayRow = Payslip & { monthlySalary: number; leaveDays: number; leaveDeduction: number; pf: number; otherDeductions: number; takeHome: number };
+type PayRow = Payslip & { monthlySalary: number; daysOff: number; leaveDeduction: number; pf: number; otherDeductions: number; takeHome: number };
+
+/** Pay for the days employed before any unpaid day is taken off (the full salary in a full month). */
+const employedPay = (s: Payslip) =>
+  s.daysInMonth > 0 ? Math.round(((s.fullMonthlySalary || 0) * (s.employedDays ?? s.daysInMonth)) / s.daysInMonth) : 0;
 
 const toRow = (s: Payslip): PayRow => ({
   ...s,
   monthlySalary: s.fullMonthlySalary || 0,
-  leaveDays: (s.paidLeaveDays || 0) + (s.unpaidLeaveDays || 0),
-  // One day's salary for each unpaid leave or absent day only. Days before joining are not a
-  // deduction: they simply are not paid, which "Paid days" shows.
-  leaveDeduction: s.daysInMonth > 0 ? Math.round(((s.fullMonthlySalary || 0) * (s.lossOfPayDays || 0)) / s.daysInMonth) : 0,
+  // Days not worked: week offs, leave and absences together
+  daysOff: s.daysOffTaken ?? (s.paidLeaveDays || 0) + (s.unpaidLeaveDays || 0),
+  // What the unpaid days cost. Days before joining or after leaving are not a deduction: they are
+  // simply not paid. Under the week-off rule one unpaid day = salary / working days.
+  leaveDeduction: s.workingDays
+    ? Math.max(0, employedPay(s) - ((s.components.grossMonthly || 0) - (s.components.bonus || 0) - (s.components.incentives || 0)))
+    : s.daysInMonth > 0 ? Math.round(((s.fullMonthlySalary || 0) * (s.lossOfPayDays || 0)) / s.daysInMonth) : 0,
   pf: s.components.epfEmployee || 0,
   // ESI, professional tax, income tax and anything else; PF has its own column
   otherDeductions: Math.max(0, (s.components.totalDeductions || 0) - (s.components.epfEmployee || 0)),
@@ -234,10 +241,16 @@ export const PayrollProcessing: React.FC = () => {
       { key: 'employeeCode', header: 'Emp ID', sortable: true, render: (s) => <span className="whitespace-nowrap tabular-nums text-slate-900">{s.employeeCode}</span> },
       { key: 'employeeName', header: 'Name', sortable: true, render: (s) => <span className="whitespace-nowrap font-medium text-slate-900">{s.employeeName}</span> },
       { key: 'monthlySalary', header: 'Monthly salary', sortable: true, align: 'right', render: (s) => money(s.monthlySalary) },
-      { key: 'workedDays', header: 'Working days', sortable: true, align: 'right', render: (s) => s.workedDays },
-      { key: 'leaveDays', header: 'Leaves', sortable: true, align: 'right', render: (s) => s.leaveDays },
-      { key: 'payableDays', header: 'Paid days', sortable: true, align: 'right', render: (s) => s.payableDays },
-      { key: 'leaveDeduction', header: 'Leave deduction', sortable: true, align: 'right', render: (s) => money(s.leaveDeduction) },
+      { key: 'workedDays', header: 'Days worked', sortable: true, align: 'right', render: (s) => s.workedDays },
+      {
+        key: 'daysOff',
+        header: 'Days off',
+        sortable: true,
+        align: 'right',
+        render: (s) => (s.daysOffAllowed != null ? <span className="whitespace-nowrap tabular-nums">{s.daysOff} of {s.daysOffAllowed}</span> : s.daysOff),
+      },
+      { key: 'lossOfPayDays', header: 'Unpaid days', sortable: true, align: 'right', render: (s) => s.lossOfPayDays },
+      { key: 'leaveDeduction', header: 'Unpaid days cut', sortable: true, align: 'right', render: (s) => money(s.leaveDeduction) },
       { key: 'pf', header: 'PF', sortable: true, align: 'right', render: (s) => money(s.pf) },
       { key: 'otherDeductions', header: 'Other deductions', sortable: true, align: 'right', render: (s) => money(s.otherDeductions) },
       { key: 'takeHome', header: 'Take-home', sortable: true, align: 'right', render: (s) => <span className="whitespace-nowrap font-semibold tabular-nums text-slate-900">{formatINR(s.takeHome)}</span> },
@@ -360,7 +373,7 @@ export const PayrollProcessing: React.FC = () => {
                 <span className="text-sm font-semibold tabular-nums text-slate-900">{formatINR(s.takeHome)}</span>
               </div>
               <p className="text-sm text-slate-700 tabular-nums">
-                {s.payableDays} of {s.daysInMonth} days paid · {s.leaveDays} leaves · {formatINR(s.leaveDeduction)} leave deduction · {formatINR(s.pf)} PF
+                {s.workedDays} worked · {s.daysOff}{s.daysOffAllowed != null ? ` of ${s.daysOffAllowed}` : ''} days off · {s.lossOfPayDays} unpaid ({formatINR(s.leaveDeduction)}) · {formatINR(s.pf)} PF
               </p>
               {payslipWarnings(s).length > 0 && <p className="text-xs font-medium text-amber-800">{payslipWarnings(s).join(' · ')}</p>}
               <div className="flex gap-2 pt-1">
@@ -414,8 +427,10 @@ export const PayrollProcessing: React.FC = () => {
           {adjusting && preview && (
             <div className="space-y-4">
               <p className="text-sm text-slate-700">
-                From attendance: {adjusting.workedDays} worked · {adjusting.paidLeaveDays + adjusting.unpaidLeaveDays} leave · {adjusting.absentDays} absent
-                {adjusting.employedDays < adjusting.daysInMonth ? ` · joined ${adjusting.daysInMonth - adjusting.employedDays} days into the month` : ''}
+                From attendance: {adjusting.workedDays} worked · {adjusting.daysOffTaken ?? adjusting.paidLeaveDays + adjusting.unpaidLeaveDays + adjusting.absentDays} days off
+                {adjusting.daysOffAllowed != null ? ` (${adjusting.daysOffAllowed} paid)` : ''}
+                {adjusting.employedDays < adjusting.daysInMonth ? ` · employed ${adjusting.employedDays} of ${adjusting.daysInMonth} days` : ''}
+                {adjusting.workingDays ? ` · one unpaid day = ${formatINR(Math.round((adjusting.fullMonthlySalary || 0) / adjusting.workingDays))}` : ''}
               </p>
               {adjusting.noAttendance && <p className="text-sm font-medium text-amber-800">No check-ins this month. Confirm unpaid days with their manager.</p>}
 
@@ -551,7 +566,7 @@ export const PayrollProcessing: React.FC = () => {
       render: (r) => {
         const st = runStatus(r.status);
         return (
-          <Badge variant={st.variant} size="sm" dot>
+          <Badge variant={st.variant} size="sm">
             {st.label}
             {r.status === 'DISBURSED' && r.disbursedAt ? ` · ${formatDate(r.disbursedAt)}` : ''}
           </Badge>

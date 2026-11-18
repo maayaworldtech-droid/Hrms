@@ -60,6 +60,9 @@ public class SettingsController {
         if (settings.getPaidLeavesPerMonth() != null && settings.getPaidLeavesPerMonth() >= 0 && settings.getPaidLeavesPerMonth() <= 31) {
             current.setPaidLeavesPerMonth(settings.getPaidLeavesPerMonth());
         }
+        if (settings.getWeekOffsPerMonth() != null && settings.getWeekOffsPerMonth() >= 0 && settings.getWeekOffsPerMonth() <= 15) {
+            current.setWeekOffsPerMonth(settings.getWeekOffsPerMonth());
+        }
         if (settings.getFiscalYearStartMonth() != null) current.setFiscalYearStartMonth(settings.getFiscalYearStartMonth());
         if (settings.getCurrencySymbol() != null) current.setCurrencySymbol(settings.getCurrencySymbol());
         if (settings.getAutoApproveRegularizationWithinDays() >= 0) {

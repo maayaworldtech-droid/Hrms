@@ -11,6 +11,7 @@ import com.example.repository.EmployeeRepository;
 import com.example.repository.LeaveRequestRepository;
 import com.example.repository.OnDutyRequestRepository;
 import com.example.service.PayrollCalculator;
+import com.example.service.SalesReportService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -41,9 +42,11 @@ public class ReportsController {
     private final LeaveRequestRepository leaves;
     private final OnDutyRequestRepository onDuty;
     private final CompanySettingsRepository settings;
+    private final SalesReportService salesReports;
 
     public ReportsController(EmployeeRepository employees, AttendanceRepository attendance, LeaveRequestRepository leaves,
-                             OnDutyRequestRepository onDuty, CompanySettingsRepository settings) {
+                             OnDutyRequestRepository onDuty, CompanySettingsRepository settings, SalesReportService salesReports) {
+        this.salesReports = salesReports;
         this.employees = employees;
         this.attendance = attendance;
         this.leaves = leaves;
@@ -66,8 +69,8 @@ public class ReportsController {
         if (start.isAfter(today)) return List.of();
 
         CompanySettings s = settings.findAll().stream().findFirst().orElseGet(CompanySettings::new);
-        int workDaysPerWeek = s.getWorkDaysPerWeek() > 0 ? s.getWorkDaysPerWeek() : 6;
-        double paidLeaves = s.getPaidLeavesPerMonth() != null ? s.getPaidLeavesPerMonth() : 1;
+        int weekOffs = s.getWeekOffsPerMonth() != null ? s.getWeekOffsPerMonth() : PayrollCalculator.DEFAULT_WEEK_OFFS_PER_MONTH;
+        int paidLeaves = s.getPaidLeavesPerMonth() != null ? s.getPaidLeavesPerMonth() : PayrollCalculator.DEFAULT_PAID_LEAVES_PER_MONTH;
 
         Map<Long, List<AttendanceRecord>> byPerson = attendance.findByDateBetween(start, end).stream()
                 .filter(r -> r.getEmployeeId() != null)
@@ -84,13 +87,13 @@ public class ReportsController {
 
         List<Map<String, Object>> rows = new ArrayList<>();
         for (Employee emp : employees.findAll()) {
-            if ("ADMIN".equals(emp.getRole()) || "TERMINATED".equalsIgnoreCase(emp.getStatus())) continue;
+            if ("ADMIN".equals(emp.getRole()) || !PayrollController.isOnPayrollFor(emp, start)) continue;
             if (emp.getDateOfJoining() != null && emp.getDateOfJoining().isAfter(end)) continue;
             if (center != null && !center.isBlank() && !"ALL".equalsIgnoreCase(center)
                     && (emp.getLocationName() == null || !emp.getLocationName().equalsIgnoreCase(center.trim()))) continue;
 
             List<AttendanceRecord> records = byPerson.getOrDefault(emp.getId(), List.of());
-            PayrollCalculator.DayCount days = PayrollCalculator.countDays(ym, emp.getDateOfJoining(), workDaysPerWeek, paidLeaves,
+            PayrollCalculator.DayCount days = PayrollCalculator.countDays(ym, emp.getDateOfJoining(), emp.getDateOfExit(), weekOffs, paidLeaves,
                     today, records, leaveByPerson.getOrDefault(emp.getId(), List.of()), dutyByPerson.getOrDefault(emp.getId(), List.of()));
             long late = records.stream().filter(r -> "LATE".equalsIgnoreCase(r.getStatus())).count();
 
@@ -103,10 +106,35 @@ public class ReportsController {
             row.put("late", late);
             row.put("leave", days.paidLeaveDays + days.unpaidLeaveDays);
             row.put("absent", days.absentDays);
+            row.put("daysOff", days.daysOffTaken);
+            row.put("daysOffAllowed", days.daysOffAllowed);
+            row.put("unpaidDays", days.suggestedLopDays);
             rows.add(row);
         }
         rows.sort(Comparator.comparing((Map<String, Object> r) -> String.valueOf(r.get("center")))
                 .thenComparing(r -> String.valueOf(r.get("name"))));
         return rows;
+    }
+
+    /** The month's sales per center, with the grand total as the last row (center = null). */
+    @GetMapping("/sales")
+    public List<SalesReportService.MonthTotals> sales(@RequestParam String month) {
+        return salesReports.monthTotals(parseMonth(month));
+    }
+
+    /** Sends the month's sales report to the admins now (it also goes out by itself on the 1st). */
+    @PostMapping("/sales/send")
+    public Map<String, Object> sendSales(@RequestParam String month) {
+        YearMonth ym = parseMonth(month);
+        salesReports.sendMonthReport(ym);
+        return Map.of("sent", true, "month", ym.toString());
+    }
+
+    private static YearMonth parseMonth(String month) {
+        try {
+            return YearMonth.parse(month.trim());
+        } catch (DateTimeParseException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Use a month like 2026-11.");
+        }
     }
 }

@@ -158,7 +158,7 @@ export const TeamOnDuty: React.FC = () => {
       sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2">
-          <Badge variant={onDutyStatusVariant(row.status)} size="sm" dot>
+          <Badge variant={onDutyStatusVariant(row.status)} size="sm">
             {row.status === 'PENDING' ? 'Pending' : row.status[0] + row.status.slice(1).toLowerCase()}
           </Badge>
           {row.status === 'PENDING' && (
@@ -243,7 +243,7 @@ export const TeamOnDuty: React.FC = () => {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm font-semibold text-slate-900">{row.employeeName}</span>
-              <Badge variant={onDutyStatusVariant(row.status)} size="sm" dot>
+              <Badge variant={onDutyStatusVariant(row.status)} size="sm">
                 {row.status[0] + row.status.slice(1).toLowerCase()}
               </Badge>
             </div>

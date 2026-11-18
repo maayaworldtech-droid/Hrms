@@ -215,10 +215,6 @@ export const EmployeeMobileLayout: React.FC = () => {
                     onClick={() => openItem(item)}
                     className={`flex w-full items-start gap-3 rounded-lg px-2 py-3 text-left transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60 ${item.read ? '' : 'bg-brand-50/60'}`}
                   >
-                    <span
-                      aria-hidden="true"
-                      className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.read ? 'bg-transparent' : 'bg-brand-600'}`}
-                    />
                     <span className="min-w-0 flex-1">
                       <span className="sr-only">{item.read ? 'Read: ' : 'Unread: '}</span>
                       <span className={`block text-sm text-slate-900 ${item.read ? 'font-medium' : 'font-semibold'}`}>{item.title}</span>

@@ -10,7 +10,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.security.SecureRandom;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,6 +35,8 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Autowired
     private ZeptoMailService zeptoMailService;
+
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Kolkata");
 
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -61,6 +69,8 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "An employee with this email already exists.");
         }
         employee.setEmail(normalizedEmail);
+        requireValidSalary(employee);
+        employee.setDateOfExit(null);
         Employee target = employee;
 
         // Every employee belongs to an existing center; default to the head center when none is given
@@ -159,9 +169,24 @@ public class EmployeeServiceImpl implements EmployeeService {
             if (updates.getManagerId() != null) existing.setManagerId(updates.getManagerId());
             if (updates.getManagerName() != null) existing.setManagerName(updates.getManagerName());
             if (updates.getEmploymentType() != null) existing.setEmploymentType(updates.getEmploymentType());
-            if (updates.getStatus() != null) existing.setStatus(updates.getStatus());
+            if (updates.getStatus() != null) {
+                boolean leaving = "TERMINATED".equalsIgnoreCase(updates.getStatus());
+                boolean wasLeft = "TERMINATED".equalsIgnoreCase(existing.getStatus());
+                existing.setStatus(updates.getStatus());
+                if (leaving && existing.getDateOfExit() == null && updates.getDateOfExit() == null) {
+                    // Deactivated without a date: today was the last working day
+                    existing.setDateOfExit(LocalDate.now(BUSINESS_ZONE));
+                } else if (!leaving && wasLeft) {
+                    // Back at work: no last working day any more
+                    existing.setDateOfExit(null);
+                }
+            }
+            if (updates.getDateOfExit() != null && "TERMINATED".equalsIgnoreCase(existing.getStatus())) {
+                existing.setDateOfExit(updates.getDateOfExit());
+            }
             if (updates.getShift() != null) existing.setShift(updates.getShift());
             if (updates.getDateOfJoining() != null) existing.setDateOfJoining(updates.getDateOfJoining());
+            requireValidSalary(updates);
             if (updates.getMonthlySalary() != null) existing.setMonthlySalary(updates.getMonthlySalary());
             if (updates.getCtcAnnual() != null) existing.setCtcAnnual(updates.getCtcAnnual());
             if (updates.getRole() != null) existing.setRole(updates.getRole());
@@ -211,6 +236,25 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
         Location loc = centerService.require(locationName);
         target.setLocation(loc);
+    }
+
+    /** Salary figures and salary-setup amounts can't be negative (the form checks this too). */
+    private static void requireValidSalary(Employee e) {
+        if ((e.getMonthlySalary() != null && e.getMonthlySalary() < 0) || (e.getCtcAnnual() != null && e.getCtcAnnual() < 0)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Salary cannot be less than zero.");
+        }
+        String json = e.getSalaryStructureJson();
+        if (json != null && !json.isBlank()) {
+            try {
+                for (JsonNode item : new ObjectMapper().readTree(json)) {
+                    if (item.path("amount").asDouble(0) < 0) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Salary amounts cannot be less than zero.");
+                    }
+                }
+            } catch (JsonProcessingException ex) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The salary setup could not be read.");
+            }
+        }
     }
 
     @Override

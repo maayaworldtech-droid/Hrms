@@ -239,17 +239,18 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
 
   useEffect(() => {
     if (!isOpen) return;
+    // Only ask the phone for its location when the location check is on in Settings
     api.settings
       .get()
       .then((s) => {
-        setGeofencingEnabled(s?.enableGeoFencingAttendance ?? true);
+        const enabled = s?.enableGeoFencingAttendance ?? true;
+        setGeofencingEnabled(enabled);
+        if (enabled && mode === 'LOGIN') handleCheckDeviceGps();
       })
       .catch(() => {
         setGeofencingEnabled(true);
+        if (mode === 'LOGIN') handleCheckDeviceGps();
       });
-    if (mode === 'LOGIN') {
-      handleCheckDeviceGps();
-    }
   }, [isOpen, mode, handleCheckDeviceGps]);
 
   const stopCamera = useCallback(() => {
@@ -829,15 +830,6 @@ export const BiometricAttendanceModal: React.FC<BiometricAttendanceModalProps> =
             {cameraActive && (
               <div className="absolute bottom-2.5 inset-x-2.5 bg-slate-950/85 border border-slate-800 rounded-lg px-3 py-2 flex items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span
-                    className={`w-2 h-2 rounded-full shrink-0 ${
-                      scanStage === 'SUCCESS' || isFaceCentered
-                        ? 'bg-emerald-400'
-                        : scanStage === 'FAILED_VERIFICATION'
-                        ? 'bg-rose-500'
-                        : 'bg-amber-400'
-                    }`}
-                  />
                   <span className="truncate font-medium text-white text-xs">
                     {scanMessage}
                   </span>

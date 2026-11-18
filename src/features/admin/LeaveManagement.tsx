@@ -99,7 +99,7 @@ export const LeaveManagement: React.FC = () => {
       header: 'Status',
       sortable: true,
       render: (row) => (
-        <Badge variant={leaveStatusVariant(row.status)} size="sm" dot>
+        <Badge variant={leaveStatusVariant(row.status)} size="sm">
           {formatLabel(row.status)}
         </Badge>
       ),
@@ -168,7 +168,7 @@ export const LeaveManagement: React.FC = () => {
               <dd className="font-normal">{selectedLeave.reason}</dd>
               <dt>Status</dt>
               <dd>
-                <Badge variant={leaveStatusVariant(selectedLeave.status)} size="sm" dot>
+                <Badge variant={leaveStatusVariant(selectedLeave.status)} size="sm">
                   {formatLabel(selectedLeave.status)}
                 </Badge>
               </dd>

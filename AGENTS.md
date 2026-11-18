@@ -5,6 +5,7 @@ Always adhere to the `clean-web-design` skill when working on any frontend, UI, 
 
 - **No Nested Cards**: Do not place cards inside other cards. Keep hierarchies flat.
 - **No Emojis**: Never use emojis anywhere in the interface. Use outline SVG icons (Lucide) only where they add direct clarity.
+- **No Status Dots**: Never put coloured dots in badges, pills, lists or status bars (for example a dot before "Missing" or "Paid"). The badge colour and its word carry the status.
 - **Card & Border Restraint**: Avoid unnecessary borders, gradients, and heavy drop-shadows. Use a clean white-and-slate design system with subtle 1px borders.
 - **Typography & Spacing**: Maximum 3 font sizes per view. High contrast text (avoid light grey labels). Compact, productive spacing.
 - **Leave Quotas**: Display total number of available leaves directly without unnecessary category breakdown cards unless explicitly requested.

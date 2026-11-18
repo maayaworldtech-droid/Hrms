@@ -158,7 +158,7 @@ export const TeamAttendance: React.FC = () => {
       sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2">
-          <Badge variant={attendanceStatusVariant(row.status)} size="sm" dot>
+          <Badge variant={attendanceStatusVariant(row.status)} size="sm">
             {formatLabel(row.status)}
           </Badge>
           {reviewButton(row)}
@@ -182,7 +182,7 @@ export const TeamAttendance: React.FC = () => {
               <button type="button" className="text-left text-sm font-semibold text-slate-900 hover:text-brand-700 hover:underline" onClick={() => openEmployeeHistory(row)}>
                 {row.employeeName}
               </button>
-              <Badge variant={attendanceStatusVariant(row.status)} size="sm" dot>
+              <Badge variant={attendanceStatusVariant(row.status)} size="sm">
                 {formatLabel(row.status)}
               </Badge>
             </div>

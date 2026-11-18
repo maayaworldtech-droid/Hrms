@@ -16,7 +16,11 @@ import lombok.Data;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-/** One center's sales for one day, as reported by its manager. */
+/**
+ * One center's day, as reported by its manager: money in by channel (BookMyShow, cash deposited,
+ * Google Pay, Paytm / Maaya World) and money spent (cash and online). The final amount is
+ * collections less expenses.
+ */
 @Data
 @Entity
 @Table(name = "daily_collections")
@@ -38,11 +42,23 @@ public class DailyCollection {
     @Column(name = "book_my_show", nullable = false)
     private double bookMyShow;
 
-    @Column(nullable = false)
-    private double website;
+    @Column(name = "cash_deposited", nullable = false)
+    private double cashDeposited;
 
-    @Column(name = "cash_counter", nullable = false)
-    private double cashCounter;
+    @Column(name = "google_pay", nullable = false)
+    private double googlePay;
+
+    @Column(name = "paytm_maaya_world", nullable = false)
+    private double paytmMaayaWorld;
+
+    @Column(name = "expense_cash", nullable = false)
+    private double expenseCash;
+
+    @Column(name = "expense_online", nullable = false)
+    private double expenseOnline;
+
+    @Column(length = 500)
+    private String notes;
 
     @Column(name = "submitted_by_id")
     private Long submittedById;
@@ -66,8 +82,25 @@ public class DailyCollection {
         return location != null ? location.getLocationId() : null;
     }
 
-    @JsonProperty("total")
-    public double getTotal() {
-        return bookMyShow + website + cashCounter;
+    /** Money in: BookMyShow + cash deposited + Google Pay + Paytm / Maaya World. */
+    @JsonProperty("totalCollections")
+    public double getTotalCollections() {
+        return round2(bookMyShow + cashDeposited + googlePay + paytmMaayaWorld);
+    }
+
+    /** Money out: cash and online expenses. */
+    @JsonProperty("totalExpenses")
+    public double getTotalExpenses() {
+        return round2(expenseCash + expenseOnline);
+    }
+
+    /** Collections less expenses. Can be below zero on a day with more spent than taken. */
+    @JsonProperty("finalAmount")
+    public double getFinalAmount() {
+        return round2(getTotalCollections() - getTotalExpenses());
+    }
+
+    private static double round2(double v) {
+        return Math.round(v * 100.0) / 100.0;
     }
 }

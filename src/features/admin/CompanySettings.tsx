@@ -353,22 +353,24 @@ const CompanyPanel: React.FC<PanelProps> = ({ onError, onSuccess }) => {
             onChange={(e) => set({ standardWorkHoursPerDay: Number(e.target.value) })}
           />
           <Input
-            label="Working days per week"
+            label="Week offs per month"
             type="number"
-            min={1}
-            max={7}
-            value={settings.workDaysPerWeek}
-            onChange={(e) => set({ workDaysPerWeek: Number(e.target.value) })}
-            helperText="Payroll uses this to tell weekly offs from absences."
+            min={0}
+            max={15}
+            value={settings.weekOffsPerMonth ?? 4}
+            onChange={(e) => set({ weekOffsPerMonth: Math.max(0, Math.min(15, Number(e.target.value) || 0)) })}
+            helperText="Staff take them on any day; Sunday counts as a working day."
           />
           <Input
             label="Paid leave days per month"
             type="number"
             min={0}
-            max={31}
+            max={15}
             value={settings.paidLeavesPerMonth ?? 1}
-            onChange={(e) => set({ paidLeavesPerMonth: Math.max(0, Math.min(31, Number(e.target.value) || 0)) })}
-            helperText="Leave after this many days in a month is cut from salary, one day's pay per day."
+            onChange={(e) =>
+              set({ paidLeavesPerMonth: Math.max(0, Math.min(15, Number(e.target.value) || 0)) })
+            }
+            helperText={`Paid days off: ${(settings.weekOffsPerMonth ?? 4) + (settings.paidLeavesPerMonth ?? 1)} a month. Each day off after that is cut at salary ÷ working days (${31 - (settings.weekOffsPerMonth ?? 4) - (settings.paidLeavesPerMonth ?? 1)} in a 31-day month).`}
           />
           <Input
             label="Financial year starts in"

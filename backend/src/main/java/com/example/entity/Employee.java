@@ -56,6 +56,8 @@ public class Employee {
     private String status;         // ACTIVE, PROBATION, ON_LEAVE, TERMINATED
     private String shift;          // MORNING, EVENING
     private LocalDate dateOfJoining;
+    /** Last working day, set when the person is deactivated; payroll pays them up to this day. */
+    private LocalDate dateOfExit;
 
     private Double monthlySalary;
     private Double ctcAnnual;

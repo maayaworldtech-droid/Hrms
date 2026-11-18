@@ -36,20 +36,31 @@ class PayrollCalculatorTest {
         return l;
     }
 
-    /** Six working days a week: present every day except Sundays. */
-    private static List<AttendanceRecord> fullMonthSixDays(YearMonth m, int skipFirstWorkdays) {
+    private static final YearMonth OCT_2026 = YearMonth.of(2026, 10); // 31 days
+    private static final YearMonth FEB_2026 = YearMonth.of(2026, 2);  // 28 days
+
+    /** Present every day of the month except the given day numbers (week offs on any day, Sundays included). */
+    private static List<AttendanceRecord> presentExcept(YearMonth m, int... offDays) {
+        java.util.Set<Integer> off = new java.util.HashSet<>();
+        for (int d : offDays) off.add(d);
         List<AttendanceRecord> list = new ArrayList<>();
-        int skipped = 0;
         for (int d = 1; d <= m.lengthOfMonth(); d++) {
-            LocalDate date = m.atDay(d);
-            if (date.getDayOfWeek().getValue() == 7) continue;
-            if (skipped < skipFirstWorkdays) {
-                skipped++;
-                continue;
-            }
-            list.add(present(date.toString()));
+            if (!off.contains(d)) list.add(present(m.atDay(d).toString()));
         }
         return list;
+    }
+
+    private static PayrollCalculator.DayCount count(YearMonth m, String joined, String exit, List<AttendanceRecord> att, List<LeaveRequest> leaves) {
+        return PayrollCalculator.countDays(m, joined == null ? LocalDate.parse("2025-01-01") : LocalDate.parse(joined),
+                exit == null ? null : LocalDate.parse(exit), 4, 1, AFTER_MONTH.plusMonths(3), att, leaves, List.of());
+    }
+
+    /** Pays a Rs 26,000 salary for a counted month, the way payroll does. */
+    private static Payslip pay(PayrollCalculator.DayCount c, double monthly) {
+        Payslip s = slip(monthly, 0, 0, c.daysInMonth, c.employedDays, c.suggestedLopDays);
+        s.setWorkingDays(c.workingDays);
+        PayrollCalculator.recompute(s);
+        return s;
     }
 
     private static Payslip slip(double basic, double hra, double special, int daysInMonth, int employed, int lop) {
@@ -73,80 +84,131 @@ class PayrollCalculatorTest {
     }
 
     @Test
-    void fullAttendanceMeansNoUnpaidDays() {
-        var c = PayrollCalculator.countDays(NOV_2026, LocalDate.parse("2025-01-01"), 6, 1, AFTER_MONTH, fullMonthSixDays(NOV_2026, 0), List.of(), List.of());
-        assertEquals(30, c.daysInMonth);
-        assertEquals(30, c.employedDays);
+    void workingDaysAreDaysInMonthLessFivePaidDaysOff() {
+        assertEquals(26, PayrollCalculator.workingDays(31, 4, 1));
+        assertEquals(25, PayrollCalculator.workingDays(30, 4, 1));
+        assertEquals(23, PayrollCalculator.workingDays(28, 4, 1));
+    }
+
+    @Test
+    void fiveDaysOffOnAnyDaysIsFullPay() {
+        // Week offs on a Monday, a Wednesday and two Saturdays, worked every Sunday, plus one leave day
+        var c = count(OCT_2026, null, null, presentExcept(OCT_2026, 5, 7, 10, 17, 22), List.of());
+        assertEquals(5.0, c.daysOffTaken);
+        assertEquals(5.0, c.daysOffAllowed);
+        assertEquals(0, c.suggestedLopDays);
+        assertEquals(26000.0, pay(c, 26000).getNetMonthly());
+    }
+
+    @Test
+    void sixthDayOffIsCutAtSalaryOverWorkingDays() {
+        var c = count(OCT_2026, null, null, presentExcept(OCT_2026, 1, 2, 3, 4, 5, 6), List.of());
+        assertEquals(1, c.suggestedLopDays);
+        // Rs 26,000 / 26 working days = Rs 1,000 a day
+        assertEquals(25000.0, pay(c, 26000).getNetMonthly());
+    }
+
+    @Test
+    void thirtyDayMonthDividesByTwentyFive() {
+        YearMonth nov = YearMonth.of(2026, 11);
+        var c = count(nov, null, null, presentExcept(nov, 1, 2, 3, 4, 5, 6, 7), List.of());
+        assertEquals(2, c.suggestedLopDays);
+        assertEquals(25, c.workingDays);
+        assertEquals(25000.0 - 2 * 1000.0, pay(c, 25000).getNetMonthly());
+    }
+
+    @Test
+    void februaryDividesByTwentyThree() {
+        var c = count(FEB_2026, null, null, presentExcept(FEB_2026, 1, 2, 3, 4, 5, 6), List.of());
+        assertEquals(23, c.workingDays);
+        assertEquals(1, c.suggestedLopDays);
+        assertEquals((double) Math.round(23000.0 - 23000.0 / 23), pay(c, 23000).getNetMonthly());
+    }
+
+    @Test
+    void approvedLeaveIsADayOffLikeAnyOther() {
+        // 4 week offs + 3 days casual leave = 7 days off: 2 unpaid
+        var c = count(OCT_2026, null, null, presentExcept(OCT_2026, 3, 10, 13, 14, 15, 17, 24),
+                List.of(leave("CASUAL_LEAVE", "2026-10-13", "2026-10-15", 3)));
+        assertEquals(7.0, c.daysOffTaken);
+        assertEquals(3.0, c.paidLeaveDays);
+        assertEquals(2, c.suggestedLopDays);
+    }
+
+    @Test
+    void leaveOnADayWorkedIsNotADayOff() {
+        var c = count(OCT_2026, null, null, presentExcept(OCT_2026, 3, 10, 17, 24),
+                List.of(leave("CASUAL_LEAVE", "2026-10-13", "2026-10-13", 1)));
+        assertEquals(4.0, c.daysOffTaken);
+        assertEquals(0.0, c.paidLeaveDays);
         assertEquals(0, c.suggestedLopDays);
     }
 
     @Test
-    void missedWorkdaysBecomeUnpaidDays() {
-        var c = PayrollCalculator.countDays(NOV_2026, LocalDate.parse("2025-01-01"), 6, 1, AFTER_MONTH, fullMonthSixDays(NOV_2026, 3), List.of(), List.of());
-        assertEquals(3, c.suggestedLopDays);
-        assertEquals(3.0, c.absentDays);
+    void noAttendanceAtAllPaysNothing() {
+        var c = count(OCT_2026, null, null, List.of(), List.of());
+        assertTrue(c.noAttendance);
+        assertEquals(26, c.suggestedLopDays);
+        assertEquals(0.0, pay(c, 26000).getNetMonthly());
     }
 
     @Test
-    void onlyOnePaidLeaveDayAMonth() {
-        // Missed Nov 2 and 3 on approved casual leave: the first day is paid, the second is cut
-        var c = PayrollCalculator.countDays(NOV_2026, LocalDate.parse("2025-01-01"), 6, 1, AFTER_MONTH, fullMonthSixDays(NOV_2026, 2),
-                List.of(leave("CASUAL_LEAVE", "2026-11-02", "2026-11-03", 2)), List.of());
-        assertEquals(1.0, c.paidLeaveDays);
-        assertEquals(1.0, c.unpaidLeaveDays);
+    void joinerIsPaidForEmployedDaysWithProratedDaysOff() {
+        // Joined 15 Oct: 17 days employed, 5 x 17 / 31 = 2.7 -> 3 paid days off
+        List<AttendanceRecord> att = new ArrayList<>();
+        for (int d = 15; d <= 31; d++) if (d != 18 && d != 25) att.add(present(OCT_2026.atDay(d).toString()));
+        var c = count(OCT_2026, "2026-10-15", null, att, List.of());
+        assertEquals(17, c.employedDays);
+        assertEquals(3.0, c.daysOffAllowed);
+        assertEquals(0, c.suggestedLopDays);
+        assertEquals((double) Math.round(31000.0 * 17 / 31), pay(c, 31000).getNetMonthly());
+    }
+
+    @Test
+    void leaverIsPaidUpToTheLastWorkingDay() {
+        // Last working day 20 Oct: 20 days employed, 5 x 20 / 31 = 3.2 -> 3 paid days off
+        List<AttendanceRecord> att = new ArrayList<>();
+        for (int d = 1; d <= 20; d++) if (d != 4 && d != 11 && d != 18) att.add(present(OCT_2026.atDay(d).toString()));
+        var c = count(OCT_2026, null, "2026-10-20", att, List.of());
+        assertEquals(20, c.employedDays);
+        assertEquals(3.0, c.daysOffAllowed);
+        assertEquals(0, c.suggestedLopDays);
+        assertEquals(20000.0, pay(c, 31000).getNetMonthly());
+    }
+
+    @Test
+    void runningMidMonthDoesNotTreatFutureDaysAsDaysOff() {
+        List<AttendanceRecord> att = new ArrayList<>();
+        for (int d = 1; d <= 10; d++) att.add(present(NOV_2026.atDay(d).toString()));
+        var c = PayrollCalculator.countDays(NOV_2026, LocalDate.parse("2025-01-01"), null, 4, 1,
+                LocalDate.parse("2026-11-10"), att, List.of(), List.of());
+        assertEquals(0.0, c.daysOffTaken);
+        assertEquals(0, c.suggestedLopDays);
+    }
+
+    @Test
+    void halfDayRoundsDown() {
+        List<AttendanceRecord> att = presentExcept(OCT_2026, 1, 2, 3, 4, 5, 6);
+        AttendanceRecord half = present("2026-10-07");
+        half.setStatus("HALF_DAY");
+        att.removeIf(r -> r.getDate().equals(LocalDate.parse("2026-10-07")));
+        att.add(half);
+        var c = count(OCT_2026, null, null, att, List.of());
+        assertEquals(6.5, c.daysOffTaken);
         assertEquals(1, c.suggestedLopDays);
     }
 
     @Test
-    void oneLeaveDayIsFullyPaid() {
-        var c = PayrollCalculator.countDays(NOV_2026, LocalDate.parse("2025-01-01"), 6, 1, AFTER_MONTH, fullMonthSixDays(NOV_2026, 1),
-                List.of(leave("SICK_LEAVE", "2026-11-02", "2026-11-02", 1)), List.of());
-        assertEquals(0, c.suggestedLopDays);
-        assertEquals(1.0, c.paidLeaveDays);
-    }
-
-    @Test
-    void paidLeaveAllowanceComesFromSettings() {
-        var c = PayrollCalculator.countDays(NOV_2026, LocalDate.parse("2025-01-01"), 6, 2, AFTER_MONTH, fullMonthSixDays(NOV_2026, 2),
-                List.of(leave("CASUAL_LEAVE", "2026-11-02", "2026-11-03", 2)), List.of());
-        assertEquals(0, c.suggestedLopDays);
-    }
-
-    @Test
-    void eachUnpaidDayCostsOneDaysSalary() {
-        // Rs 30,000 in a 30-day month is Rs 1,000 a day
-        Payslip s = slip(15000, 7500, 7500, 30, 30, 2);
+    void pfFollowsEarnedBasicUnderTheNewRule() {
+        Payslip s = slip(13000, 0, 0, 31, 31, 2);
+        s.setWorkingDays(26);
+        s.setPfApplicable(true);
         PayrollCalculator.recompute(s);
-        assertEquals(2000.0, s.getUnpaidAmount());
+        assertEquals(12000.0, s.getGrossMonthly()); // 13,000 - 2 x 500
+        assertEquals(1440.0, s.getEpfEmployee());   // 12% of 12,000
     }
 
-    @Test
-    void unpaidLeaveAlwaysCounts() {
-        var c = PayrollCalculator.countDays(NOV_2026, LocalDate.parse("2025-01-01"), 6, 1, AFTER_MONTH, fullMonthSixDays(NOV_2026, 2),
-                List.of(leave("LOSS_OF_PAY", "2026-11-02", "2026-11-03", 2)), List.of());
-        assertEquals(2, c.suggestedLopDays);
-        assertEquals(2.0, c.unpaidLeaveDays);
-        assertEquals(0.0, c.absentDays);
-    }
-
-    @Test
-    void joiningMidMonthOnlyCountsEmployedDays() {
-        List<AttendanceRecord> fromJoining = new ArrayList<>();
-        for (AttendanceRecord r : fullMonthSixDays(NOV_2026, 0)) if (!r.getDate().isBefore(LocalDate.of(2026, 11, 16))) fromJoining.add(r);
-        var c = PayrollCalculator.countDays(NOV_2026, LocalDate.parse("2026-11-16"), 6, 1, AFTER_MONTH, fromJoining, List.of(), List.of());
-        assertEquals(15, c.employedDays);
-        assertEquals(0, c.suggestedLopDays);
-    }
-
-    @Test
-    void runningMidMonthDoesNotTreatFutureDaysAsAbsent() {
-        LocalDate midMonth = LocalDate.of(2026, 11, 10);
-        List<AttendanceRecord> soFar = new ArrayList<>();
-        for (AttendanceRecord r : fullMonthSixDays(NOV_2026, 0)) if (!r.getDate().isAfter(LocalDate.of(2026, 11, 10))) soFar.add(r);
-        var c = PayrollCalculator.countDays(NOV_2026, LocalDate.parse("2025-01-01"), 6, 1, midMonth, soFar, List.of(), List.of());
-        assertEquals(0, c.suggestedLopDays);
-    }
-
+    // Payslips made before the week-off rule (no working days stored) keep the old calculation
     @Test
     void earningsAreProratedForUnpaidDays() {
         // Rs 30,000 a month, 30-day month, 3 unpaid days => Rs 27,000 earned, Rs 3,000 not paid

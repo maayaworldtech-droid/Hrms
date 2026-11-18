@@ -120,7 +120,7 @@ export const TeamLeaves: React.FC = () => {
       header: 'Status',
       sortable: true,
       render: (row) => (
-        <Badge variant={leaveStatusVariant(row.status)} size="sm" dot>
+        <Badge variant={leaveStatusVariant(row.status)} size="sm">
           {formatLabel(row.status)}
         </Badge>
       ),
@@ -157,7 +157,7 @@ export const TeamLeaves: React.FC = () => {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm font-semibold text-slate-900">{row.employeeName}</span>
-              <Badge variant={leaveStatusVariant(row.status)} size="sm" dot>
+              <Badge variant={leaveStatusVariant(row.status)} size="sm">
                 {formatLabel(row.status)}
               </Badge>
             </div>

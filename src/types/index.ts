@@ -76,6 +76,8 @@ export interface Employee {
   monthlySalary: number;
   ctcAnnual: number;
   joiningDate: string;
+  /** Last working day, set when the person is deactivated; payroll pays them up to this day. */
+  dateOfExit?: string;
   employmentType?: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN';
   role?: UserRole;
   password?: string;
@@ -211,18 +213,48 @@ export interface OnDutyRequest {
 }
 
 /** One center's sales for one day, reported by its manager. */
+/** One center's day as its manager reports it: money in by channel, less expenses. */
 export interface DailyCollection {
   id: string;
   date: string;
   center: string;
   centerId: number;
   bookMyShow: number;
-  website: number;
-  cashCounter: number;
-  total: number;
+  cashDeposited: number;
+  googlePay: number;
+  paytmMaayaWorld: number;
+  expenseCash: number;
+  expenseOnline: number;
+  /** BookMyShow + cash deposited + Google Pay + Paytm / Maaya World. */
+  totalCollections: number;
+  /** Cash + online expenses. */
+  totalExpenses: number;
+  /** Collections less expenses (can be below zero). */
+  finalAmount: number;
+  notes?: string;
   submittedByName?: string;
   submittedAt?: string;
   updatedAt?: string;
+}
+
+export type DailyCollectionInput = Pick<DailyCollection, 'date' | 'bookMyShow' | 'cashDeposited' | 'googlePay' | 'paytmMaayaWorld' | 'expenseCash' | 'expenseOnline'> & {
+  notes?: string;
+  center?: string;
+};
+
+/** A month of sales for one center, or for every center when center is null. */
+export interface SalesMonthTotals {
+  center: string | null;
+  daysReported: number;
+  bookMyShow: number;
+  cashDeposited: number;
+  googlePay: number;
+  paytmMaayaWorld: number;
+  totalCollections: number;
+  expenseCash: number;
+  expenseOnline: number;
+  totalExpenses: number;
+  finalAmount: number;
 }
 
 /** One person's month in the attendance report (days counted the same way as payroll). */
@@ -235,6 +267,11 @@ export interface AttendanceSummaryRow {
   late: number;
   leave: number;
   absent: number;
+  /** Days not worked (week offs, leave and absences together). */
+  daysOff?: number;
+  daysOffAllowed?: number;
+  /** Days off beyond the allowance: cut from salary. */
+  unpaidDays?: number;
 }
 
 /** A note under the bell: leave decided, salary paid, and so on. Stored on the server. */
@@ -300,8 +337,14 @@ export interface Payslip {
 
   // Days, worked out from attendance and approved leave when the month is generated
   daysInMonth: number;
-  /** Days on the payroll this month (from the joining date or the 1st). */
+  /** Days on the payroll this month (from the joining date or the 1st, to the last working day or month end). */
   employedDays: number;
+  /** Days in the month less paid days off; one unpaid day costs full salary / this. Missing on older payslips. */
+  workingDays?: number;
+  /** Paid days off allowed this month (week offs + paid leave, prorated for part months). */
+  daysOffAllowed?: number;
+  /** Days not worked this month. */
+  daysOffTaken?: number;
   workedDays: number;
   paidLeaveDays: number;
   unpaidLeaveDays: number;
@@ -355,8 +398,10 @@ export interface CompanySettings {
   contactPhone: string;
   standardWorkHoursPerDay: number;
   workDaysPerWeek: number;
-  /** Leave days a month paid in full; leave after that is cut from salary. */
+  /** Paid leave a month, on top of the week offs. */
   paidLeavesPerMonth?: number;
+  /** Week offs a month (staff choose their own days). Week offs + paid leave are paid days off. */
+  weekOffsPerMonth?: number;
   fiscalYearStartMonth: string;
   currencySymbol: string;
   enableGeoFencingAttendance: boolean;

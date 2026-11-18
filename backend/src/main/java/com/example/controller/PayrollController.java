@@ -166,9 +166,10 @@ public class PayrollController {
         LocalDate monthStart = payMonth.atDay(1);
         LocalDate monthEnd = payMonth.atEndOfMonth();
 
-        // The admin is the owner, not salaried staff; people joining after this month are not paid yet
+        // The admin is the owner, not salaried staff; people joining after this month are not paid yet.
+        // Someone deactivated is still paid for the month their last working day falls in.
         List<Employee> employees = employeeRepository.findAll().stream()
-                .filter(emp -> !"TERMINATED".equalsIgnoreCase(emp.getStatus()))
+                .filter(emp -> isOnPayrollFor(emp, monthStart))
                 .filter(emp -> !"ADMIN".equalsIgnoreCase(emp.getRole()))
                 .filter(emp -> emp.getDateOfJoining() == null || !emp.getDateOfJoining().isAfter(monthEnd))
                 .filter(emp -> emp.getLocation() != null && emp.getLocation().getLocationId() == payLocationId)
@@ -178,8 +179,8 @@ public class PayrollController {
         }
 
         CompanySettings settings = settingsRepository.findAll().stream().findFirst().orElseGet(CompanySettings::new);
-        int workDaysPerWeek = settings.getWorkDaysPerWeek() > 0 ? settings.getWorkDaysPerWeek() : 6;
-        double paidLeavesPerMonth = settings.getPaidLeavesPerMonth() != null ? settings.getPaidLeavesPerMonth() : 1;
+        int weekOffsPerMonth = settings.getWeekOffsPerMonth() != null ? settings.getWeekOffsPerMonth() : PayrollCalculator.DEFAULT_WEEK_OFFS_PER_MONTH;
+        int paidLeavesPerMonth = settings.getPaidLeavesPerMonth() != null ? settings.getPaidLeavesPerMonth() : PayrollCalculator.DEFAULT_PAID_LEAVES_PER_MONTH;
 
         // Attendance, approved leave and approved On Duty for the month, grouped by person
         Map<Long, List<AttendanceRecord>> attendanceByPerson = attendanceRepository.findByDateBetween(monthStart, monthEnd)
@@ -230,7 +231,8 @@ public class PayrollController {
             PayrollCalculator.DayCount days = PayrollCalculator.countDays(
                     payMonth,
                     emp.getDateOfJoining(),
-                    workDaysPerWeek,
+                    emp.getDateOfExit(),
+                    weekOffsPerMonth,
                     paidLeavesPerMonth,
                     today,
                     attendanceByPerson.getOrDefault(emp.getId(), List.of()),
@@ -239,6 +241,9 @@ public class PayrollController {
             );
             slip.setDaysInMonth(days.daysInMonth);
             slip.setEmployedDays(days.employedDays);
+            slip.setWorkingDays(days.workingDays);
+            slip.setDaysOffAllowed(days.daysOffAllowed);
+            slip.setDaysOffTaken(days.daysOffTaken);
             slip.setWorkedDays(days.workedDays);
             slip.setPaidLeaveDays(days.paidLeaveDays);
             slip.setUnpaidLeaveDays(days.unpaidLeaveDays);
@@ -338,6 +343,19 @@ public class PayrollController {
             // Re-disbursing would overwrite the original payment date and disburser on every payslip
             throw new ResponseStatusException(HttpStatus.CONFLICT, "This payroll run has already been disbursed.");
         }
+        if (existing.isPresent()) {
+            // Nobody with pay to receive may be marked paid without a bank account to pay into
+            List<String> noBank = payslipRepository.findByPayrollRunId(runId).stream()
+                    .filter(s -> nz(s.getNetMonthly()) > 0
+                            && (s.getBankAccount() == null || s.getBankAccount().isBlank()
+                                || s.getBankName() == null || s.getBankName().isBlank()))
+                    .map(Payslip::getEmployeeName)
+                    .toList();
+            if (!noBank.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Add bank details first for: " + String.join(", ", noBank) + ".");
+            }
+        }
         return existing.map(run -> {
             run.setStatus("DISBURSED");
             run.setDisbursedAt(todayDate);
@@ -363,6 +381,15 @@ public class PayrollController {
 
     private static double nz(Double value) {
         return value != null ? value : 0.0;
+    }
+
+    /**
+     * Active staff, and deactivated staff whose last working day is in or after this month.
+     * Deactivated records with no last working day (from before it was recorded) are left out.
+     */
+    public static boolean isOnPayrollFor(Employee emp, LocalDate monthStart) {
+        if (!"TERMINATED".equalsIgnoreCase(emp.getStatus())) return true;
+        return emp.getDateOfExit() != null && !emp.getDateOfExit().isBefore(monthStart);
     }
 
     private static boolean isManager(HttpServletRequest request) {

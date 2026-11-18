@@ -6,14 +6,13 @@ interface BadgeProps {
   children: React.ReactNode;
   variant?: BadgeVariant;
   size?: 'sm' | 'md';
-  dot?: boolean;
   className?: string;
 }
 
 /**
  * Status colours carry meaning: green done, amber waiting, rose problem, blue informational.
  * Categories such as leave or duty type are not statuses and are shown as plain text instead.
- * Map business statuses to variants with the helpers in utils/status.
+ * Map business statuses to variants with the helpers in utils/status. No dots: the colour and word say it.
  */
 const STYLES: Record<BadgeVariant, string> = {
   success: 'bg-emerald-50 text-emerald-700 ring-emerald-600/15',
@@ -23,21 +22,13 @@ const STYLES: Record<BadgeVariant, string> = {
   neutral: 'bg-slate-100 text-slate-700 ring-slate-500/15',
 };
 
-const DOTS: Record<BadgeVariant, string> = {
-  success: 'bg-emerald-500',
-  warning: 'bg-amber-500',
-  error: 'bg-rose-500',
-  info: 'bg-brand-500',
-  neutral: 'bg-slate-500',
-};
 
-export const Badge: React.FC<BadgeProps> = ({ children, variant = 'neutral', size = 'md', dot = false, className = '' }) => (
+export const Badge: React.FC<BadgeProps> = ({ children, variant = 'neutral', size = 'md', className = '' }) => (
   <span
     className={`inline-flex items-center gap-1.5 rounded-md font-medium ring-1 ring-inset select-none whitespace-nowrap ${
       STYLES[variant] || STYLES.neutral
     } ${size === 'sm' ? 'h-5 px-1.5 text-xs' : 'h-6 px-2 text-xs'} ${className}`}
   >
-    {dot && <span className={`w-1.5 h-1.5 rounded-full ${DOTS[variant] || DOTS.neutral}`} aria-hidden="true" />}
     <span className="truncate">{children}</span>
   </span>
 );

@@ -1,12 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '@/services/api';
-import type { AttendanceSummaryRow, DailyCollection, Payslip } from '@/types';
+import type { AttendanceSummaryRow, DailyCollection, Payslip, SalesMonthTotals } from '@/types';
 import { PageHeader } from '@/components/common/PageHeader';
 import { EmptyState } from '@/components/common/EmptyState';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { StatTile, StatTiles } from '@/components/common/StatTile';
 import { Badge } from '@/components/common/Badge';
+import { Button } from '@/components/common/Button';
+import { useAppDispatch } from '@/store';
+import { addToast } from '@/store/slices/uiSlice';
 import { formatDate, formatINR } from '@/utils/formatters';
 import { businessDate } from '@/utils/operations';
 import { useCenters } from '@/hooks/useCenters';
@@ -48,6 +51,9 @@ export const ReportsAnalytics: React.FC = () => {
   const [salary, setSalary] = useState<SalaryRow[] | null>(null);
   const [unpaidCenters, setUnpaidCenters] = useState<string[]>([]);
   const [sales, setSales] = useState<DailyCollection[] | null>(null);
+  const [salesMonth, setSalesMonth] = useState<SalesMonthTotals[]>([]);
+  const [sending, setSending] = useState(false);
+  const dispatch = useAppDispatch();
   const [attendance, setAttendance] = useState<AttendanceSummaryRow[] | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -67,7 +73,9 @@ export const ReportsAnalytics: React.FC = () => {
       } else if (tab === 'sales') {
         setSales(null);
         const to = lastDay(monthKey) < today ? lastDay(monthKey) : today;
-        setSales(await api.collections.list({ from: `${monthKey}-01`, to, center }));
+        const [list, totals] = await Promise.all([api.collections.list({ from: `${monthKey}-01`, to, center }), api.reports.sales(monthKey)]);
+        setSalesMonth(totals);
+        setSales(list);
       } else {
         setAttendance(null);
         setAttendance(await api.reports.attendance(monthKey, center));
@@ -93,7 +101,7 @@ export const ReportsAnalytics: React.FC = () => {
       { key: 'employeeCode', header: 'Emp ID', sortable: true, render: (r) => <span className="whitespace-nowrap tabular-nums">{r.employeeCode}</span> },
       { key: 'employeeName', header: 'Name', sortable: true, render: (r) => <span className="whitespace-nowrap font-medium text-slate-900">{r.employeeName}</span> },
       { key: 'location', header: 'Center', sortable: true, render: (r) => <span className="whitespace-nowrap">{r.location || 'No center'}</span> },
-      { key: 'payableDays', header: 'Paid days', sortable: true, align: 'right', render: (r) => r.payableDays },
+      { key: 'lossOfPayDays', header: 'Unpaid days', sortable: true, align: 'right', render: (r) => r.lossOfPayDays },
       { key: 'grossMonthly', header: 'Earned', align: 'right', render: (r) => money(r.components.grossMonthly || 0) },
       { key: 'totalDeductions', header: 'Deductions', align: 'right', render: (r) => money(r.components.totalDeductions || 0) },
       { key: 'netMonthly', header: 'Take-home', align: 'right', render: (r) => <span className="whitespace-nowrap font-semibold tabular-nums text-slate-900">{formatINR(r.components.netMonthly || 0)}</span> },
@@ -121,29 +129,72 @@ export const ReportsAnalytics: React.FC = () => {
   };
 
   // ---------------------------------------------------------------- daily sales
+  const sendMonthReport = async () => {
+    setSending(true);
+    try {
+      await api.reports.sendSales(monthKey);
+      dispatch(addToast({ type: 'success', title: 'Monthly report sent', message: `${monthLabel} sales went to the admin email and bell.` }));
+    } catch (err: any) {
+      dispatch(addToast({ type: 'error', title: 'Could not send the report', message: err?.message || 'Please try again.' }));
+    } finally {
+      setSending(false);
+    }
+  };
+
   const salesView = () => {
     if (!sales) return null;
-    const sum = (k: 'bookMyShow' | 'website' | 'cashCounter' | 'total') => sales.reduce((s, r) => s + (r[k] || 0), 0);
+    const sum = (k: 'totalCollections' | 'totalExpenses' | 'finalAmount') => sales.reduce((s, r) => s + (r[k] || 0), 0);
     const reportedToday = new Set(sales.filter((r) => r.date === today).map((r) => r.center));
     const missingToday = monthKey === today.slice(0, 7) && center === 'ALL' ? centers.map((c) => c.name).filter((n) => !reportedToday.has(n)) : [];
+    // Month totals: one row per center (or just the chosen center), then all centers together
+    const monthRows = salesMonth
+      .filter((t) => (center === 'ALL' ? true : t.center === center))
+      .map((t) => ({ ...t, id: t.center ?? 'ALL', label: t.center ?? 'All centers' }));
+    const monthColumns: Column<(typeof monthRows)[number]>[] = [
+      {
+        key: 'label',
+        header: 'Center',
+        render: (r) => <span className={`whitespace-nowrap ${r.center === null ? 'font-semibold text-slate-900' : ''}`}>{r.label}</span>,
+      },
+      { key: 'daysReported', header: 'Days sent', align: 'right', render: (r) => r.daysReported },
+      { key: 'bookMyShow', header: 'BookMyShow', align: 'right', render: (r) => money(r.bookMyShow) },
+      { key: 'cashDeposited', header: 'Cash deposited', align: 'right', render: (r) => money(r.cashDeposited) },
+      { key: 'googlePay', header: 'Google Pay', align: 'right', render: (r) => money(r.googlePay) },
+      { key: 'paytmMaayaWorld', header: 'Paytm / Maaya World', align: 'right', render: (r) => money(r.paytmMaayaWorld) },
+      { key: 'totalExpenses', header: 'Expenses', align: 'right', render: (r) => money(r.totalExpenses) },
+      { key: 'finalAmount', header: 'Final amount', align: 'right', render: (r) => <span className="whitespace-nowrap font-semibold tabular-nums text-slate-900">{formatINR(r.finalAmount)}</span> },
+    ];
     const columns: Column<DailyCollection>[] = [
       { key: 'date', header: 'Date', sortable: true, render: (r) => <span className="whitespace-nowrap">{formatDate(r.date)}</span> },
       { key: 'center', header: 'Center', sortable: true, render: (r) => <span className="whitespace-nowrap">{r.center}</span> },
       { key: 'bookMyShow', header: 'BookMyShow', sortable: true, align: 'right', render: (r) => money(r.bookMyShow) },
-      { key: 'website', header: 'Website', sortable: true, align: 'right', render: (r) => money(r.website) },
-      { key: 'cashCounter', header: 'Cash counter', sortable: true, align: 'right', render: (r) => money(r.cashCounter) },
-      { key: 'total', header: 'Total', sortable: true, align: 'right', render: (r) => <span className="whitespace-nowrap font-semibold tabular-nums text-slate-900">{formatINR(r.total)}</span> },
+      { key: 'cashDeposited', header: 'Cash deposited', sortable: true, align: 'right', render: (r) => money(r.cashDeposited) },
+      { key: 'googlePay', header: 'Google Pay', sortable: true, align: 'right', render: (r) => money(r.googlePay) },
+      { key: 'paytmMaayaWorld', header: 'Paytm / Maaya World', sortable: true, align: 'right', render: (r) => money(r.paytmMaayaWorld) },
+      { key: 'expenseCash', header: 'Expenses (cash)', sortable: true, align: 'right', render: (r) => money(r.expenseCash) },
+      { key: 'expenseOnline', header: 'Expenses (online)', sortable: true, align: 'right', render: (r) => money(r.expenseOnline) },
+      { key: 'finalAmount', header: 'Final amount', sortable: true, align: 'right', render: (r) => <span className="whitespace-nowrap font-semibold tabular-nums text-slate-900">{formatINR(r.finalAmount)}</span> },
       { key: 'submittedByName', header: 'Sent by', render: (r) => <span className="whitespace-nowrap">{r.submittedByName || '-'}</span> },
     ];
     return (
       <>
-        <StatTiles columns={4} aria-label="Sales totals">
-          <StatTile label="BookMyShow" value={formatINR(sum('bookMyShow'))} />
-          <StatTile label="Website" value={formatINR(sum('website'))} />
-          <StatTile label="Cash counter" value={formatINR(sum('cashCounter'))} />
-          <StatTile label="Total" value={formatINR(sum('total'))} tone="brand" />
+        <StatTiles columns={3} aria-label="Sales totals">
+          <StatTile label="Collections" value={formatINR(sum('totalCollections'))} />
+          <StatTile label="Expenses" value={formatINR(sum('totalExpenses'))} />
+          <StatTile label="Final amount" value={formatINR(sum('finalAmount'))} tone="brand" />
         </StatTiles>
         {missingToday.length > 0 && <p className="text-sm text-amber-800">Not sent today: {missingToday.join(', ')}.</p>}
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-slate-900">{monthLabel} by center</h2>
+          <Button variant="outline" size="sm" isLoading={sending} onClick={() => void sendMonthReport()}>
+            Email monthly report
+          </Button>
+        </div>
+        <DataTable data={monthRows} columns={monthColumns} pageSize={20} exportFileName={`sales-month-${monthKey}`} emptyTitle="No centers" emptyDescription="Add centers in Settings." />
+        <p className="text-sm text-slate-700">The monthly report is also emailed to the admin on the 1st of each month.</p>
+
+        <h2 className="pt-2 text-base font-semibold text-slate-900">Daily reports</h2>
         <DataTable
           data={sales}
           columns={columns}
@@ -167,14 +218,31 @@ export const ReportsAnalytics: React.FC = () => {
       { key: 'worked', header: 'Days worked', sortable: true, align: 'right', render: (r) => r.worked },
       { key: 'late', header: 'Late', sortable: true, align: 'right', render: (r) => r.late },
       { key: 'leave', header: 'Leave', sortable: true, align: 'right', render: (r) => r.leave },
-      { key: 'absent', header: 'Absent', sortable: true, align: 'right', render: (r) => (r.absent > 0 ? <span className="font-semibold text-rose-700">{r.absent}</span> : 0) },
+      {
+        key: 'daysOff',
+        header: 'Days off',
+        sortable: true,
+        align: 'right',
+        render: (r) => <span className="whitespace-nowrap tabular-nums">{r.daysOff ?? 0} of {r.daysOffAllowed ?? 0}</span>,
+      },
+      {
+        key: 'unpaidDays',
+        header: 'Unpaid days',
+        sortable: true,
+        align: 'right',
+        render: (r) => ((r.unpaidDays ?? 0) > 0 ? <span className="font-semibold text-rose-700">{r.unpaidDays}</span> : 0),
+      },
     ];
     return (
       <>
         <StatTiles columns={3} aria-label="Attendance totals">
           <StatTile label="People" value={attendance.length} />
           <StatTile label="Late arrivals" value={attendance.reduce((s, r) => s + r.late, 0)} />
-          <StatTile label="Absent days" value={attendance.reduce((s, r) => s + r.absent, 0)} tone={attendance.some((r) => r.absent > 0) ? 'warning' : 'neutral'} />
+          <StatTile
+            label="Unpaid days"
+            value={attendance.reduce((s, r) => s + (r.unpaidDays ?? 0), 0)}
+            tone={attendance.some((r) => (r.unpaidDays ?? 0) > 0) ? 'warning' : 'neutral'}
+          />
         </StatTiles>
         <DataTable
           data={attendance}

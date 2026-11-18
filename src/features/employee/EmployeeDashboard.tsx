@@ -44,7 +44,7 @@ export const EmployeeDashboard: React.FC = () => {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [duties, setDuties] = useState<OnDutyRequest[]>([]);
-  const [paidPerMonth, setPaidPerMonth] = useState(1);
+  const [paidPerMonth, setPaidPerMonth] = useState(5);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
@@ -87,12 +87,18 @@ export const EmployeeDashboard: React.FC = () => {
     void load();
     api.settings
       .get()
-      .then((s) => setPaidPerMonth(typeof s?.paidLeavesPerMonth === 'number' ? s.paidLeavesPerMonth : 1))
-      .catch(() => setPaidPerMonth(1));
+      // Paid days off a month: week offs (on any days) + paid leave
+      .then((s) =>
+        setPaidPerMonth(
+          (typeof s?.weekOffsPerMonth === 'number' ? s.weekOffsPerMonth : 4) + (typeof s?.paidLeavesPerMonth === 'number' ? s.paidLeavesPerMonth : 1)
+        )
+      )
+      .catch(() => setPaidPerMonth(5));
   }, [load]);
 
   // ---------------- this month in numbers
   const monthKey = today.slice(0, 7);
+  const joiningDate = user?.joiningDate;
   const month = useMemo(() => {
     const thisMonth = records.filter((r) => r.date.startsWith(monthKey));
     const worked = thisMonth.reduce((sum, r) => sum + (r.status === 'HALF_DAY' ? 0.5 : WORKED.has(r.status) || r.checkIn ? 1 : 0), 0);
@@ -107,8 +113,24 @@ export const EmployeeDashboard: React.FC = () => {
       const days = Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1;
       leaveDays += l.startDate === l.endDate && l.days > 0 && l.days < 1 ? l.days : Math.max(0, days);
     }
-    return { worked, late, leaveDays, paidLeft: Math.max(0, paidPerMonth - leaveDays) };
-  }, [records, leaves, monthKey, today, paidPerMonth]);
+    // Days off so far: every day before today with no check-in (week offs, leave and absences alike)
+    const joined = joiningDate && joiningDate > monthStart ? joiningDate : monthStart;
+    // Approved On Duty counts as a day worked, as in payroll
+    const workedDates = new Set([
+      ...thisMonth.filter((r) => WORKED.has(r.status) || r.checkIn || r.status === 'HALF_DAY').map((r) => r.date),
+      ...duties.filter((o) => (o.status === 'APPROVED' || o.status === 'COMPLETED') && o.dutyDate?.startsWith(monthKey)).map((o) => o.dutyDate),
+    ]);
+    let daysOff = 0;
+    for (let d = new Date(`${joined}T00:00:00Z`); d.toISOString().slice(0, 10) < today; d.setUTCDate(d.getUTCDate() + 1)) {
+      if (!workedDates.has(d.toISOString().slice(0, 10))) daysOff++;
+    }
+    // Someone who joined this month gets their share of the paid days off
+    const [y, m] = monthKey.split('-').map(Number);
+    const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const employed = daysInMonth - Number(joined.slice(8, 10)) + 1;
+    const allowed = employed === daysInMonth ? paidPerMonth : Math.round((paidPerMonth * employed) / daysInMonth);
+    return { worked, late, leaveDays, daysOff, allowed, offLeft: Math.max(0, allowed - daysOff) };
+  }, [records, leaves, duties, monthKey, today, paidPerMonth, joiningDate]);
 
   const pending = leaves.filter((l) => l.status === 'PENDING').length + duties.filter((d) => d.status === 'PENDING').length;
 
@@ -169,7 +191,7 @@ export const EmployeeDashboard: React.FC = () => {
               {shift.name} · {shift.timing}
             </p>
           </div>
-          <Badge variant={completed ? 'success' : working ? 'info' : 'neutral'} dot>
+          <Badge variant={completed ? 'success' : working ? 'info' : 'neutral'}>
             {completed ? 'Done' : working ? 'On shift' : 'Not checked in'}
           </Badge>
         </div>
@@ -205,8 +227,8 @@ export const EmployeeDashboard: React.FC = () => {
           {(
             [
               ['Worked', month.worked],
-              ['Leave', month.leaveDays],
-              ['Paid leave left', month.paidLeft],
+              ['Days off', month.daysOff],
+              ['Paid days off left', month.offLeft],
               ['Late', month.late],
             ] as const
           ).map(([label, value]) => (
@@ -216,11 +238,10 @@ export const EmployeeDashboard: React.FC = () => {
             </div>
           ))}
         </dl>
-        {month.leaveDays > paidPerMonth && (
-          <p className="text-sm text-amber-800">
-            Leave above {paidPerMonth} day{paidPerMonth === 1 ? '' : 's'} this month is cut from your salary.
-          </p>
-        )}
+        <p className="text-sm text-slate-700">
+          {month.allowed} paid days off this month (week offs and leave together).
+          {month.daysOff > month.allowed && <span className="text-amber-800"> Each day off after that is cut from your salary.</span>}
+        </p>
       </section>
 
       {pending > 0 && (

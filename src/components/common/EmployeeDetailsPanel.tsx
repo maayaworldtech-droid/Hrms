@@ -153,8 +153,6 @@ export const EmployeeDetailsPanel = ({
                 ['Paid by', pay.mode === 'BREAKDOWN' ? 'Salary breakdown' : 'Yearly salary'],
                 ['Monthly pay', paySummary.monthly ? formatINR(paySummary.monthly) : undefined],
                 ['Yearly pay', paySummary.yearly ? formatINR(paySummary.yearly) : undefined],
-                ['Deductions a month', formatINR(paySummary.deductions)],
-                ['Take-home a month', paySummary.monthly ? formatINR(paySummary.takeHome) : undefined],
                 ['Bank', employee.bankDetails?.bankName],
                 ['Account number', employee.bankDetails?.accountNumber],
                 ['IFSC', employee.bankDetails?.ifscCode],

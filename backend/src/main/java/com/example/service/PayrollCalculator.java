@@ -17,12 +17,17 @@ import java.util.Set;
  * Payroll rules in one place, used both when a month is generated and when a payslip is adjusted,
  * so the two can never disagree.
  *
- * How pay is worked out (the same approach Zoho and RazorpayX Payroll use):
- *  - Pay is per calendar day: monthly salary / days in the month.
- *  - Paid days = days employed in the month (from the joining date) minus unpaid (loss-of-pay) days.
- *  - Only a set number of leave days a month are paid (1 by default, set in Settings). Every leave day
- *    after that, and every absent day, is unpaid and cut at one day's salary.
- *  - Salary earned = monthly salary x paid days / days in the month. Bonus is added on top in full.
+ * How pay is worked out (Maaya World's rule):
+ *  - Everyone has a set number of paid days off a month: week offs (4) + paid leave (1) = 5. Staff
+ *    choose their own week offs (Sunday is a working day at the venues), so payroll does not look at
+ *    which days they were; it only counts the days a person did not work.
+ *  - Working days in the month = days in the month - paid days off (26 in a 31-day month).
+ *  - Up to 5 days off: full salary. Every day off after that is cut at monthly salary / working days.
+ *  - A day counts as worked when there is a check-in or an approved On Duty. Approved leave is shown
+ *    on the payslip but is a day off like any other.
+ *  - Someone who joins or leaves part way is paid for the days they were employed (salary x employed
+ *    days / days in month), and their paid days off are prorated the same way.
+ *  - Bonus is added on top in full.
  *  - Only deductions added to the person's salary breakdown at onboarding are taken. Someone with
  *    no breakdown, or no deduction lines in it, has nothing deducted.
  *      PF   if added: 12% of basic pay earned, counting basic only up to Rs 15,000 (at most Rs 1,800).
@@ -37,6 +42,8 @@ public final class PayrollCalculator {
     public static final double PF_RATE = 0.12;
     public static final double ESI_EMPLOYEE_RATE = 0.0075;
     public static final double ESI_EMPLOYER_RATE = 0.0325;
+    public static final int DEFAULT_WEEK_OFFS_PER_MONTH = 4;
+    public static final int DEFAULT_PAID_LEAVES_PER_MONTH = 1;
 
     private static final Set<String> WORKED_STATUSES = Set.of("PRESENT", "LATE", "ON_DUTY", "WORK_FROM_HOME");
     private static final Set<String> PAID_LEAVE_TYPES = Set.of(
@@ -45,34 +52,47 @@ public final class PayrollCalculator {
 
     private PayrollCalculator() {}
 
+    /** Days in the month less the paid days off: the number one day's salary is worked out from. */
+    public static int workingDays(int daysInMonth, int weekOffsPerMonth, int paidLeavesPerMonth) {
+        return Math.max(1, daysInMonth - Math.max(0, weekOffsPerMonth) - Math.max(0, paidLeavesPerMonth));
+    }
+
     /** Attendance summary for one person in one month. */
     public static final class DayCount {
         public int daysInMonth;
-        /** Days on the payroll this month: from the joining date (or the 1st) to the month end. */
+        /** Days on the payroll this month: from the joining date (or the 1st) to the exit date (or month end). */
         public int employedDays;
+        /** Days in the month less the paid days off; one unpaid day = salary / this. */
+        public int workingDays;
+        /** Paid days off for this person this month (prorated for part months). */
+        public double daysOffAllowed;
+        /** Days counted so far that they did not work. */
+        public double daysOffTaken;
         public double workedDays;
+        /** Approved paid-type leave on days not worked (shown on the payslip; counts as a day off). */
         public double paidLeaveDays;
+        /** Approved loss-of-pay leave on days not worked (shown on the payslip; counts as a day off). */
         public double unpaidLeaveDays;
-        /** Expected working days with no check-in and no leave. */
+        /** Days not worked with no approved leave (week offs and absences). */
         public double absentDays;
-        /** Unpaid days suggested from attendance and leave. */
+        /** Unpaid days: days off beyond the allowance, rounded down. */
         public int suggestedLopDays;
         /** True when there was not a single check-in in the counted part of the month. */
         public boolean noAttendance;
     }
 
     /**
-     * Counts worked, leave and absent days for one person.
+     * Counts worked days and days off for one person.
      *
-     * Only days up to {@code countUntil} are judged (so running payroll before the month ends does not
-     * treat the remaining days as absent). Expected working days come from the company's working days
-     * per week, so weekly offs are not counted as absences.
+     * Only days up to {@code countUntil} are judged, so running payroll before the month ends does not
+     * treat the remaining days as days off.
      */
     public static DayCount countDays(
             YearMonth month,
             LocalDate joiningDate,
-            int workDaysPerWeek,
-            double paidLeavesPerMonth,
+            LocalDate exitDate,
+            int weekOffsPerMonth,
+            int paidLeavesPerMonth,
             LocalDate countUntil,
             List<AttendanceRecord> attendance,
             List<LeaveRequest> approvedLeaves,
@@ -82,18 +102,23 @@ public final class PayrollCalculator {
         LocalDate monthStart = month.atDay(1);
         LocalDate monthEnd = month.atEndOfMonth();
         c.daysInMonth = month.lengthOfMonth();
+        int daysOffPerMonth = Math.max(0, weekOffsPerMonth) + Math.max(0, paidLeavesPerMonth);
+        c.workingDays = workingDays(c.daysInMonth, weekOffsPerMonth, paidLeavesPerMonth);
 
-        LocalDate start = monthStart;
-        LocalDate joined = joiningDate;
-        if (joined != null && joined.isAfter(start)) start = joined;
-        if (start.isAfter(monthEnd)) {
+        LocalDate start = joiningDate != null && joiningDate.isAfter(monthStart) ? joiningDate : monthStart;
+        LocalDate last = exitDate != null && exitDate.isBefore(monthEnd) ? exitDate : monthEnd;
+        if (start.isAfter(last)) {
             c.employedDays = 0;
             return c;
         }
-        c.employedDays = (int) ChronoUnit.DAYS.between(start, monthEnd) + 1;
+        c.employedDays = (int) ChronoUnit.DAYS.between(start, last) + 1;
+        // Part month: the paid days off shrink in proportion (17 of 31 days employed: 5 x 17 / 31 = 3)
+        c.daysOffAllowed = c.employedDays == c.daysInMonth
+                ? daysOffPerMonth
+                : Math.round(daysOffPerMonth * (double) c.employedDays / c.daysInMonth);
 
-        LocalDate end = countUntil.isBefore(monthEnd) ? countUntil : monthEnd;
-        if (end.isBefore(start)) return c; // month not started yet: nothing to judge
+        LocalDate end = countUntil.isBefore(last) ? countUntil : last;
+        if (end.isBefore(start)) return c; // nothing to judge yet
 
         Map<LocalDate, Double> worked = new HashMap<>();
         for (AttendanceRecord r : attendance) {
@@ -112,56 +137,35 @@ public final class PayrollCalculator {
             worked.merge(d, 1.0, Math::max);
         }
 
-        Map<LocalDate, Double> paidLeave = new HashMap<>();
-        Map<LocalDate, Double> unpaidLeave = new HashMap<>();
+        Map<LocalDate, Boolean> leaveIsPaid = new HashMap<>();
         for (LeaveRequest l : approvedLeaves) {
             LocalDate from = l.getStartDate();
             LocalDate to = l.getEndDate();
             if (from == null) continue;
             if (to == null || to.isBefore(from)) to = from;
-            // A single-day request for half a day counts as half
-            double perDay = (from.equals(to) && l.getDays() != null && l.getDays() > 0 && l.getDays() < 1) ? l.getDays() : 1.0;
             boolean paid = PAID_LEAVE_TYPES.contains(l.getLeaveType() == null ? "" : l.getLeaveType().toUpperCase());
             for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
                 if (d.isBefore(start) || d.isAfter(end)) continue;
-                (paid ? paidLeave : unpaidLeave).merge(d, perDay, Math::max);
+                leaveIsPaid.merge(d, paid, (a, b) -> a || b);
             }
         }
 
-        // Only the first leave days of the month, up to the allowance, are paid; the rest are unpaid.
-        // Days already worked are not counted as leave.
-        double allowanceLeft = Math.max(0.0, paidLeavesPerMonth);
-        for (LocalDate d : new java.util.TreeSet<>(paidLeave.keySet())) {
-            double asked = Math.max(0.0, paidLeave.get(d) - worked.getOrDefault(d, 0.0));
-            double granted = Math.min(asked, allowanceLeft);
-            allowanceLeft -= granted;
-            if (asked - granted > 0) unpaidLeave.merge(d, asked - granted, Math::max);
-            paidLeave.put(d, granted);
-        }
-
-        double covered = 0.0;
         for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
-            double w = worked.getOrDefault(d, 0.0);
-            double p = paidLeave.getOrDefault(d, 0.0);
-            covered += Math.min(1.0, w + p);
+            double w = Math.min(1.0, worked.getOrDefault(d, 0.0));
+            double off = 1.0 - w;
+            c.workedDays += w;
+            c.daysOffTaken += off;
+            if (off <= 0) continue;
+            Boolean leave = leaveIsPaid.get(d);
+            if (leave == null) c.absentDays += off;
+            else if (leave) c.paidLeaveDays += off;
+            else c.unpaidLeaveDays += off;
         }
-        c.workedDays = worked.values().stream().mapToDouble(Double::doubleValue).sum();
-        c.paidLeaveDays = paidLeave.values().stream().mapToDouble(Double::doubleValue).sum();
-        c.unpaidLeaveDays = unpaidLeave.values().stream().mapToDouble(Double::doubleValue).sum();
-        c.noAttendance = worked.isEmpty();
+        c.noAttendance = worked.values().stream().noneMatch(v -> v > 0);
 
-        int judgedDays = (int) ChronoUnit.DAYS.between(start, end) + 1;
-        int perWeek = Math.max(1, Math.min(7, workDaysPerWeek));
-        // Weekly offs are rounded up, so a month with five Sundays never costs anyone a day's pay
-        int daysOff = (int) Math.ceil(judgedDays * (7 - perWeek) / 7.0);
-        double expectedWorkDays = Math.max(0, judgedDays - daysOff);
-        double shortfall = Math.max(0.0, expectedWorkDays - covered);
-
-        // Approved unpaid leave always counts, even if it fell on what the estimate treats as a day off.
-        // Half days are rounded down so the estimate never takes more than is certain.
-        int lop = (int) Math.floor(Math.max(shortfall, c.unpaidLeaveDays));
+        // Half days are rounded down so the cut never takes more than is certain
+        int lop = (int) Math.floor(Math.max(0.0, c.daysOffTaken - c.daysOffAllowed) + 1e-9);
         c.suggestedLopDays = Math.min(lop, c.employedDays);
-        c.absentDays = Math.max(0.0, c.suggestedLopDays - c.unpaidLeaveDays);
         return c;
     }
 
@@ -241,21 +245,28 @@ public final class PayrollCalculator {
         // Older payslips have no employed days stored; they covered the full month
         int employed = s.getEmployedDays() == null ? daysInMonth : Math.max(0, Math.min(daysInMonth, s.getEmployedDays()));
         int lop = Math.max(0, Math.min(employed, s.getLossOfPayDays()));
-        int paid = employed - lop;
         s.setLossOfPayDays(lop);
-        s.setPayableDays(paid);
+        s.setPayableDays(employed - lop);
 
         double full = nz(s.getBasic()) + nz(s.getHra()) + nz(s.getSpecialAllowance())
                 + nz(s.getConveyanceAllowance()) + nz(s.getMedicalAllowance());
         s.setFullMonthlySalary(full);
 
-        double earnedBase = Math.round(full * paid / daysInMonth);
+        double earnedBase;
+        Integer workingDays = s.getWorkingDays();
+        if (workingDays != null && workingDays > 0) {
+            // Pay for the days employed, less one day's pay (salary / working days) per unpaid day
+            earnedBase = Math.max(0.0, Math.round(full * employed / daysInMonth - lop * full / workingDays));
+        } else {
+            // Payslips made before the week-off rule
+            earnedBase = Math.round(full * (employed - lop) / daysInMonth);
+        }
         s.setUnpaidAmount(full - earnedBase);
         double bonus = nz(s.getBonus()) + nz(s.getIncentives());
         double gross = earnedBase + bonus;
         s.setGrossMonthly(gross);
 
-        double earnedBasic = nz(s.getBasic()) * paid / daysInMonth;
+        double earnedBasic = full > 0 ? nz(s.getBasic()) * earnedBase / full : 0.0;
         double pf = Boolean.TRUE.equals(s.getPfApplicable()) ? Math.round(Math.min(earnedBasic, PF_WAGE_CEILING) * PF_RATE) : 0.0;
         s.setEpfEmployee(pf);
         s.setEpfEmployer(pf);

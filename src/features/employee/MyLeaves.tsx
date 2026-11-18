@@ -50,12 +50,12 @@ export const MyLeaves: React.FC = () => {
   const employeeId = user?.id || '';
   const [searchParams, setSearchParams] = useSearchParams();
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
-  const [paidPerMonth, setPaidPerMonth] = useState<number>(1);
+  const [paidPerMonth, setPaidPerMonth] = useState<number>(5);
   useEffect(() => {
     api.settings
       .get()
-      .then((s) => setPaidPerMonth(typeof s?.paidLeavesPerMonth === 'number' ? s.paidLeavesPerMonth : 1))
-      .catch(() => setPaidPerMonth(1));
+      .then((s) => setPaidPerMonth((typeof s?.weekOffsPerMonth === 'number' ? s.weekOffsPerMonth : 4) + (typeof s?.paidLeavesPerMonth === 'number' ? s.paidLeavesPerMonth : 1)))
+      .catch(() => setPaidPerMonth(5));
   }, []);
   const [isLoading, setIsLoading] = useState(true);
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(() => searchParams.get('apply') === 'true');
@@ -169,7 +169,7 @@ export const MyLeaves: React.FC = () => {
     <div className="space-y-4 pb-4">
       <MobileTitle
         title="Leave"
-        subtitle={`${paidPerMonth} paid leave day${paidPerMonth === 1 ? '' : 's'} a month. Leave after that is cut from salary.`}
+        subtitle={`${paidPerMonth} paid days off a month, week offs and leave together. Days off after that are cut from salary.`}
         action={
           <Button size="md" onClick={() => setIsApplyModalOpen(true)} leftIcon={<Plus className="h-4 w-4" />}>
             Apply
@@ -208,7 +208,7 @@ export const MyLeaves: React.FC = () => {
             <li key={req.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-semibold text-slate-900">{formatLabel(req.leaveType)}</span>
-                <Badge variant={leaveStatusVariant(req.status)} size="sm" dot>
+                <Badge variant={leaveStatusVariant(req.status)} size="sm">
                   {formatLabel(req.status)}
                 </Badge>
               </div>
@@ -243,7 +243,7 @@ export const MyLeaves: React.FC = () => {
             Duration: <span className="font-semibold tabular-nums text-slate-900">{computedDays} day{computedDays > 1 ? 's' : ''}</span>
             {computedDays > paidPerMonth && (
               <span className="mt-1 block text-amber-800">
-                Only {paidPerMonth} leave day{paidPerMonth === 1 ? ' is' : 's are'} paid each month. Days beyond that are cut from your salary.
+                You have {paidPerMonth} paid days off a month, week offs included. Days off beyond that are cut from your salary.
               </span>
             )}
           </p>

@@ -1,6 +1,7 @@
 package com.example.service;
 
 import com.example.entity.AttendanceRecord;
+import com.example.entity.DailyCollection;
 import com.example.entity.Employee;
 import com.example.entity.LeaveRequest;
 import com.example.entity.OnDutyRequest;
@@ -11,6 +12,7 @@ import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -230,13 +232,78 @@ public class StaffNotices {
                         "Your salary for " + period + " has been paid",
                         "Your salary has been paid. Your payslip is in the Payslips tab.",
                         rows("Month", period,
-                                "Paid for", daysInMonth != null ? slip.getPayableDays() + " of " + daysInMonth + " days" : null,
+                                "Paid for", slip.getWorkingDays() == null && daysInMonth != null ? slip.getPayableDays() + " of " + daysInMonth + " days" : null,
+                                "Unpaid days", slip.getWorkingDays() != null ? String.valueOf(slip.getLossOfPayDays()) : null,
                                 "Earned", rupees(slip.getGrossMonthly()),
                                 "Deductions", rupees(slip.getTotalDeductions()),
                                 "Take-home pay", net,
                                 "Paid to", bank,
                                 "Paid on", date(slip.getPaymentDate())),
                         "See my payslip"));
+    }
+
+    // ------------------------------------------------------------------ daily sales (to the admin)
+
+    /** A center manager sent (or corrected) a day's sales. Each correction is a new notice. */
+    public void dailySalesReported(Long adminId, DailyCollection row, boolean corrected) {
+        // Numbered per report, so every correction is a new notice even when sent within the same second
+        String day = date(row.getCollectionDate());
+        String center = row.getCenter();
+        String finalAmount = rupees(row.getFinalAmount());
+        notifications.notify(adminId, "SALES", notifications.decisionKey(adminId, "SALES:" + row.getId(), corrected ? "CORRECTED" : "SENT"),
+                (corrected ? "Sales corrected: " : "Sales report: ") + center + ", " + day,
+                (row.getSubmittedByName() != null ? row.getSubmittedByName() : "The center manager")
+                        + (corrected ? " corrected " : " sent ") + "the sales for " + day + ". Final amount " + finalAmount + ".",
+                "/admin/reports?tab=sales",
+                new NotificationService.Email(
+                        (corrected ? "Sales corrected: " : "Sales report: ") + center + ", " + day + " (" + finalAmount + ")",
+                        "Daily sales for " + center,
+                        (corrected ? "The figures for this day were corrected." : "Here is the day's sales report.")
+                                + " Sent by " + (row.getSubmittedByName() != null ? row.getSubmittedByName() : "the center manager") + ".",
+                        rows("Date", day,
+                                "BookMyShow", rupees(row.getBookMyShow()),
+                                "Cash deposited", rupees(row.getCashDeposited()),
+                                "Google Pay", rupees(row.getGooglePay()),
+                                "Paytm / Maaya World", rupees(row.getPaytmMaayaWorld()),
+                                "Total collections", rupees(row.getTotalCollections()),
+                                "Expenses (cash)", rupees(row.getExpenseCash()),
+                                "Expenses (online)", rupees(row.getExpenseOnline()),
+                                "Total expenses", rupees(row.getTotalExpenses()),
+                                "Final amount", finalAmount,
+                                "Notes", row.getNotes()),
+                        "Open reports"));
+    }
+
+    /** The month's sales per center and in total. Sent once per month. */
+    public void monthlySalesReport(Long adminId, YearMonth month, List<SalesReportService.MonthTotals> totals) {
+        String period = month.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH));
+        SalesReportService.MonthTotals all = totals.get(totals.size() - 1);
+        List<String> lines = new ArrayList<>();
+        for (SalesReportService.MonthTotals t : totals) {
+            if (t.center() == null) continue;
+            lines.add(t.center());
+            lines.add(rupees(t.finalAmount()) + " final (" + rupees(t.totalCollections()) + " in, "
+                    + rupees(t.totalExpenses()) + " expenses, " + t.daysReported() + " days reported)");
+        }
+        lines.addAll(List.of(
+                "BookMyShow", rupees(all.bookMyShow()),
+                "Cash deposited", rupees(all.cashDeposited()),
+                "Google Pay", rupees(all.googlePay()),
+                "Paytm / Maaya World", rupees(all.paytmMaayaWorld()),
+                "Total collections", rupees(all.totalCollections()),
+                "Total expenses", rupees(all.totalExpenses()),
+                "Final amount, all centers", rupees(all.finalAmount())));
+        notifications.notify(adminId, "SALES", "SALES_MONTH:" + month,
+                "Sales for " + period + ": " + rupees(all.finalAmount()),
+                "Final amount for " + period + " across all centers: " + rupees(all.finalAmount())
+                        + " (" + rupees(all.totalCollections()) + " collected, " + rupees(all.totalExpenses()) + " expenses).",
+                "/admin/reports?tab=sales",
+                new NotificationService.Email(
+                        "Monthly sales report, " + period + ": " + rupees(all.finalAmount()),
+                        "Sales for " + period,
+                        "Here are the month's sales for every center, worked out from the daily reports.",
+                        rows(lines.toArray(new String[0])),
+                        "Open reports"));
     }
 
     // ------------------------------------------------------------------ helpers

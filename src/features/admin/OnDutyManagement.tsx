@@ -226,7 +226,7 @@ export const OnDutyManagement: React.FC = () => {
       sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2">
-          <Badge variant={onDutyStatusVariant(row.status)} size="sm" dot>
+          <Badge variant={onDutyStatusVariant(row.status)} size="sm">
             {row.status[0] + row.status.slice(1).toLowerCase()}
           </Badge>
           {row.status === 'PENDING' && (

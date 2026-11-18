@@ -60,8 +60,17 @@ public class Payslip {
 
     // ---- Days (worked out from attendance and approved leave when the month is generated)
     private Integer daysInMonth;
-    /** Days on the payroll this month, from the joining date (or the 1st) to the month end. */
+    /** Days on the payroll this month, from the joining date (or the 1st) to the last working day or month end. */
     private Integer employedDays;
+    /**
+     * Days in the month less the paid days off (week offs + paid leave): one unpaid day costs
+     * full salary / this. Empty on payslips made before this rule; those divide by days in month.
+     */
+    private Integer workingDays;
+    /** Paid days off this person had this month (prorated when they joined or left part way). */
+    private Double daysOffAllowed;
+    /** Days they did not work (no check-in, no On Duty) among the days counted. */
+    private Double daysOffTaken;
     private Double workedDays = 0.0;
     private Double paidLeaveDays = 0.0;
     private Double unpaidLeaveDays = 0.0;

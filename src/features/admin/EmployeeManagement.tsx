@@ -316,6 +316,8 @@ export const EmployeeManagement: React.FC = () => {
   } | null>(null);
   const [copiedCredentials, setCopiedCredentials] = useState(false);
   const [deletingEmployee, setDeletingEmployee] = useState<Employee | null>(null);
+  // Last working day for the person being deactivated: payroll pays them up to this day
+  const [exitDate, setExitDate] = useState(businessDate());
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmExitOpen, setConfirmExitOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -936,8 +938,15 @@ export const EmployeeManagement: React.FC = () => {
     if (!deletingEmployee) return;
     setIsDeleting(true);
     try {
-      await api.employees.delete(deletingEmployee.id);
-      dispatch(addToast({ type: 'success', title: 'Employee deactivated', message: `${deletingEmployee.fullName} can no longer sign in.` }));
+      // Deactivate, never delete: their attendance is needed to pay them up to the last working day
+      await api.employees.update(deletingEmployee.id, { status: 'TERMINATED', dateOfExit: exitDate } as Partial<Employee>);
+      dispatch(
+        addToast({
+          type: 'success',
+          title: 'Employee deactivated',
+          message: `${deletingEmployee.fullName} can no longer sign in. Payroll pays them up to ${exitDate}.`,
+        })
+      );
       setDeletingEmployee(null);
       void loadEmployees();
     } catch (err: any) {
@@ -1003,11 +1012,11 @@ export const EmployeeManagement: React.FC = () => {
       header: 'Face ID',
       render: (row) =>
         row.hasFacePhoto ? (
-          <Badge variant="success" size="sm" dot>
+          <Badge variant="success" size="sm">
             Registered
           </Badge>
         ) : (
-          <Badge variant="warning" size="sm" dot>
+          <Badge variant="warning" size="sm">
             Missing
           </Badge>
         ),
@@ -1053,19 +1062,23 @@ export const EmployeeManagement: React.FC = () => {
           >
             <Eye className="h-4 w-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={(e) => {
-              e.stopPropagation();
-              setDeletingEmployee(row);
-            }}
-            className="hover:bg-rose-50 hover:text-rose-700"
-            aria-label={`Deactivate ${row.fullName}`}
-            title="Deactivate"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          {/* Already deactivated: their last working day is set and must not move */}
+          {row.status !== 'TERMINATED' && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExitDate(businessDate());
+                setDeletingEmployee(row);
+              }}
+              className="hover:bg-rose-50 hover:text-rose-700"
+              aria-label={`Deactivate ${row.fullName}`}
+              title="Deactivate"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       ),
     },
@@ -1626,7 +1639,6 @@ export const EmployeeManagement: React.FC = () => {
                       {cameraActive && (
                         <div className="absolute inset-x-2.5 bottom-2.5 flex items-center justify-between gap-2 rounded-lg bg-slate-950/85 px-3 py-2 text-sm" role="status">
                           <span className="flex min-w-0 items-center gap-2 text-white">
-                            <span className={`h-2 w-2 shrink-0 rounded-full ${faceCentered ? 'bg-emerald-400' : 'bg-amber-400'}`} aria-hidden="true" />
                             <span className="truncate">{faceStatusMessage}</span>
                           </span>
                           <span className={`shrink-0 font-medium ${faceCentered ? 'text-emerald-300' : 'text-amber-300'}`}>{faceCentered ? 'Ready' : 'Aligning'}</span>
@@ -1862,7 +1874,17 @@ export const EmployeeManagement: React.FC = () => {
           </>
         }
       >
-        <p>They will no longer be able to sign in or check in. Attendance, leave and payslip history is kept.</p>
+        <div className="space-y-3">
+          <p>They will no longer be able to sign in or check in. Attendance, leave and payslip history is kept.</p>
+          <Input
+            label="Last working day"
+            type="date"
+            value={exitDate}
+            min={deletingEmployee?.joiningDate || undefined}
+            onChange={(e) => e.target.value && setExitDate(e.target.value)}
+            helperText="Payroll pays them for the month up to this day."
+          />
+        </div>
       </Modal>
     </div>
   );

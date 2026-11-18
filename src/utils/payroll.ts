@@ -32,10 +32,15 @@ export const previewPayslip = (
   const paidDays = employed - lop;
   const c = slip.components;
   const full = (c.basic || 0) + (c.hra || 0) + (c.specialAllowance || 0) + (c.conveyanceAllowance || 0) + (c.medicalAllowance || 0);
-  const earnedBase = Math.round((full * paidDays) / daysInMonth);
+  const earnedBase = slip.workingDays && slip.workingDays > 0
+    ? // Pay for the days employed, less one day's pay (salary / working days) per unpaid day
+      Math.max(0, Math.round((full * employed) / daysInMonth - (lop * full) / slip.workingDays))
+    : // Payslips made before the week-off rule
+      Math.round((full * paidDays) / daysInMonth);
   const bonus = Math.max(0, Math.round(changes.bonus || 0)) + (c.incentives || 0);
   const earned = earnedBase + bonus;
-  const pf = slip.pfApplicable ? Math.round(Math.min(((c.basic || 0) * paidDays) / daysInMonth, PF_WAGE_CEILING) * 0.12) : 0;
+  const earnedBasic = full > 0 ? ((c.basic || 0) * earnedBase) / full : 0;
+  const pf = slip.pfApplicable ? Math.round(Math.min(earnedBasic, PF_WAGE_CEILING) * 0.12) : 0;
   const esi = slip.esiApplicable && earned > 0 ? Math.ceil(earned * 0.0075) : 0;
   // Only deductions added at onboarding apply; professional tax is the amount entered
   const pt = earned > 0 ? Math.max(0, slip.ptMonthly || 0) : 0;

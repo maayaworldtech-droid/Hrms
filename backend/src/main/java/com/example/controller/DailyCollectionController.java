@@ -7,6 +7,7 @@ import com.example.repository.DailyCollectionRepository;
 import com.example.repository.EmployeeRepository;
 import com.example.repository.LocationRepository;
 import com.example.security.AuthFilter;
+import com.example.service.SalesReportService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -20,8 +21,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Daily sales per center: BookMyShow, the Maaya World website and the cash counter.
- * A manager reports for their own center; the admin can report for any center and sees all of them.
+ * Daily sales per center: BookMyShow, cash deposited, Google Pay and Paytm / Maaya World, less cash
+ * and online expenses. A manager reports for their own center; the admin can report for any center
+ * and sees all of them, and is told about every report a manager sends.
  */
 @RestController
 @RequestMapping("/api/collections")
@@ -34,11 +36,14 @@ public class DailyCollectionController {
     private final DailyCollectionRepository collections;
     private final EmployeeRepository employees;
     private final LocationRepository locations;
+    private final SalesReportService salesReports;
 
-    public DailyCollectionController(DailyCollectionRepository collections, EmployeeRepository employees, LocationRepository locations) {
+    public DailyCollectionController(DailyCollectionRepository collections, EmployeeRepository employees,
+                                     LocationRepository locations, SalesReportService salesReports) {
         this.collections = collections;
         this.employees = employees;
         this.locations = locations;
+        this.salesReports = salesReports;
     }
 
     /** Reports for a date range (default: this month so far). Managers only see their own center. */
@@ -86,14 +91,21 @@ public class DailyCollectionController {
         }
 
         double bookMyShow = amount(body.get("bookMyShow"), "BookMyShow");
-        double website = amount(body.get("website"), "Maaya World website");
-        double cashCounter = amount(body.get("cashCounter"), "Cash counter");
+        double cashDeposited = amount(body.get("cashDeposited"), "Cash deposited");
+        double googlePay = amount(body.get("googlePay"), "Google Pay");
+        double paytmMaayaWorld = amount(body.get("paytmMaayaWorld"), "Paytm / Maaya World");
+        double expenseCash = amount(body.get("expenseCash"), "Cash expenses");
+        double expenseOnline = amount(body.get("expenseOnline"), "Online expenses");
+        String notes = body.get("notes") == null ? null : body.get("notes").toString().trim();
+        if (notes != null && notes.length() > 500) notes = notes.substring(0, 500);
+        if (notes != null && notes.isEmpty()) notes = null;
 
         Long me = (Long) request.getAttribute(AuthFilter.ATTR_EMPLOYEE_ID);
         String myName = me == null ? null : employees.findById(me).map(Employee::getFullName).orElse(null);
         LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE).withNano(0);
 
         DailyCollection row = collections.findByLocation_LocationIdAndCollectionDate(loc.getLocationId(), date).orElse(null);
+        boolean corrected = row != null;
         if (row == null) {
             row = new DailyCollection();
             row.setLocation(loc);
@@ -103,11 +115,22 @@ public class DailyCollectionController {
             row.setUpdatedAt(now);
         }
         row.setBookMyShow(bookMyShow);
-        row.setWebsite(website);
-        row.setCashCounter(cashCounter);
+        row.setCashDeposited(cashDeposited);
+        row.setGooglePay(googlePay);
+        row.setPaytmMaayaWorld(paytmMaayaWorld);
+        row.setExpenseCash(expenseCash);
+        row.setExpenseOnline(expenseOnline);
+        row.setNotes(notes);
         row.setSubmittedById(me);
         row.setSubmittedByName(myName);
-        return collections.save(row);
+        DailyCollection saved = collections.save(row);
+        // Every report goes to the admin (in the app and by email); a notice never blocks the save
+        try {
+            salesReports.reportSent(saved, corrected, me);
+        } catch (RuntimeException e) {
+            System.err.println("Could not tell the admin about sales " + saved.getId() + ": " + e.getMessage());
+        }
+        return saved;
     }
 
     private static boolean isManager(HttpServletRequest request) {

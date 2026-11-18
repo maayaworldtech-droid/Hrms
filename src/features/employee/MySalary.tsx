@@ -65,16 +65,16 @@ export const MySalary: React.FC = () => {
             <span className="text-sm text-slate-600">
               Take-home for {latest.month} {latest.year}
             </span>
-            <Badge variant="success" dot>
+            <Badge variant="success">
               Paid
             </Badge>
           </div>
           <p className="text-2xl font-semibold tabular-nums tracking-tight text-slate-900">{formatINR(latest.components.netMonthly)}</p>
           <dl className="grid grid-cols-3 gap-3 border-t border-slate-100 pt-3">
             <div>
-              <dt className="text-xs text-slate-600">Paid days</dt>
+              <dt className="text-xs text-slate-600">{latest.workingDays ? 'Unpaid days' : 'Paid days'}</dt>
               <dd className="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">
-                {latest.payableDays} of {latest.daysInMonth}
+                {latest.workingDays ? latest.lossOfPayDays : `${latest.payableDays} of ${latest.daysInMonth}`}
               </dd>
             </div>
             <div>
@@ -122,7 +122,11 @@ export const MySalary: React.FC = () => {
                         {slip.month} {slip.year}
                       </p>
                       <p className="mt-0.5 text-sm text-slate-600">
-                        {slip.payableDays} of {slip.daysInMonth} days paid
+                        {slip.workingDays
+                          ? slip.lossOfPayDays > 0
+                            ? `${slip.lossOfPayDays} unpaid day${slip.lossOfPayDays === 1 ? '' : 's'}`
+                            : 'No unpaid days'
+                          : `${slip.payableDays} of ${slip.daysInMonth} days paid`}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
